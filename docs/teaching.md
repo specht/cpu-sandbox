@@ -95,3 +95,22 @@ Examples bundled with the application are read-only; copies belong to students.
 These models use one *source-compatible* assembly language. Select a model in
 UI and let the assembler generate its bytes; the byte encoding deliberately
 is not compatible with the legacy Ruby MiniCPU.
+
+## Graphics progression: a visual reason to extend the CPU
+
+17. **Basic CPU — Prism Gradient:** Select MiniCPU 8 and run
+    `17-prism-gradient.asm`. Each loop iteration packs adjacent palette
+    indices into one byte. Explain why 256 visible pixels fit in 128 bytes.
+18. **Stack CPU — Neon Halo:** Switch to MiniCPU 8S and run
+    `21-stack-neon-halo.asm`. The reusable `shade_pair` subroutine preserves
+    A, calls `RET`, and writes a *radial* color field. Inspect SP and why the
+    display stops at `0xEF` rather than using the stack's final 16 bytes.
+19. **Extended CPU — Neon Orbit:** Select MiniCPU 8X and run
+    `22-extended-neon-orbit.asm`. This uses a 64×48 image at `0x0800`,
+    compares horizontal and vertical distance from the image center, and
+    approximates radial distance without square roots or multiplication.
+    Inspect SP, X, and RAM page `0x0800`. Why could this not fit in 256 bytes?
+
+The three images are computed at run time using normal MiniCPU instructions,
+not bitmap literals stored in the assembly source. Use **Run to end** rather
+than real-time Play for the larger still pictures.

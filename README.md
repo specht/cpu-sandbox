@@ -110,8 +110,8 @@ layout. Syntax highlighting is dependency-free and based on assembly tokens.
 
 ## Memory-mapped display controller
 
-The CPU architecture has **256 shared bytes of RAM** and **no dedicated graphics
-hardware**. The screen is simply a configurable interpretation of bytes from
+MiniCPU 8 and 8S have **256 shared bytes of RAM**, while 8X has **4 KiB**.
+None has dedicated graphics hardware. The screen is simply a configurable interpretation of bytes from
 this RAM. For example, these modes all use 64 bytes of memory:
 
 | Pixel format | Example resolution | Layout |
@@ -244,26 +244,26 @@ own executable instructions untouched. This is also a good starting point for
 asking how to draw larger/colorful images within a 256-byte shared address
 space before considering an extended architecture.
 
-### Static showcase: Plasma Garden (no extra CPU features)
+### Graphics showcases: one for each CPU model
 
-Load `17-plasma-garden.asm` and choose **Run to end**. Its 16×16 image is
-*computed by MiniCPU assembly*, not embedded as a finished bitmap. The program
-combines three 16-entry wave-table readings (horizontal, vertical and diagonal)
-and packs two 4-bit color indices into each byte. It takes approximately 5,762
-instructions to draw one still frame; Play at a slow speed will reveal the
-individual memory writes, whereas Run to end shows the complete artwork.
+All images below are computed by the CPU using ordinary arithmetic and RAM
+writes. They are **not pre-rendered bitmaps** and need no graphics instructions.
+Choose the matching CPU in the top bar, open the example, and select
+**Run to end**. Step through individual writes to see how colors are packed.
 
-The framebuffer is just 128 of the CPU's existing 256 shared bytes
-(`0x80..0xFF`). The code (103 bytes), one scratch byte (`0x6F`), and the
-16-byte wave table (`0x70..0x7F`) occupy the lower half, with some unused
-space. The **palette belongs to the display controller**, not to the CPU:
-try switching to a different 16-color palette or reinterpret the same bytes as
-monochrome. None of these changes modifies the program or memory.
+| CPU | Example | Output | Framebuffer | Main technique |
+| --- | --- | --- | --- | --- |
+| MiniCPU 8 | `17-prism-gradient.asm` | 16×16, 16 colors | 128 B at `0x80` | Nested loops, palette indices, 2 pixels/byte |
+| MiniCPU 8S | `21-stack-neon-halo.asm` | 16×12, 16 colors | 96 B at `0x90` | CALL/RET, saved register, Manhattan-distance rings |
+| MiniCPU 8X | `22-extended-neon-orbit.asm` | 64×48, 16 colors | 1,536 B at `0x0800` | 16-bit index X, CALL16, approximate radial distance |
 
-This is a deliberately modest *plasma-style* effect: there are no trigonometric
-instructions or smooth hardware interpolation. The wave values approximate
-sine-like shapes, and the 16-color palette makes changes in the 4-bit indices
-look continuous. See [the demonstration walkthrough](docs/plasma-garden.md).
+The **8S framebuffer ends at `0xEF`** to leave space for the stack at
+`0xF0..0xFF`. All three programs leave their machine code intact. You can
+reinterpret their exact framebuffer bytes by changing the display controller
+or selecting a different 16-color palette—neither alters RAM.
+
+See [the graphics walkthrough](docs/graphics-showcases.md) for the assembly
+algorithms, memory maps, and discussion prompts.
 
 ## CPU models and opcode families
 

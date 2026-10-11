@@ -17,7 +17,7 @@ function run(source, profile, limit=100000) {
 }
 test('three sequential, cumulative models share the same 8-bit instructions', () => {
   assert.deepEqual(Object.keys(ARCHITECTURES),['cpu8','cpu8s','cpu8x']);
-  for (const name of ['01-add.asm','02-countdown.asm','03-division.asm','04-square-root.asm','17-plasma-garden.asm']) {
+  for (const name of ['01-add.asm','02-countdown.asm','03-division.asm','04-square-root.asm','17-prism-gradient.asm']) {
     const program = example(name);
     const base = assemble(program);
     for (const id of Object.keys(ARCHITECTURES)) {
@@ -119,4 +119,47 @@ test('original machine-code bytes are intentionally rejected when no longer vali
   assert.throws(() => new MiniCPU(Uint8Array.from([0xFF])).step(), CpuFault);
   // 0x01 is now HLT, whereas the historical implementation used it for LDI.
   assert.equal(new MiniCPU(Uint8Array.from([OP.HLT])).step().text,'HLT');
+});
+
+test('8S neon halo uses a subroutine and leaves code and framebuffer clear of stack', () => {
+  const source=example('21-stack-neon-halo.asm');
+  const asm=assemble(source,{architecture:'cpu8s'});
+  assert.equal(asm.loadedBytes,105);
+  assert.ok(asm.listing.some(entry=>entry.op === 'CALL' || entry.text?.includes('CALL')) || /\bCALL\b/.test(source));
+  const display=validateDisplay(asm.display,256);
+  assert.deepEqual([display.start,display.width,display.height,display.bytesSpanned,display.endExclusive],[0x90,16,12,96,0xF0]);
+  assert.ok(asm.loadedBytes < display.start);
+  const {cpu,instructions}=run(source,'cpu8s',10000);
+  assert.equal(cpu.halted,true);
+  assert.equal(cpu.sp,256,'stack must be balanced after returning');
+  assert.equal(instructions,3842);
+  assert.deepEqual(Array.from(cpu.memory.slice(0,asm.loadedBytes)),Array.from(asm.memory.slice(0,asm.loadedBytes)));
+  const pixels=renderDisplay(cpu.memory,asm.display,PALETTES);
+  assert.equal(pixels.length,192);
+  assert.equal(new Set(pixels.map(p=>p.index)).size,16);
+  assert.notDeepEqual(Array.from(cpu.memory.slice(0x90,0xF0)),Array.from(asm.memory.slice(0x90,0xF0)));
+  assert.throws(()=>assemble(source,{architecture:'cpu8'}),/MiniCPU 8S or 8X/);
+});
+
+test('8X neon orbit draws 3072 pixels with 8-bit registers and 16-bit addressing', () => {
+  const source=example('22-extended-neon-orbit.asm');
+  const asm=assemble(source,{architecture:'cpu8x'});
+  assert.equal(asm.loadedBytes,144);
+  const display=validateDisplay(asm.display,4096);
+  assert.deepEqual([display.start,display.width,display.height,display.bytesSpanned,display.endExclusive],[0x800,64,48,1536,0xE00]);
+  const {cpu,instructions}=run(source,'cpu8x',120000);
+  assert.equal(cpu.halted,true);
+  assert.equal(instructions,94467);
+  assert.equal(cpu.sp,4096,'all call and pixel stacks must be balanced');
+  assert.equal(cpu.x,0xE00,'one framebuffer byte is written per pair of pixels');
+  // The final two bytes are deliberately writable x/y scratch variables.
+  const codeEnd=asm.labels.get('xpos');
+  assert.deepEqual(Array.from(cpu.memory.slice(0,codeEnd)),Array.from(asm.memory.slice(0,codeEnd)));
+  assert.equal(cpu.memory[asm.labels.get('xpos')],64);
+  assert.equal(cpu.memory[asm.labels.get('ypos')],48);
+  const pixels=renderDisplay(cpu.memory,asm.display,PALETTES);
+  assert.equal(pixels.length,3072);
+  assert.equal(new Set(pixels.map(p=>p.index)).size,16);
+  assert.notDeepEqual(Array.from(cpu.memory.slice(0x800,0xE00)),Array.from(asm.memory.slice(0x800,0xE00)));
+  assert.throws(()=>assemble(source,{architecture:'cpu8s'}),/MiniCPU 8X/);
 });

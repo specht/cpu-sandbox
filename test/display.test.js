@@ -139,29 +139,21 @@ test('colorful 4-bit interference demo animates without changing program bytes',
   assert.deepEqual(Array.from(cpu.memory.slice(0, 0x80)), code, 'graphics must not overwrite executable code');
 });
 
-test('static plasma garden renders a full 16-color image entirely in 256-byte shared RAM', () => {
-  const asm = example('17-plasma-garden.asm');
-  const frame = validateDisplay(asm.display);
-  assert.deepEqual([frame.width, frame.height, frame.bits, frame.bytesSpanned], [16, 16, 4, 128]);
-  assert.equal(frame.start, 0x80);
-  assert.equal(asm.labels.get('diagonal'), 0x6F);
-  assert.equal(asm.labels.get('wave'), 0x70);
-  assert.equal(PALETTES.aurora_cycle_16.length, 16);
-  assert.ok(asm.listing.filter(x => x.address < 0x6F).every(x => x.address + x.size <= 0x6F));
-
-  const cpu = run(asm, 10000);
-  assert.equal(cpu.halted, true, 'single-frame demo must halt');
-  assert.equal(cpu.cycles, 5762, 'demo execution should remain deterministic');
-  assert.deepEqual(Array.from(cpu.memory.slice(0, 0x6F)), Array.from(asm.memory.slice(0, 0x6F)), 'instructions are untouched');
-  assert.deepEqual(Array.from(cpu.memory.slice(0x70, 0x80)), Array.from(asm.memory.slice(0x70, 0x80)), 'wave table is untouched');
-  const pixels = renderDisplay(cpu.memory, asm.display, PALETTES);
-  assert.equal(pixels.length, 256);
-  assert.equal(new Set(pixels.map(p => p.index)).size, 16, 'all sixteen colors appear');
-  assert.ok(new Set(cpu.memory.slice(0x80)).size >= 14, 'the program computes a varied image, not a flat fill');
-  assert.notDeepEqual(Array.from(cpu.memory.slice(0x80)), Array.from(asm.memory.slice(0x80)));
-
-  const before = cpu.snapshot();
-  const alternative = renderDisplay(cpu.memory, {...asm.display, palette:'pico_8'}, PALETTES);
-  assert.notDeepEqual(alternative.map(p => p.color), pixels.map(p => p.color));
-  assert.deepEqual(cpu.snapshot(), before, 'changing the display palette does not alter the CPU');
+test('prism gradient is produced by 8-bit CPU from nested loops', () => {
+  const asm=example('17-prism-gradient.asm');
+  const frame=validateDisplay(asm.display);
+  assert.deepEqual([frame.start,frame.width,frame.height,frame.bits,frame.bytesSpanned],[0x80,16,16,4,128]);
+  assert.equal(asm.loadedBytes,67);
+  const cpu=run(asm,6000);
+  assert.equal(cpu.halted,true);
+  assert.equal(cpu.cycles,2160);
+  assert.deepEqual(Array.from(cpu.memory.slice(0,asm.loadedBytes)),Array.from(asm.memory.slice(0,asm.loadedBytes)));
+  const colors=renderDisplay(cpu.memory,asm.display,PALETTES);
+  assert.equal(new Set(colors.map(p=>p.index)).size,16);
+  assert.ok(colors[0].index!==colors[1].index,'adjacent pixels use distinct indices');
+  assert.notDeepEqual(Array.from(cpu.memory.slice(0x80)),Array.from(asm.memory.slice(0x80)));
+  const before=cpu.snapshot();
+  const alt=renderDisplay(cpu.memory,{...asm.display,palette:'pico_8'},PALETTES);
+  assert.notDeepEqual(alt.map(p=>p.color),colors.map(p=>p.color));
+  assert.deepEqual(cpu.snapshot(),before);
 });
