@@ -19,6 +19,7 @@ one access to the device).
 | `0x03` | Random | `IN` | a new random number on every read |
 | `0x10` | Speaker | `OUT` | plays a short beep; the value is a MIDI note number (60 = middle C, 69 = 440 Hz) |
 | `0x11` | Number display | `OUT` | shows the value as a decimal number |
+| `0x12` | Screen page | `OUT` | moves the screen to address value × 256 (page flipping) |
 
 Reading a port nobody is plugged into, or writing to an input device, is an
 assembly error.
@@ -45,5 +46,21 @@ again and again in a loop.
   the next timer tick runs at the same speed at any clock — as long as the CPU
   can do its work between two ticks. Below that, the game slows down.
 
-Stepping back undoes an `OUT` on the number display, but it does not un-press
+## Page flipping
+
+Drawing a moving picture directly on the visible screen shows half-finished
+frames: the old picture is partly erased, the new one partly drawn. The
+**screen page** device moves the screen to another part of RAM, like the start
+register of a real video chip. A program keeps two pictures (pages), draws
+into the hidden one and then shows it with a single `OUT`:
+
+```asm
+        LDI A, 0x0C
+        OUT 0x12, A         ; the screen now starts at 0x0C00
+```
+
+The screen settings above the canvas follow the device; `22-cube.c` uses it.
+On MiniCPU 8 and 8S RAM is a single page, so the device is useful on 8X.
+
+Stepping back undoes an `OUT` (number display, screen page), but it does not un-press
 keys or un-type characters: input comes from outside the machine.

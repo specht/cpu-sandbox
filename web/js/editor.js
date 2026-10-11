@@ -32,10 +32,45 @@ CodeMirror.defineMode('minicpu', () => ({
   lineComment: ';',
 }));
 
+const C_KEYWORDS = new Set(['if', 'else', 'while', 'do', 'for', 'return', 'break', 'continue', 'sizeof', 'asm']);
+const C_TYPES = new Set(['void', 'char', 'int', 'unsigned', 'const']);
+const C_BUILTINS = new Set(['in', 'out', 'TIMER', 'JOYSTICK', 'KEYBOARD', 'RANDOM', 'SPEAKER', 'NUMBER', 'SCREEN_PAGE',
+  'JOY_LEFT', 'JOY_RIGHT', 'JOY_UP', 'JOY_DOWN', 'JOY_FIRE', 'NULL', 'true', 'false']);
+
+CodeMirror.defineMode('minic', () => ({
+  startState: () => ({ comment: false }),
+  token(stream, state) {
+    if (state.comment) {
+      if (stream.skipTo('*/')) { stream.next(); stream.next(); state.comment = false; } else stream.skipToEnd();
+      return 'comment';
+    }
+    if (stream.sol() && stream.match(/^\s*#\s*\w+/)) { stream.skipToEnd(); return 'meta'; }
+    if (stream.eatSpace()) return null;
+    if (stream.match('//')) { stream.skipToEnd(); return 'comment'; }
+    if (stream.match('/*')) { state.comment = true; return 'comment'; }
+    if (stream.match(/^"(?:[^"\\]|\\.)*"?/)) return 'string';
+    if (stream.match(/^'(?:\\.|[^'])'/)) return 'string';
+    if (stream.match(/^(?:0x[\da-f]+|0b[01]+|\d+)/i)) return 'number';
+    const word = stream.match(/^[a-z_]\w*/i);
+    if (word) {
+      if (C_KEYWORDS.has(word[0])) return 'keyword';
+      if (C_TYPES.has(word[0])) return 'variable-2';
+      if (C_BUILTINS.has(word[0])) return 'builtin';
+      if (stream.match(/^\s*\(/, false)) return 'def';
+      return 'variable';
+    }
+    stream.next();
+    return null;
+  },
+  lineComment: '//',
+}));
+
 const MAX_SHOWN_BYTES = 4;
 
 export class SourceEditor {
-  constructor(container, { onChange, onSave, onBreakpoints, onFormat = () => {} }) {
+  constructor(container, { onChange = () => {}, onSave = () => {}, onBreakpoints = () => {}, onFormat = () => {}, viewer = false } = {}) {
+    this.viewer = viewer; // a read-only view (the generated assembly)
+    this.language = 'asm';
     this.container = container;
     this.onChange = onChange;
     this.onBreakpoints = onBreakpoints;
@@ -72,12 +107,19 @@ export class SourceEditor {
     }, true);
     this.editor.on('change', () => { if (!this.suppress) onChange(); });
     this.editor.on('gutterClick', (cm, line, gutter) => {
-      if (gutter === 'cm-bytes') return;
+      if (gutter === 'cm-bytes' || this.viewer) return;
       this.toggleBreakpoint(line);
     });
   }
 
   get value() { return this.editor.getValue(); }
+
+  /** 'asm' or 'c': syntax colors and the comment marker. */
+  setLanguage(language) {
+    this.language = language;
+    this.editor.setOption('mode', language === 'c' ? 'minic' : 'minicpu');
+    this.editor.setOption('indentUnit', language === 'c' ? 4 : 8);
+  }
 
   /** Replaces the whole text (a newly loaded file). */
   load(text, { editable = true } = {}) {
@@ -109,7 +151,7 @@ export class SourceEditor {
   /** Formats the whole source in place, line by line (keeps breakpoints and undo). */
   format() {
     const cm = this.editor;
-    if (cm.getOption('readOnly')) return false;
+    if (cm.getOption('readOnly') || this.language !== 'asm') return false;
     const before = cm.getValue().split('\n'), after = formatSource(cm.getValue()).split('\n');
     let changed = 0;
     cm.operation(() => {
@@ -129,12 +171,13 @@ export class SourceEditor {
     const lines = [];
     for (let line = from.line; line <= last; line++) if (cm.getLine(line).trim()) lines.push(line);
     if (!lines.length) return;
-    const uncomment = lines.every(line => /^\s*;/.test(cm.getLine(line)));
+    const mark = this.language === 'c' ? '//' : ';';
+    const uncomment = lines.every(line => cm.getLine(line).trimStart().startsWith(mark));
     cm.operation(() => {
       for (const line of lines) {
         const text = cm.getLine(line), indent = text.match(/^\s*/)[0].length;
-        if (uncomment) cm.replaceRange('', { line, ch: indent }, { line, ch: indent + (text.slice(indent).startsWith('; ') ? 2 : 1) });
-        else cm.replaceRange('; ', { line, ch: indent });
+        if (uncomment) cm.replaceRange('', { line, ch: indent }, { line, ch: indent + mark.length + (text.slice(indent + mark.length).startsWith(' ') ? 1 : 0) });
+        else cm.replaceRange(`${mark} `, { line, ch: indent });
       }
     });
   }
@@ -241,7 +284,7 @@ export class SourceEditor {
       const line = problem.line - 1, kind = problem.severity === 'error' ? 'source-error-line' : 'source-warning-line';
       this.editor.addLineClass(line, 'background', kind);
       this.problemLines.push({ line, kind });
-      const text = this.editor.getLine(line), code = text.replace(/;.*/, '');
+      const text = this.editor.getLine(line), code = text.replace(this.language === 'c' ? /\/\/.*/ : /;.*/, '');
       const start = code.length - code.trimStart().length, end = code.trimEnd().length;
       if (problem.severity === 'error' && end > start) {
         this.marks.push(this.editor.markText({ line, ch: start }, { line, ch: end }, { className: 'source-error-underline', title: problem.message }));

@@ -9,8 +9,9 @@ export const DEVICES = Object.freeze([
   Object.freeze({ port: 0x03, name: 'Random', direction: 'in', summary: 'A new random number 0–255 on every read.' }),
   Object.freeze({ port: 0x10, name: 'Speaker', direction: 'out', summary: 'Plays a short beep; the value is the pitch as a MIDI note (60 = middle C).' }),
   Object.freeze({ port: 0x11, name: 'Number display', direction: 'out', summary: 'Shows the value as a decimal number.' }),
+  Object.freeze({ port: 0x12, name: 'Screen page', direction: 'out', summary: 'Moves the screen to address value × 256. Draw the next picture into a hidden page, then show it at once (page flipping).' }),
 ]);
-export const PORT = Object.freeze({ JOYSTICK: 0x00, KEYBOARD: 0x01, TIMER: 0x02, RANDOM: 0x03, SPEAKER: 0x10, NUMBER: 0x11 });
+export const PORT = Object.freeze({ JOYSTICK: 0x00, KEYBOARD: 0x01, TIMER: 0x02, RANDOM: 0x03, SPEAKER: 0x10, NUMBER: 0x11, SCREEN: 0x12 });
 export const JOYSTICK = Object.freeze({ LEFT: 1, RIGHT: 2, UP: 4, DOWN: 8, FIRE: 16 });
 export const deviceAt = port => DEVICES.find(d => d.port === port) ?? null;
 
@@ -55,7 +56,7 @@ export class Devices {
 
   /** Returns false if nothing is plugged into the port. */
   write(port, value) {
-    if (port !== PORT.SPEAKER && port !== PORT.NUMBER) return false;
+    if (port !== PORT.SPEAKER && port !== PORT.NUMBER && port !== PORT.SCREEN) return false;
     this.outputs.set(port, value);
     for (const listener of this.listeners) listener(port, value);
     return true;

@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 
 const base = path.dirname(fileURLToPath(import.meta.url));
 const isName = name => typeof name === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(name);
-const isProgram = name => typeof name === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}\.asm$/i.test(name) && !name.startsWith('.');
+const isProgram = name => typeof name === 'string' && /^[A-Za-z0-9][A-Za-z0-9_.-]{0,80}\.(asm|c)$/i.test(name) && !name.startsWith('.');
 const digest = bytes => createHash('sha256').update(bytes).digest('hex');
 const MAX_SOURCE = 64 * 1024;
 const json = (res, status, object) => send(res, status, JSON.stringify(object), 'application/json; charset=utf-8');
@@ -85,10 +85,13 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
     }
     return null;
   }
-  const cpuOf = text => (text.match(/^[ \t]*\.cpu[ \t]+(8s|8x|8)\b/im)?.[1] ?? '8').toLowerCase();
+  // The CPU level a program asks for: .cpu in assembly, #pragma cpu in MiniC (default 8X).
+  const cpuOf = (text, name) => (/\.c$/i.test(name)
+    ? text.match(/^[ \t]*#[ \t]*pragma[ \t]+cpu[ \t]+(8s|8x|8)\b/im)?.[1] ?? '8x'
+    : text.match(/^[ \t]*\.cpu[ \t]+(8s|8x|8)\b/im)?.[1] ?? '8').toLowerCase();
   const describe = folder => listAsm(folder).map(name => {
     const bytes = fs.readFileSync(path.join(folder, name));
-    return { name, cpu: cpuOf(bytes.toString('utf8')), revision: digest(bytes) };
+    return { name, cpu: cpuOf(bytes.toString('utf8'), name), revision: digest(bytes) };
   });
   return http.createServer(async (req, res) => {
     try {
@@ -134,7 +137,7 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
         const input = await bodyJson(req);
         if (input.group === '@examples') throw new ApiError(403, 'Examples are read-only');
         if (!isName(input.group)) throw new ApiError(400, 'A folder name may contain letters, digits, - and _');
-        if (!isProgram(input.file)) throw new ApiError(400, 'A file name may contain letters, digits, ., - and _ and must end in .asm');
+        if (!isProgram(input.file)) throw new ApiError(400, 'A file name may contain letters, digits, ., - and _ and must end in .asm or .c');
         if (!safeDirectory(programRoot)) throw new ApiError(404, 'There is no programs/ folder yet. Clone the class repository into programs/ first.');
         const folder = path.join(programRoot, input.group);
         if (!fs.existsSync(folder)) fs.mkdirSync(folder);

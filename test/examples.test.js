@@ -5,6 +5,7 @@ import { assemble } from '../src/assembler.js';
 import { MiniCPU } from '../src/cpu.js';
 import { validateDisplay, pixelValue } from '../src/display.js';
 import { formatSource } from '../src/format.js';
+import { build } from '../src/build.js';
 
 const dir = new URL('../examples/', import.meta.url);
 const files = fs.readdirSync(dir).filter(f => f.endsWith('.asm')).sort();
@@ -169,4 +170,42 @@ test('Breakout (8X): a scripted player clears bricks; without a player the game 
   const idle = play(150, (m, cpu) => 1 | launch(cpu)); // paddle parked on the left
   assert.equal(idle.lives, 0);
   assert.ok(idle.cpu.pc >= L.get('game_over') && idle.cpu.pc < L.get('move_paddle'), 'waiting on the game over screen');
+});
+
+// ------------------------------------------------------------ MiniC examples
+const runC = (name, cycles) => {
+  const program = build(fs.readFileSync(new URL(name, dir), 'utf8'), 'c');
+  const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 16e6 });
+  while (!cpu.halted && cpu.cycles < cycles) cpu.step();
+  return { program, cpu };
+};
+
+test('every C example compiles without warnings and starts with a title comment', () => {
+  const cFiles = fs.readdirSync(dir).filter(f => f.endsWith('.c'));
+  assert.ok(cFiles.length >= 2);
+  for (const name of cFiles) {
+    const source = fs.readFileSync(new URL(name, dir), 'utf8');
+    assert.match(source, /^\/\/ [A-Z]/, `${name} starts with a title comment`);
+    assert.deepEqual(build(source, 'c').warnings, [], name);
+  }
+});
+
+test('first steps in C: a gray ramp and the sum of five squares', () => {
+  const { program, cpu } = runC('21-first-c.c', 1e6);
+  assert.ok(cpu.halted);
+  assert.equal(cpu.io.outputs.get(0x11), 55);
+  assert.equal(cpu.memory[program.display.start + 10], 40);
+});
+
+test('rotating cube (C): page flipping shows finished pictures of white and magenta edges', () => {
+  const { program, cpu } = runC('22-cube.c', 3e6);
+  const end = program.listing.at(-1).address + program.listing.at(-1).size;
+  assert.ok(end <= 0x0900, 'code and data stay below the screen pages');
+  const page = cpu.io.outputs.get(0x12);
+  assert.ok(page === 0x09 || page === 0x0C, 'a page is shown');
+  const shown = cpu.memory.slice(page * 256, page * 256 + 768);
+  const pixels = [...shown].flatMap(b => [b >> 6, (b >> 4) & 3, (b >> 2) & 3, b & 3]);
+  assert.ok(pixels.filter(p => p === 3).length > 40, 'white front edges');
+  assert.ok(pixels.filter(p => p === 1).length > 20, 'magenta back edges');
+  assert.equal(cpu.memory.slice(0x0F00, 0x0F80).some(Boolean), false, 'the stack stays small');
 });

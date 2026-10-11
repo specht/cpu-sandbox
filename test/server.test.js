@@ -110,3 +110,13 @@ test('the theme is a local setting in .settings.yaml and is written into the pag
   assert.equal((await write('PUT','/api/settings',{theme:'pink'})).response.status,400);
   assert.match(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname),'..','.gitignore'),'utf8'),/^\.settings\.yaml$/m);
 });
+
+test('C programs are programs too: .c files are listed with the level from #pragma cpu',async t=>{
+  const {request,write,programs}=await fixture(t);
+  fs.writeFileSync(path.join(programs,'anna','cube.c'),'#pragma cpu 8s\nvoid main() {}\n');
+  fs.writeFileSync(path.join(programs,'anna','plain.c'),'void main() {}\n');
+  const files=(await request('/api/catalog')).payload.groups[1].files;
+  assert.deepEqual(files.map(f=>[f.name,f.cpu]),[['cube.c','8s'],['plain.c','8x'],['sum.asm','8']]);
+  assert.equal((await write('POST','/api/programs',{group:'anna',file:'new.c',source:'void main() {}'})).response.status,201);
+  assert.equal((await write('POST','/api/programs',{group:'anna',file:'new.py',source:''})).response.status,400);
+});

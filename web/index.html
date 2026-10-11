@@ -31,6 +31,10 @@
           <span id="source-chip" class="source-chip" hidden></span>
         </div>
         <div class="source-actions">
+          <nav id="view-tabs" class="tabs view-tabs" role="tablist" aria-label="View" hidden>
+            <button type="button" role="tab" data-view="c" aria-selected="true" title="The C program">C</button>
+            <button type="button" role="tab" data-view="asm" aria-selected="false" title="The assembly the compiler made from it">Assembly</button>
+          </nav>
           <button type="button" id="source-save" class="save-button" disabled title="Save (Ctrl+S)">
             <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-device-floppy"/></svg> Save</button>
           <button type="button" id="source-revert" disabled title="Discard unsaved edits">
@@ -40,6 +44,7 @@
         </div>
       </div>
       <div id="source-editor" class="source-editor" aria-label="Source editor"></div>
+      <div id="asm-view" class="source-editor asm-view" aria-label="Generated assembly" hidden></div>
       <section id="source-problems" class="source-problems" aria-label="Problems" hidden>
         <ol id="source-problem-list" class="source-problem-list"></ol>
       </section>

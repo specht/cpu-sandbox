@@ -46,6 +46,7 @@
 :root[data-theme="light"] .source-editor .cm-atom{color:#552e05}
 :root[data-theme="light"] .source-editor .cm-comment{color:#4d6380}
 :root[data-theme="light"] .source-editor .cm-meta{color:#533b0a}
+:root[data-theme="light"] .source-editor .cm-builtin{color:#443106}
 :root[data-theme="light"] .source-editor .CodeMirror-matchingbracket{color:#121212!important;background:#7b9dcd}
 :root[data-theme="light"] .source-editor .source-execution-line{background:rgba(125,168,219,0.659)}
 :root[data-theme="light"] .source-editor .source-runtime-error-line{background:rgba(230,155,162,0.569)}

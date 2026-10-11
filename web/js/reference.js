@@ -84,6 +84,36 @@ function levelPage(arch) {
     el('p', { class: 'muted reference-note' }, text.note));
 }
 
+function cPage() {
+  const row = (code, text) => el('tr', {}, el('td', {}, el('code', {}, code)), el('td', {}, text));
+  return el('div', { class: 'reference-page' },
+    el('p', { class: 'reference-lead' }, 'MiniC: a small C that compiles to the assembly of this CPU.'),
+    el('p', {}, 'Programs in .c files are compiled while you type. The margin shows the address and bytes of every C line, ',
+      'and the Assembly tab above the editor shows the generated code, each part under its C line. Stepping runs one instruction at a time.'),
+    el('h3', {}, 'The language'),
+    el('table', { class: 'reference-table compact' }, el('tbody', {},
+      row('char  int  unsigned int  void', 'char has 8 bits (0–255). int and pointers have 16 bits on MiniCPU 8X, 8 bits on 8 and 8S.'),
+      row('char *p   int a[10]', 'Pointers and arrays, also strings: char *s = "Hi"; p[i] is *(p + i).'),
+      row('if else while do for break continue return', 'The usual statements; variables can be declared anywhere in a block.'),
+      row('+ - * / % & | ^ ~ << >> ! && || ?: ++ --', 'All C operators. *, / and % call small helper routines, because the CPU cannot multiply.'),
+      row('#define N 10   #define SQ(x) ((x)*(x))', 'Constants and macros.'),
+      row('#pragma cpu 8x', 'The CPU level (default 8X). The CPU menu edits this line.'),
+      row('#pragma display 0x0800, 64, 48, mono', 'Suggests the screen, like .display.'),
+      row('in(TIMER)   out(NUMBER, x)', 'Read and write device ports. TIMER, JOYSTICK, KEYBOARD, RANDOM, SPEAKER, NUMBER, SCREEN_PAGE and JOY_LEFT … JOY_FIRE are predefined.'),
+      row('asm("INC A");', 'Inserts assembly instructions.'),
+    )),
+    el('h3', {}, 'Different from C'),
+    el('ul', {},
+      el('li', {}, 'char arithmetic stays 8 bits wide, like the registers: for two chars, 200 + 100 is 44. As soon as an int takes part, the computation uses int.'),
+      el('li', {}, 'Arrays are declared outside of functions, and & works only on those global variables: no instruction can read SP.'),
+      el('li', {}, 'No structs, floats, switch or #include. Fixed point replaces floats, e.g. 64 for 1.0.'),
+      el('li', {}, 'MiniCPU 8 has no stack: only main() and no * / % except by powers of two.')),
+    el('h3', {}, 'How functions work'),
+    el('p', {}, 'The caller PUSHes the arguments from left to right and CALLs the function. The function makes room for its local variables with ',
+      el('code', {}, 'SUB SP, n'), ' and reaches arguments and locals with ', el('code', {}, '[SP+n]'),
+      '. The result comes back in A (8 bits) or X (16 bits). Global variables are labels with an underscore, e.g. ', el('code', {}, '_score'), '.'));
+}
+
 /** Printable ASCII as a 16-column grid: row = high hex digit, column = low digit. */
 function asciiPage() {
   const name = { 0x20: 'SP', 0x7F: 'DEL' };
@@ -142,8 +172,8 @@ function assemblerPage() {
 export class Reference {
   constructor(ui) {
     this.ui = ui;
-    this.pages = { ...Object.fromEntries(Object.values(ARCHITECTURES).map(arch => [arch.id, () => levelPage(arch)])), assembler: assemblerPage, devices: devicesPage, ascii: asciiPage };
-    const labels = { cpu8: '8', cpu8s: '8S', cpu8x: '8X', devices: 'Devices', assembler: 'Assembler', ascii: 'ASCII' };
+    this.pages = { ...Object.fromEntries(Object.values(ARCHITECTURES).map(arch => [arch.id, () => levelPage(arch)])), assembler: assemblerPage, c: cPage, devices: devicesPage, ascii: asciiPage };
+    const labels = { cpu8: '8', cpu8s: '8S', cpu8x: '8X', devices: 'Devices', assembler: 'Assembler', c: 'C', ascii: 'ASCII' };
     this.tabs = Object.keys(this.pages).map(key => el('button', {
       type: 'button', role: 'tab', 'aria-selected': 'false', dataset: { page: key }, onclick: () => this.show(key),
     }, key.startsWith('cpu') ? `MiniCPU ${labels[key]}` : labels[key]));

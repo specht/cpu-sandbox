@@ -75,7 +75,8 @@ corner to resize it, and pick the pixel format and palette above it. This
 never changes RAM. See [docs/screen.md](docs/screen.md).
 
 Devices sit at I/O ports, read with `IN` and written with `OUT`: a joystick, a
-keyboard, a timer, random numbers, a speaker and a number display. The devices
+keyboard, a timer, random numbers, a speaker, a number display and a screen
+page register for flicker-free animation (page flipping). The devices
 a program uses appear above the screen; **click the screen** to send your keys
 to the program (Esc gives them back). See [docs/devices.md](docs/devices.md).
 
@@ -109,6 +110,8 @@ stays on this computer and never reaches a student repository.
 | `18-inferno` | 8X | demo: the DOOM fire at 64 × 48 pixels |
 | `19-input` | 8 | devices: joystick, keyboard, timer, number display |
 | `20-breakout` | 8X | a game: paddle, ball, colored bricks, sound |
+| `21-first-c.c` | 8S | C: functions, locals on the stack, the generated assembly |
+| `22-cube.c` | 8X | C demo: a rotating 3D cube with page flipping |
 
 A suggested order with questions and exercises: [docs/teaching.md](docs/teaching.md).
 
@@ -132,6 +135,15 @@ Square brackets always mean memory: `LDI A, 0x70` loads the number 0x70,
 in B. Numbers: `42`, `0x2A`, `0b101010`, `'A'`; expressions with
 `+ - * / & | << >>`. Comments start with `;`.
 
+## C
+
+Programs in `.c` files are written in MiniC, a small C that compiles to
+MiniCPU assembly as you type. The margin shows the bytes of every C line, and
+the **Assembly** tab shows the generated code under each C line. `char` has 8
+bits, `int` and pointers 16 bits on 8X; there are functions, pointers, arrays,
+strings, `in()`/`out()` for the devices and `#define`. Details and the
+differences from C: [docs/minic.md](docs/minic.md).
+
 ## Tests
 
 ```sh
@@ -142,7 +154,7 @@ node scripts/light-theme.mjs web/style.css web/light.css   # after changing colo
 
 ## How it works
 
-- `src/` — assembler, CPU, screen decoding and palettes. The same modules run
+- `src/` — assembler, MiniC compiler (`minic.js`), CPU, screen decoding and palettes. The same modules run
   in Node (tests) and in the browser. `src/opcodes.js` is the only place that
   defines opcodes, sizes and cycles; the browser reference is generated from it.
 - `web/` — the page. CodeMirror, fonts and icons are bundled; there are no

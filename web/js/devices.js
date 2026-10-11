@@ -152,5 +152,7 @@ export class DevicePanel {
     this.values.speaker?.classList.toggle('sounding', performance.now() - this.noteTime < 120);
     const number = d.outputs.get(PORT.NUMBER);
     set(PORT.NUMBER, number === undefined ? '—' : String(number));
+    const page = d.outputs.get(PORT.SCREEN);
+    set(PORT.SCREEN, page === undefined ? '—' : `0x${hex(page * 256, 4)}`);
   }
 }

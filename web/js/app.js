@@ -1,9 +1,9 @@
 // CPU Sandbox: editor, assembler, CPU, screen and RAM view.
 import { ARCHITECTURES } from '/src/architectures.js';
-import { assemble, AssemblyError } from '/src/assembler.js';
+import { build, languageOf } from '/src/build.js';
 import { MiniCPU, CpuFault, hex } from '/src/cpu.js';
 import { DEFAULT_DISPLAY, validateDisplay } from '/src/display.js';
-import { Devices } from '/src/devices.js';
+import { Devices, PORT } from '/src/devices.js';
 import { DevicePanel } from './devices.js';
 import { $, el, icon, grouped, formatHz, formatDuration, loadPreferences, savePreferences } from './util.js';
 import { Catalog, ProgramPicker, request } from './catalog.js';
@@ -17,6 +17,8 @@ const preferences = loadPreferences();
 
 const state = {
   program: null,        // {group, file, readonly, revision, original}
+  language: 'asm',      // 'asm' or 'c', from the file name
+  view: 'c',            // for C programs: show the C source or the generated assembly
   dirty: false,
   saving: false,
   assembly: null,       // last successful assembly of the current text
@@ -42,6 +44,7 @@ const editor = new SourceEditor($('source-editor'), {
   onBreakpoints: () => updateBreakpoints(),
   onFormat: () => formatDraft(),
 });
+const asmView = new SourceEditor($('asm-view'), { viewer: true });
 const screen = new Screen({
   canvas: $('screen'), area: $('screen-area'), grip: $('screen-grip'), info: $('screen-info'),
   format: $('screen-format'), palette: $('screen-palette'), start: $('screen-start'), width: $('screen-width'), height: $('screen-height'),
@@ -71,7 +74,10 @@ async function openProgram(value, { force = false } = {}) {
     state.screenOverride = false;
     picker.setValue(value);
     editor.clearBreakpoints();
+    state.language = languageOf(value.file);
+    editor.setLanguage(state.language);
     editor.load(data.source);
+    showView(state.language === 'c' ? state.view : 'c');
     savePreferences({ program: value });
     updateDirty();
     setStatus('');
@@ -83,6 +89,7 @@ async function openProgram(value, { force = false } = {}) {
 
 function formatDraft() {
   if (!state.program || state.saving) return;
+  if (state.language === 'c') { setStatus('Formatting is available for assembly programs'); return; }
   const changed = editor.format();
   setStatus(changed ? `Formatted ${changed} line${changed === 1 ? '' : 's'}${state.program.readonly ? '' : ' · save with Ctrl+S'}` : 'Already formatted');
 }
@@ -94,7 +101,8 @@ function updateDirty() {
   $('source-save').hidden = !!program?.readonly;
   $('source-revert').disabled = !state.dirty || state.saving;
   $('source-copy').disabled = !program;
-  $('source-format').disabled = !program || state.saving;
+  $('source-format').disabled = !program || state.saving || state.language === 'c';
+  $('source-format').title = state.language === 'c' ? 'Formatting is available for assembly programs' : 'Format the current draft (Shift+Alt+F)';
   const chip = $('source-chip');
   chip.replaceChildren();
   chip.hidden = !program || (!state.dirty && !program.readonly);
@@ -169,7 +177,7 @@ function openCopyDialog() {
   const own = !state.program.readonly ? state.program.group : (preferences.copyGroup ?? groups[0]?.id ?? '');
   $('copy-group').value = own;
   const base = state.program.file.replace(/^\d+-/, '');
-  $('copy-file').value = state.program.readonly ? base : base.replace(/\.asm$/i, '-copy.asm');
+  $('copy-file').value = state.program.readonly ? base : base.replace(/\.(asm|c)$/i, '-copy.$1');
   $('copy-error').hidden = true;
   $('copy-dialog').showModal();
   $(own ? 'copy-file' : 'copy-group').focus();
@@ -179,7 +187,7 @@ $('copy-form').addEventListener('submit', async event => {
   event.preventDefault();
   const group = $('copy-group').value.trim();
   let file = $('copy-file').value.trim();
-  if (!/\.asm$/i.test(file)) file += '.asm';
+  if (!/\.(asm|c)$/i.test(file)) file += state.language === 'c' ? '.c' : '.asm';
   try {
     await request('/api/programs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group, file, source: editor.value }) });
     preferences.copyGroup = group;
@@ -208,11 +216,11 @@ function assembleNow({ restart }) {
   const text = editor.value;
   let assembly;
   try {
-    assembly = assemble(text);
+    assembly = build(text, state.language);
   } catch (error) {
     stop();
     state.assembly = null;
-    const message = error instanceof AssemblyError ? error.detail : String(error.message ?? error);
+    const message = error.detail ?? String(error.message ?? error);
     showProblems([{ line: error.line ?? 0, message, severity: 'error' }]);
     setStatus('');
     $('source-editor').classList.add('stale');
@@ -224,6 +232,11 @@ function assembleNow({ restart }) {
   showProblems(assembly.warnings.map(w => ({ ...w, severity: 'warning' })));
   setArchitecture(ARCHITECTURES[assembly.architecture]);
   editor.showListing(assembly.listing, state.arch.addressBits / 4);
+  if (assembly.language === 'c') {
+    asmView.load(assembly.asm, { editable: false });
+    asmView.setLanguage('asm');
+    asmView.showListing(assembly.asmAssembly.listing, state.arch.addressBits / 4);
+  }
   if (!state.screenOverride) setSuggestedScreen();
   updateBreakpoints();
   const last = assembly.listing.at(-1);
@@ -253,18 +266,19 @@ function setSuggestedScreen() {
   $('screen-reset').disabled = true;
 }
 
-/** The CPU menu edits the .cpu line, so the source always says which CPU it needs. */
+/** The CPU menu edits the .cpu line (#pragma cpu in C), so the source always says which CPU it needs. */
 function chooseArchitecture(id) {
-  const arch = ARCHITECTURES[id], text = editor.value;
-  const pattern = /^[ \t]*\.cpu\b[^\n;]*/im;
+  const arch = ARCHITECTURES[id], text = editor.value, c = state.language === 'c';
+  const pattern = c ? /^[ \t]*#[ \t]*pragma[ \t]+cpu\b[^\n]*/im : /^[ \t]*\.cpu\b[^\n;]*/im;
+  const directive = c ? `#pragma cpu ${arch.directive}` : `.cpu ${arch.directive}`;
   let next;
-  if (pattern.test(text)) next = text.replace(pattern, `.cpu ${arch.directive}`);
-  else if (arch.id === 'cpu8') return;
+  if (pattern.test(text)) next = text.replace(pattern, directive);
+  else if (arch.id === (c ? 'cpu8x' : 'cpu8')) return;
   else {
     const lines = text.split('\n');
     let at = 0;
-    while (at < lines.length && /^\s*(;.*)?$/.test(lines[at])) at++;
-    lines.splice(at, 0, `.cpu ${arch.directive}`);
+    while (at < lines.length && (c ? /^\s*(\/\/.*)?$/ : /^\s*(;.*)?$/).test(lines[at])) at++;
+    lines.splice(at, 0, directive);
     next = lines.join('\n');
   }
   if (next !== text) { editor.replaceAll(next); assembleNow({ restart: true }); }
@@ -280,6 +294,21 @@ function showProblems(problems) {
   $('source-problems').hidden = !problems.length;
   $('source-problems').classList.toggle('warnings-only', problems.every(p => p.severity !== 'error'));
 }
+
+/** C programs: show the C source or the assembly the compiler generated. */
+function showView(view) {
+  const c = state.language === 'c';
+  state.view = view;
+  $('view-tabs').hidden = !c;
+  for (const tab of $('view-tabs').querySelectorAll('button')) tab.setAttribute('aria-selected', String(tab.dataset.view === view));
+  const showAsm = c && view === 'asm';
+  $('source-editor').hidden = showAsm;
+  $('asm-view').hidden = !showAsm;
+  (showAsm ? asmView : editor).refresh();
+  if (c) savePreferences({ view });
+  renderMachine();
+}
+for (const tab of $('view-tabs').querySelectorAll('button')) tab.addEventListener('click', () => showView(tab.dataset.view));
 
 function setStatus(text, kind = '') {
   const status = $('source-status');
@@ -445,6 +474,7 @@ function renderMachine() {
   renderRegisters();
   devicePanel.render(state.assembly?.ports ?? []);
   const ram = cpu?.memory ?? new Uint8Array(arch.memorySize);
+  followScreenPage();
   screen.render(ram);
 
   const writes = cpu?.lastRecord?.writes;
@@ -461,8 +491,13 @@ function renderMachine() {
 
   const fast = state.running && clockHz() > 2000;
   const line = cpu && assembly && !fast ? assembly.sourceMap.get(cpu.pc) : null;
-  editor.highlight(line ?? null, { scroll: !state.running || clockHz() <= 20, kind: cpu?.fault ? 'source-runtime-error-line' : 'source-execution-line' });
+  const highlight = { scroll: !state.running || clockHz() <= 20, kind: cpu?.fault ? 'source-runtime-error-line' : 'source-execution-line' };
+  editor.highlight(line ?? null, highlight);
   editor.updateBytes(cpu ? ram : null);
+  if (assembly?.language === 'c' && state.view === 'asm') {
+    asmView.highlight(cpu && !fast ? assembly.asmAssembly.sourceMap.get(cpu.pc) ?? null : null, highlight);
+    asmView.updateBytes(cpu ? ram : null);
+  }
 
   const digits = arch.addressBits / 4;
   $('cycle-label').textContent = cpu
@@ -479,6 +514,15 @@ function renderMachine() {
   else text = cpu.instructions ? 'Paused' : 'Ready';
   status.textContent = text;
   status.className = `run-status${kind ? ` ${kind}` : ''}`;
+}
+
+/** The screen page device moves the screen, like the start register of a video chip. */
+function followScreenPage() {
+  const page = devices.outputs.get(PORT.SCREEN);
+  if (page === state.screenPage) return;
+  state.screenPage = page;
+  if (page === undefined) { if (!state.screenOverride) setSuggestedScreen(); return; }
+  screen.set(screen.clamp({ ...screen.config, start: page * 256 }));
 }
 
 function renderSelected(ram) {
@@ -508,7 +552,7 @@ $('source-save').addEventListener('click', save);
 $('source-revert').addEventListener('click', revert);
 $('source-format').addEventListener('click', () => formatDraft());
 $('source-copy').addEventListener('click', openCopyDialog);
-$('reference-open').addEventListener('click', () => reference.open(state.arch.id));
+$('reference-open').addEventListener('click', () => reference.open(state.language === 'c' ? 'c' : state.arch.id));
 
 // A click on the backdrop closes a dialog, as in the Data Structure Sandbox.
 for (const dialog of document.querySelectorAll('dialog.app-dialog')) {
@@ -532,6 +576,7 @@ window.addEventListener('beforeunload', event => {
 
 // ------------------------------------------------------------ start
 
+if (preferences.view === 'asm') state.view = 'asm';
 const savedClock = CLOCKS.indexOf(preferences.clock);
 setClock(savedClock >= 0 ? savedClock : CLOCKS.indexOf(1e4));
 setArchitecture(ARCHITECTURES.cpu8);

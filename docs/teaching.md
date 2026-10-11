@@ -70,6 +70,16 @@ the level next to the file name.
     one step need? Then tap Space very briefly: why is the tap sometimes
     missed?
 
+## C: the same machine, one level up
+
+21. **`21-first-c.c`** (MiniCPU 8S): a loop, a function and a call. Open the
+    Assembly tab and find the C lines in it. Where do `i`, `sum` and `n` live?
+    What does `square(n)` push, and how does the result come back?
+22. **`22-cube.c`** (MiniCPU 8X, demo): 3D rotation with a sine table in fixed
+    point, perspective, Bresenham lines and page flipping. Count the cycles of
+    `plot` in the assembly. How much faster would the cube turn with
+    `char` coordinates — and why does that not work for `y * 16`?
+
 ## Exercises
 
 - Sum 1 + 2 + … + n. What happens when the result passes 255? Use CF to
@@ -83,6 +93,8 @@ the level next to the file name.
 - Make the fire burn sideways, or give the scroller a second line of text.
 - A reaction game: wait a random time (port 3), light the screen and count
   timer ticks until Space is pressed. Show the result on the number display.
+- Write the same small program in C and in assembly. Compare the size and the
+  cycles with the code the compiler generates.
 - Pong: one paddle on the joystick, the other one steered by the computer
   (it follows the ball, but only every other step), the ball from Breakout,
   and a score for each side.
