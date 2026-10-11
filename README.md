@@ -129,7 +129,8 @@ first**. Only palettes whose number of entries matches the bit depth can be chos
 are a curated subset of [PixelRAM's palettes](https://github.com/specht/pixelram/blob/main/tools/palettes.yaml):
 1-bit monitor glow, CGA, Color Graphics Adapter 16, VGA 256,
 PICO-8, Sweetie 16, Dreamscape 8, SLSO8 and Endesga 32. The original palette
-indices are preserved.
+indices are preserved. CPU Sandbox additionally bundles an original cyclic
+16-color palette (`aurora_cycle_16`) for the static plasma example.
 
 A program can suggest a display configuration without emitting instructions:
 
@@ -242,3 +243,24 @@ The example continually overwrites only addresses `0x80..0xFF`, leaving its
 own executable instructions untouched. This is also a good starting point for
 asking how to draw larger/colorful images within a 256-byte shared address
 space before considering an extended architecture.
+
+### Static showcase: Plasma Garden (no extra CPU features)
+
+Load `17-plasma-garden.asm` and choose **Run to end**. Its 16×16 image is
+*computed by MiniCPU assembly*, not embedded as a finished bitmap. The program
+combines three 16-entry wave-table readings (horizontal, vertical and diagonal)
+and packs two 4-bit color indices into each byte. It takes approximately 5,762
+instructions to draw one still frame; Play at a slow speed will reveal the
+individual memory writes, whereas Run to end shows the complete artwork.
+
+The framebuffer is just 128 of the CPU's existing 256 shared bytes
+(`0x80..0xFF`). The code (103 bytes), one scratch byte (`0x6F`), and the
+16-byte wave table (`0x70..0x7F`) occupy the lower half, with some unused
+space. The **palette belongs to the display controller**, not to the CPU:
+try switching to a different 16-color palette or reinterpret the same bytes as
+monochrome. None of these changes modifies the program or memory.
+
+This is a deliberately modest *plasma-style* effect: there are no trigonometric
+instructions or smooth hardware interpolation. The wave values approximate
+sine-like shapes, and the 16-color palette makes changes in the 4-bit indices
+look continuous. See [the demonstration walkthrough](docs/plasma-garden.md).

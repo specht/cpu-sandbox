@@ -8,6 +8,10 @@ export const PALETTES = Object.freeze({
   'color_graphics_adapter': parse('000000 555555 aaaaaa ffffff 0000aa 5555ff 00aa00 55ff55 00aaaa 55ffff aa0000 ff5555 aa00aa ff55ff aa5500 ffff55'),
   'pico_8': parse('000000 1d2b53 7e2553 008751 ab5236 5f574f c2c3c7 fff1e8 ff004d ffa300 ffec27 00e436 29adff 83769c ff77a8 ffccaa'),
   'sweetie_16': parse('1a1c2c 5d275d b13e53 ef7d57 ffcd75 a7f070 38b764 257179 29366f 3b5dc9 41a6f6 73eff7 f4f4f4 94b0c2 566c86 333c57'),
+  // CPU Sandbox original: a continuous 16-color cycle for the plasma example.
+  // Unlike the PixelRAM palettes above, these colors were designed specifically
+  // to avoid sharp jumps when a wave index wraps from 15 back to 0.
+  'aurora_cycle_16': parse('4282bd 4658c7 6849d0 a14cd9 de4fe1 e751b2 ec537c ef6454 f09f54 efd854 c9ec53 8ce751 52e14f 4cd97e 49d0ac 46b9c7'),
   'dreamscape8': parse('c9cca1 caa05a ae6a47 8b4049 543344 515262 63787d 8ea091'),
   'slso8': parse('0d2b45 203c56 544e68 8d697a d08159 ffaa5e ffd4a3 ffecd6'),
   'endesga_32': parse('be4a2f d77643 ead4aa e4a672 b86f50 733e39 3e2731 a22633 e43b44 f77622 feae34 fee761 63c74d 3e8948 265c42 193c3e 124e89 0099db 2ce8f5 ffffff c0cbdc 8b9bb4 5a6988 3a4466 262b44 181425 ff0044 68386c b55088 f6757a e8b796 c28569'),
