@@ -53,6 +53,8 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
     ['/style.css', ['web/style.css', 'text/css; charset=utf-8']],
     ['/assembler.js', ['src/assembler.js', 'text/javascript; charset=utf-8']],
     ['/cpu.js', ['src/cpu.js', 'text/javascript; charset=utf-8']],
+    ['/architectures.js', ['src/architectures.js', 'text/javascript; charset=utf-8']],
+    ['/opcodes.js', ['src/opcodes.js', 'text/javascript; charset=utf-8']],
     ['/display.js', ['src/display.js', 'text/javascript; charset=utf-8']],
     ['/palettes.js', ['src/palettes.js', 'text/javascript; charset=utf-8']],
     ['/vendor/tabler-icons.svg', ['web/vendor/tabler-icons.svg', 'image/svg+xml']],

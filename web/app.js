@@ -1,3 +1,4 @@
+import { ARCHITECTURES } from '/architectures.js';
 import { assemble, AssemblyError } from '/assembler.js';
 import { MiniCPU, hex, CpuFault } from '/cpu.js';
 import { DEFAULT_DISPLAY, MODES, validateDisplay, renderDisplay } from '/display.js';
@@ -11,6 +12,8 @@ const regNames = ['A', 'B', 'C', 'D'];
 const memElements = [];
 let currentDisplay = { ...DEFAULT_DISPLAY }, displayOverridden = false;
 let assembleTimer = null;
+let memoryPage = 0;
+const selectedArchitecture = () => ARCHITECTURES[$('architecture').value] ?? ARCHITECTURES.cpu8;
 const depthSteps = [1, 2, 4, 8, 24];
 const displayFields = ['start','width','height','depth','mode','palette'];
 const modesByDepth = bits => Object.entries(MODES).filter(([, spec]) => spec.bits === bits);
@@ -21,12 +24,12 @@ function syntaxLine(text) {
   const code = at < 0 ? text : text.slice(0,at);
   const comment = at < 0 ? '' : `<span class="hl-comment">${safe(text.slice(at))}</span>`;
   const pattern = /(?:\.[A-Za-z]+|0[xX][\da-fA-F]+|0[bB][01_]+|\b\d+\b|\b[A-Za-z_][\w]*\b|"[^"\n]*")/g;
-  const mnemonics = new Set(['LDI','LDA','STA','MOV','ADD','SUB','INC','DEC','SHL','SHR','AND','OR','XOR','CMP','JZ','JNZ','JC','JNC','JMP','CLF','NOP','HLT']);
+  const mnemonics = new Set(['LDI','LDA','STA','MOV','ADD','SUB','INC','DEC','SHL','SHR','AND','OR','XOR','CMP','JZ','JNZ','JC','JNC','JMP','CLF','NOP','HLT','PUSH','POP','CALL','RET','LDX','INCX','DECX','JMP16','JZ16','JNZ16','JC16','JNC16','CALL16']);
   let result = '', previous = 0;
   for (const match of code.matchAll(pattern)) {
     result += safe(code.slice(previous,match.index));
     const word = match[0], upper = word.toUpperCase();
-    const kind = word[0] === '.' ? 'directive' : word[0] === '"' ? 'string' : /^0[xXbB]|^\d/.test(word) ? 'number' : mnemonics.has(upper) ? 'mnemonic' : /^(A|B|C|D|R[0-3])$/.test(upper) ? 'register' : 'label';
+    const kind = word[0] === '.' ? 'directive' : word[0] === '"' ? 'string' : /^0[xXbB]|^\d/.test(word) ? 'number' : mnemonics.has(upper) ? 'mnemonic' : /^(A|B|C|D|X|SP|R[0-3])$/.test(upper) ? 'register' : 'label';
     result += `<span class="hl-${kind}">${safe(word)}</span>`;
     previous = match.index + word.length;
   }
@@ -120,7 +123,7 @@ function fitFrameBuffer() {
 function renderDisplayView() {
   const view = $('framebuffer');
   try {
-    const config = validateDisplay(currentDisplay), data = renderDisplay(cpu?.memory ?? new Uint8Array(256), config, PALETTES);
+    const config = validateDisplay(currentDisplay, selectedArchitecture().memorySize), data = renderDisplay(cpu?.memory ?? new Uint8Array(selectedArchitecture().memorySize), config, PALETTES);
     const occupied = assembled?.occupied;
     let overlaps = false;
     if (occupied) for(let y=0;y<config.height;y++) {
@@ -135,7 +138,7 @@ function renderDisplayView() {
       const nodes = document.createDocumentFragment();
       for (let i=0;i<data.length;i++) {
         const node = document.createElement('div'); node.className = 'pixel';
-        node.addEventListener('click', () => {selectedAddress = Number(node.dataset.address); selectInspector('memory');renderCpu();});
+        node.addEventListener('click', () => {selectedAddress = Number(node.dataset.address); memoryPage = Math.floor(selectedAddress/256); $('memory-page').value = String(memoryPage); selectInspector('memory');renderCpu();});
         nodes.append(node);
       }
       view.append(nodes);
@@ -263,12 +266,12 @@ function assembleSource() {
   clearCpu();
   if (!selected) return;
   try {
-    assembled = assemble(all.source.value);
+    assembled = assemble(all.source.value, { architecture: selectedArchitecture().id });
     if (!displayOverridden) setDisplay(assembled.display ?? DEFAULT_DISPLAY);
     // Invalid suggested metadata is diagnosed as source error, not silently ignored.
-    if (assembled.display) validateDisplay(assembled.display);
+    if (assembled.display) validateDisplay(assembled.display, selectedArchitecture().memorySize);
     assembledSource = all.source.value;
-    cpu = new MiniCPU(assembled.memory);
+    cpu = new MiniCPU(assembled.memory, selectedArchitecture().id);
     const warnings = assembled.diagnostics;
     const notes = `${assembled.loadedBytes} bytes assembled · ${assembled.listing.length} listing entries`;
     setStatus(warnings.length ? `${notes}. ${warnings.map(w => w.message).join(' ')}` : notes, warnings.length ? 'warning' : 'ok');
@@ -370,7 +373,7 @@ function renderTrace() {
   if (!trace.length) { node.textContent = 'No instructions executed yet.'; return; }
   for (const entry of trace.slice(-24)) {
     const row = document.createElement('div'); row.className = 'trace-row';
-    row.innerHTML = `<span class="address">${hex(entry.pc)}</span><span></span><span class="cycles">${entry.cycle}</span>`;
+    row.innerHTML = `<span class="address">${hex(entry.pc, selectedArchitecture().addressBits/4)}</span><span></span><span class="cycles">${entry.cycle}</span>`;
     row.children[1].textContent = entry.text;
     node.append(row);
   }
@@ -383,7 +386,7 @@ function renderListing() {
   $('byte-count').textContent = `${assembled.loadedBytes} bytes`;
   for (const entry of assembled.listing) {
     const row = document.createElement('div'); row.className = 'machine-code-row'; row.dataset.addr = String(entry.address);
-    const addr = document.createElement('span'); addr.textContent = hex(entry.address);
+    const addr = document.createElement('span'); addr.textContent = hex(entry.address, selectedArchitecture().addressBits/4);
     const bytes = document.createElement('span'); bytes.className = 'bytes'; bytes.textContent = entry.bytes.map(b => hex(b)).join(' ');
     const source = document.createElement('span'); source.className = 'source-snippet'; source.textContent = entry.source;
     row.append(addr, bytes, source);
@@ -402,7 +405,7 @@ function createMemory() {
     for (let col = 0; col < 16; col++) {
       const addr = row * 16 + col, cell = document.createElement('button');
       cell.className = 'mem-byte'; cell.textContent = '00'; cell.title = `RAM[0x${hex(addr)}]`;
-      cell.addEventListener('click', () => { selectedAddress = addr; renderCpu(); });
+      cell.addEventListener('click', () => { selectedAddress = memoryPage*256 + addr; renderCpu(); });
       memElements.push(cell); mem.append(cell);
     }
   }
@@ -415,14 +418,15 @@ function renderCpu() {
   $('play').disabled = !live || cpu.halted;
   $('instant').disabled = !live || cpu.halted || !!playback;
   $('reset').disabled = !assembled;
-  $('pc').textContent = live ? hex(cpu.pc) : '--';
+  $('pc').textContent = live ? hex(cpu.pc, selectedArchitecture().addressBits/4) : '--';
+  $('arch-description').textContent = selectedArchitecture().description;
   $('cycles').textContent = live ? formatCount(cpu.cycles) : '0';
   $('zf').textContent = live && cpu.zf ? '1' : '0';
   $('cf').textContent = live && cpu.cf ? '1' : '0';
   const state = $('run-state');
   state.textContent = !live ? 'ASSEMBLE' : cpu.halted ? 'HALTED' : playback ? 'RUNNING' : 'PAUSED';
   state.className = 'state-tag' + (playback ? ' running' : '');
-  $('operation').textContent = !live ? 'Not assembled' : cpu.last?.text || 'Ready at 0x00';
+  $('operation').textContent = !live ? 'Not assembled' : cpu.last?.text || `Ready at 0x${hex(cpu.pc,selectedArchitecture().addressBits/4)}`;
   const last = live ? cpu.last : null;
   $('registers').replaceChildren();
   for (let i = 0; i < 4; i++) {
@@ -432,17 +436,32 @@ function renderCpu() {
     reg.append(left, value); reg.title = live ? `${regNames[i]} = ${cpu.registers[i]} decimal` : '';
     $('registers').append(reg);
   }
+  if (selectedArchitecture().stack) {
+    const sp = document.createElement('div'); sp.className='reg';
+    sp.innerHTML = `<b>SP</b><strong>${live ? '0x' + hex(cpu.sp, selectedArchitecture().addressBits/4) : '--'}</strong>`;
+    sp.title = 'Next free stack position; stack grows downward through shared RAM';
+    $('registers').append(sp);
+  }
+  if (selectedArchitecture().index) {
+    const index = document.createElement('div'); index.className='reg';
+    index.innerHTML = `<b>X</b><strong>${live ? '0x' + hex(cpu.x,4) : '--'}</strong>`;
+    $('registers').append(index);
+  }
   for (let i = 0; i < 256; i++) {
-    const value = live ? cpu.memory[i] : 0;
+    const addr = memoryPage * 256 + i;
+    const value = live ? cpu.memory[addr] : 0;
     const cell = memElements[i];
     cell.textContent = hex(value);
-    cell.className = 'mem-byte' + (value ? ' nonzero' : '') + (last?.changedMemory.includes(i) ? ' changed' : '') + (i === cpu?.pc ? ' active' : '') + (selectedAddress === i ? ' selected' : '');
-    cell.title = `0x${hex(i)} (${i}): 0x${hex(value)} (${value})`;
+    cell.className = 'mem-byte' + (value ? ' nonzero' : '') + (last?.changedMemory.includes(addr) ? ' changed' : '') + (addr === cpu?.pc ? ' active' : '') + (selectedAddress === addr ? ' selected' : '') + (addr === cpu?.sp ? ' stack-top' : '');
+    cell.title = `0x${hex(addr,selectedArchitecture().addressBits/4)} (${addr}): 0x${hex(value)} (${value})`;
+  }
+  for (let row = 0; row < 16; row++) {
+    $('memory').children[17 + row*17].textContent = hex(memoryPage*256 + row*16, selectedArchitecture().addressBits/4);
   }
   renderDisplayView();
   const activeLine = live && assembled?.sourceMap.get(cpu.pc);
   for (const element of $('line-numbers').children) element.classList.toggle('active', !!activeLine && Number(element.textContent) === activeLine);
-  $('selected-byte').textContent = selectedAddress === null || !live ? '—' : `0x${hex(selectedAddress)} = ${hex(cpu.memory[selectedAddress])} (${cpu.memory[selectedAddress]})`;
+  $('selected-byte').textContent = selectedAddress === null || !live ? '—' : `0x${hex(selectedAddress,selectedArchitecture().addressBits/4)} = ${hex(cpu.memory[selectedAddress])} (${cpu.memory[selectedAddress]})`;
   for (const row of $('machine-listing').children) {
     const addr = Number(row.dataset.addr), entry = assembled?.listing.find(e => e.address === addr);
     const changed = !!live && !!entry && entry.bytes.some((v,i) => cpu.memory[addr+i] !== v);
@@ -514,11 +533,17 @@ function bind() {
     if (!discardConfirm()) { all.program.value = selected?.file ?? ''; return; }
     await loadSelected();
   });
+  $('architecture').addEventListener('change', () => {
+    memoryPage = 0; selectedAddress = null;
+    displayOverridden = false; // A prior controller mapping may exceed the new model’s RAM.
+    updateArchitectureUI(); assembleSource();
+  });
+  $('memory-page').addEventListener('change', () => { memoryPage = Number($('memory-page').value); renderCpu(); });
   for (const field of displayFields) $('display-'+field).addEventListener('input', displayInput);
   $('display-default').addEventListener('click', () => setDisplay(assembled?.display ?? DEFAULT_DISPLAY, false));
   for (const button of document.querySelectorAll('[data-panel]')) button.addEventListener('click', () => selectInspector(button.dataset.panel));
   $('reset').addEventListener('click', () => {
-    stopPlayback(); if (assembled) { cpu = new MiniCPU(assembled.memory); frames = []; trace = []; renderCpu(); }
+    stopPlayback(); if (assembled) { cpu = new MiniCPU(assembled.memory, selectedArchitecture().id); frames = []; trace = []; renderCpu(); }
   });
   $('step').addEventListener('click', () => { stopPlayback(); stepOnce(); renderCpu(); });
   $('back').addEventListener('click', goBack);
@@ -528,9 +553,23 @@ function bind() {
   $('help').addEventListener('click', () => $('help-dialog').showModal());
   $('close-help').addEventListener('click', () => $('help-dialog').close());
 }
+function updateArchitectureUI() {
+  const arch = selectedArchitecture();
+  const pageSelect = $('memory-page');
+  pageSelect.replaceChildren();
+  for (let i=0;i<arch.memorySize/256;i++) {
+    const start = i*256;
+    pageSelect.add(new Option(`0x${hex(start,arch.addressBits/4)}`, String(i)));
+  }
+  memoryPage = Math.min(memoryPage, arch.memorySize/256-1);
+  pageSelect.value = String(memoryPage);
+  $('memory-page-picker').hidden = arch.memorySize <= 256;
+  $('arch-description').textContent = arch.description;
+  $('display-start').placeholder = arch.index ? '0x0800' : '0x80';
+}
 function configureDisplayControls() {
   setDisplay(DEFAULT_DISPLAY);
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(fitFrameBuffer).observe($('framebuffer-wrap'));
   else window.addEventListener('resize', fitFrameBuffer);
 }
-createMemory(); configureDisplayControls(); bind(); refreshCatalog({ force:true });
+createMemory(); updateArchitectureUI(); configureDisplayControls(); bind(); refreshCatalog({ force:true });

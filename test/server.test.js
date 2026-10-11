@@ -78,3 +78,13 @@ test('static web entrypoint and ES modules are accessible',async t=>{
     assert.ok((await res.text()).length>20);
   }
 });
+
+test('browser can import the shared opcode module', async t => {
+  const server = createServer();
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const url = `http://127.0.0.1:${server.address().port}/opcodes.js`;
+  const response = await fetch(url);
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /export const OPCODES/);
+});

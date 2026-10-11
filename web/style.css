@@ -97,3 +97,12 @@ button:has(>.ui-icon){display:inline-flex;align-items:center;justify-content:cen
    different bold metrics. Highlight by color, not synthesized bold. */
 #highlight-layer .hl-mnemonic { font-weight: 400; }
 #highlight-layer code { font-weight: 400; }
+
+/* Architecture selection, stack and paged RAM inspection for the 4 KiB model. */
+.workspace-picker #architecture{max-width:210px}
+.memory-page-picker{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);margin-left:auto}
+.memory-page-picker[hidden]{display:none}
+.memory-page-picker select{padding:3px 5px;max-width:98px;font:11px '0xProto Nerd Font',ui-monospace,monospace}
+.memory-page-picker:not([hidden])~#selected-byte{margin-left:2px}
+.mem-byte.stack-top{outline:1px solid var(--amber);outline-offset:-1px}
+@media(max-width:1250px){.workspace-picker #architecture{max-width:145px}}

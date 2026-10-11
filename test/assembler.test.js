@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { assemble, AssemblyError } from '../src/assembler.js';
 import { MiniCPU, CpuFault } from '../src/cpu.js';
+import { OPCODES as OP } from '../src/opcodes.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const example = name => assemble(fs.readFileSync(path.join(root,'examples',name), 'utf8'));
 function run(source, limit = 100000) {
@@ -14,9 +15,9 @@ function run(source, limit = 100000) {
   while (!cpu.halted && steps < limit) { cpu.step(); steps++; }
   return { cpu, steps, assembled };
 }
-test('LDI / ADD / HLT yields the expected original MiniCPU byte encoding', () => {
+test('LDI / ADD / HLT encode according to the grouped teaching ISA', () => {
   const r = run(example('01-add.asm'));
-  assert.deepEqual(Array.from(r.assembled.bytes), [1,0,5,1,1,3,0x20,1,0xff]);
+  assert.deepEqual(Array.from(r.assembled.bytes), [OP.LDI,0,5,OP.LDI,1,3,OP.ADD,1,OP.HLT]);
   assert.equal(r.cpu.registers[0], 8); assert.equal(r.steps, 4); assert.equal(r.cpu.halted, true);
 });
 test('countdown terminates and can restore CPU snapshot', () => {
@@ -77,5 +78,5 @@ test('CPU fails safely on unsupported opcode', () => {
 });
 test('assembly labels and constants are resolved correctly', () => {
   const a=assemble('OFFSET .equ 4\nLDI A, (OFFSET + 2)\nJMP halt\nLDI A, 99\nhalt: HLT');
-  assert.deepEqual(Array.from(a.bytes),[1,0,6,0xa0,8,1,0,99,0xff]);
+  assert.deepEqual(Array.from(a.bytes),[OP.LDI,0,6,OP.JMP,8,OP.LDI,0,99,OP.HLT]);
 });

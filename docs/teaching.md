@@ -1,6 +1,7 @@
 # Teaching with CPU Sandbox
 
-MiniCPU has four 8-bit registers, 256 bytes of shared RAM and ZF/CF. The
+MiniCPU 8 has four 8-bit registers, 256 bytes of shared RAM and ZF/CF.
+8S adds a stack and subroutines; 8X adds 16-bit addressing and 4 KiB RAM. The
 visualizer can *interpret* any portion of RAM as a framebuffer in different
 formats. This tiny, completely inspectable architecture is useful for
 connecting algorithms and machine-level execution.
@@ -74,3 +75,23 @@ meaning a device assigns to it explicit.
 
 The students' files live in the Git-tracked class repository under `programs/`.
 Examples bundled with the application are read-only; copies belong to students.
+
+## A three-model teaching progression
+
+13. **Opcodes by family:** Compare `LDI A, 5` (`10 00 05`), `ADD A, B` (`20 01`),
+    and `JMP label` (`60 addr`). Use the [encoding table](instruction-encoding.md)
+    to explain why opcode families have recognizable leading hexadecimal digits.
+14. **Why subroutines?** Select **MiniCPU 8S** and run
+    `18-stack-subroutines.asm`. Single-step nested `CALL`/`RET` instructions,
+    observe the SP and RAM near the upper edge. Compare the cost of repeated code
+    with a reusable pixel routine, and predict the return address on the stack.
+15. **Larger memory:** Select **MiniCPU 8X**, run
+    `19-extended-color-gradient.asm` and inspect RAM page `0x0800`.
+    Explain how 32×32 pixels at four bits each require 512 bytes.
+16. **Long jumps:** Still on **MiniCPU 8X**, open
+    `20-extended-high-code.asm`, and step from `0x0000` to `0x0200` via
+    `JMP16`. Explain why an 8-bit absolute jump cannot encode the target.
+
+These models use one *source-compatible* assembly language. Select a model in
+UI and let the assembler generate its bytes; the byte encoding deliberately
+is not compatible with the legacy Ruby MiniCPU.

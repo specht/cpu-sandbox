@@ -15,6 +15,11 @@
       <div><strong>CPU SANDBOX</strong><span>Assembly · execution · memory</span></div>
     </div>
     <div class="workspace-picker">
+      <label>CPU <select id="architecture" aria-label="Choose CPU architecture">
+        <option value="cpu8">MiniCPU 8 · Basic</option>
+        <option value="cpu8s">MiniCPU 8S · Stack</option>
+        <option value="cpu8x">MiniCPU 8X · Extended</option>
+      </select></label>
       <label>Student <select id="group" aria-label="Student folder"></select></label>
       <label>Program <select id="program" aria-label="Assembly program"></select></label>
       <button id="refresh" title="Refresh files from disk"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-refresh"></use></svg><span>Refresh</span></button>
@@ -42,7 +47,7 @@
 
     <section class="panel machine-panel" aria-label="CPU execution">
       <div class="machine-header">
-        <div><span class="eyebrow">8-BIT PROCESSOR</span><strong id="operation">Not assembled</strong></div>
+        <div><span class="eyebrow" id="arch-description">8-BIT PROCESSOR</span><strong id="operation">Not assembled</strong></div>
         <span class="state-tag" id="run-state">READY</span>
       </div>
       <div class="controls">
@@ -86,7 +91,7 @@
             <button id="tab-memory" data-panel="memory" role="tab" aria-selected="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-database"></use></svg><span>RAM</span></button>
             <button id="tab-code" data-panel="code" role="tab" aria-selected="false"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-code"></use></svg><span>Machine code</span> <span id="byte-count">—</span></button>
             <button id="tab-trace" data-panel="trace" role="tab" aria-selected="false"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-timeline"></use></svg><span>Execution trace</span></button>
-            <span id="selected-byte">—</span>
+            <label class="memory-page-picker" id="memory-page-picker" hidden>Page <select id="memory-page" aria-label="256-byte RAM page"></select></label><span id="selected-byte">—</span>
           </div>
           <div class="inspector-view memory-wrap" id="panel-memory" role="tabpanel"><div class="memory" id="memory" aria-label="Memory hex dump"></div></div>
           <div class="inspector-view machine-listing" id="panel-code" role="tabpanel" hidden><div id="machine-listing" aria-label="Assembled machine code"></div></div>
@@ -100,16 +105,18 @@
 <dialog id="help-dialog" aria-labelledby="help-title">
   <div class="dialog-head"><h2 id="help-title">Instruction reference</h2><button id="close-help" aria-label="Close help"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-x"></use></svg></button></div>
   <div class="help-content">
-    <p>4 registers (A–D), 256 bytes RAM (0x00–0xFF), zero flag ZF and carry/borrow flag CF. Program begins at 0x00. A display controller can interpret any RAM region, using configurable dimensions, packing, format, and palette.</p>
+    <p><strong>Three compatible architectures:</strong> MiniCPU 8 has 256 bytes of shared RAM. MiniCPU 8S adds a downward-growing stack, PUSH/POP and CALL/RET. MiniCPU 8X has 4096 bytes of shared RAM, a 16-bit program counter, a 16-bit index register X, and long-address operations. All A–D registers are still 8-bit; all models share the same grouped opcode table. Select an architecture above to assemble for it. Programs start at 0x0000.</p>
     <table><tbody>
       <tr><th>Data</th><td><code>LDI A, 5</code> · <code>MOV B, A</code> · <code>LDA A, 0x70</code> · <code>LDA B, [A]</code> · <code>STA 0x70, A</code> · <code>STA [A], B</code></td></tr>
       <tr><th>Arithmetic</th><td><code>ADD A, B</code> · <code>SUB A, B</code> · <code>INC A</code> · <code>DEC A</code> · <code>SHL A</code> · <code>SHR A</code></td></tr>
       <tr><th>Bitwise</th><td><code>AND A, B</code> · <code>OR A, B</code> · <code>XOR A, B</code></td></tr>
       <tr><th>Conditions</th><td><code>CMP A, 42</code> · <code>CMP A, B</code> · <code>JZ label</code> · <code>JNZ label</code> · <code>JC label</code> · <code>JNC label</code></td></tr>
       <tr><th>Control</th><td><code>JMP label</code> · <code>CLF</code> · <code>NOP</code> · <code>HLT</code></td></tr>
+      <tr><th>8S and 8X</th><td><code>PUSH A</code> · <code>POP A</code> · <code>CALL subroutine</code> · <code>RET</code> · SP begins one past the last RAM address; CALL saves a return address, RET restores it. On 8X return addresses use two bytes.</td></tr>
+      <tr><th>8X only</th><td><code>LDX 0x0800</code> · <code>STA [X], A</code> · <code>LDA A, [X]</code> · <code>INCX</code> · <code>DECX</code> · <code>JMP16 label</code> · <code>JZ16 label</code> · <code>JNZ16 label</code> · <code>JC16 label</code> · <code>JNC16 label</code> · <code>CALL16 label</code>. Short JMP/JZ/etc use 8-bit absolute addresses (page zero).</td></tr>
       <tr><th>Directives</th><td><code>.org 0x60</code> · <code>.db 1, 2, "Hi"</code> · <code>SIZE .equ 16</code> · <code>.display 0x80, 32, 16, mono, 1bit_monitor_glow</code></td></tr>
     </tbody></table>
-    <p>Numbers can be decimal, <code>0x</code> hexadecimal, <code>0b</code> binary, or expressions with <code>+</code>, <code>-</code>, parentheses and named constants. Comments start with <code>;</code>. All instructions use original MiniCPU byte encodings.</p>
+    <p>Numbers can be decimal, <code>0x</code> hexadecimal, <code>0b</code> binary, or expressions with <code>+</code>, <code>-</code>, parentheses and named constants. Comments start with <code>;</code>. The educational opcode map groups control, data movement, arithmetic, logic, comparisons, stack operations, and branches into hexadecimal families. The stack shares ordinary RAM with programs and pixels.</p>
     <p><strong>Display controller:</strong> <code>.display start, width, height, mode [, palette]</code> suggests defaults; the panel lets you override them live without changing memory. Modes: <code>mono</code>, <code>indexed2</code>, <code>indexed4</code>, <code>indexed8</code>, <code>gray8</code>, <code>rgb332</code>, <code>rgb24</code>. Rows are packed consecutively with byte alignment. Packed indices use the most significant bits first. Indexed palettes must have exactly 2, 4, 16, or 256 colors for the selected bit depth. Metadata creates no instructions and consumes no RAM.</p>
     <p><strong>Note:</strong> CPU execution is capped to prevent infinite loops from freezing the browser. Unbounded example programs are intentionally left running until you pause or hit the limit.</p>
   </div>

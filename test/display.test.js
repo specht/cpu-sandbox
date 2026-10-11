@@ -47,7 +47,7 @@ test('same RAM and CPU state admit different live display interpretations', () =
 });
 test('.display is metadata only; no emitted bytes and .equ constants work', () => {
   const program=assemble('BASE .equ 0x80\n.display BASE, 32, 8, mono, 1bit_monitor_glow\nLDI A, 5\nHLT');
-  assert.deepEqual(Array.from(program.bytes),[1,0,5,255]);
+  assert.deepEqual(Array.from(program.bytes),[0x10,0,5,0x01]);
   assert.equal(program.display.start,128);assert.equal(program.display.width,32);
   assert.equal(program.sourceMap.get(0),3);
 });

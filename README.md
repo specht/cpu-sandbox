@@ -18,7 +18,7 @@ Prerequisite: Node.js 18+ (22+ recommended).
 # Open http://127.0.0.1:8765
 ```
 
-The eight built-in examples are available immediately, without student files. They
+The bundled examples are available immediately, without student files. They
 are read-only by design: **Copy example** saves a new copy into a student directory.
 
 ### Attach a class repository
@@ -142,7 +142,7 @@ A program can suggest a display configuration without emitting instructions:
 Syntax: `.display start, width, height, mode [, palette]`. Every row starts
 immediately after the previous row (rounded up to the next byte when packed).
 Indexed modes require a palette with exactly 2^bit-depth colors; grayscale
-and RGB modes take no palette. All mapped bytes must fit within `0x00`–`0xFF`.
+and RGB modes take no palette. The mapping must fit the selected CPU’s RAM (256 bytes on 8/8S or 4 KiB on 8X).
 The browser controller can override the suggestion; it never changes RAM. [Display controller reference](docs/display-controller.md)
 contains more examples and an explanation of the mapping.
 
@@ -264,3 +264,39 @@ This is a deliberately modest *plasma-style* effect: there are no trigonometric
 instructions or smooth hardware interpolation. The wave values approximate
 sine-like shapes, and the 16-color palette makes changes in the 4-bit indices
 look continuous. See [the demonstration walkthrough](docs/plasma-garden.md).
+
+## CPU models and opcode families
+
+Select the processor at the top of the browser. The source is automatically
+reassembled and the CPU reset when the model changes; unsaved source edits are
+not discarded. The three models share **one deliberately designed opcode map**:
+
+| Model | Program counter | RAM | New facilities |
+| --- | --- | --- | --- |
+| MiniCPU 8 | 8-bit | 256 B | Basic A–D registers, flags, jumps |
+| MiniCPU 8S | 8-bit | 256 B | Shared-RAM stack, `PUSH`, `POP`, `CALL`, `RET` |
+| MiniCPU 8X | 16-bit | 4 KiB | 16-bit X and SP, extended jumps, `CALL16`, `[X]` access |
+
+| Opcode range | Family |
+| --- | --- |
+| `00`–`0F` | Control (`NOP`, `HLT`, `CLF`) |
+| `10`–`1F` | Data movement and addressing (`LDI`, `LDA`, `STA`, `MOV`, `LDX`) |
+| `20`–`2F` | Arithmetic and shifts |
+| `30`–`3F` | Bitwise logic |
+| `40`–`4F` | Comparisons |
+| `50`–`5F` | Stack and subroutines |
+| `60`–`6F` | Jumps, including long jumps |
+| `70`–`FF` | Reserved |
+
+See [the complete instruction encodings](docs/instruction-encoding.md).
+The ISA is **source-compatible across model levels**: every MiniCPU 8 assembly
+program can be reassembled for 8S or 8X. The earlier Ruby emulator's machine
+code bytes are **not** compatible. Assemblies and examples are not binary files,
+so there is no migration step.
+
+The stack is ordinary memory at the high end of the address space and grows
+downward. Its content may overlap a framebuffer or other program data: this is
+intentional and visible to students, so keep the display away from the stack
+when writing graphics subroutines. A short jump or `CALL` uses an 8-bit absolute
+address; use `JMP16`, `JZ16`, `JNZ16`, `JC16`, `JNC16`, or `CALL16` to reach code
+above `0x00FF` on 8X.

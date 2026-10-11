@@ -12,21 +12,21 @@ export const DEFAULT_DISPLAY = Object.freeze({ start: 0x80, width: 16, height: 8
 const assertInt = (n, lo, hi, label) => {
   if (!Number.isInteger(n) || n < lo || n > hi) throw new RangeError(`${label} must be ${lo}..${hi}`);
 };
-export function validateDisplay(config) {
+export function validateDisplay(config, memorySize = 256) {
   if (!MODES[config.mode]) throw new RangeError(`Unknown pixel format: ${config.mode}`);
   const bits = MODES[config.mode].bits;
-  assertInt(config.start, 0, 255, 'Starting address');
+  assertInt(config.start, 0, memorySize - 1, 'Starting address');
   assertInt(config.width, 1, 256, 'Width');
   assertInt(config.height, 1, 256, 'Height');
   // Each row starts at the next byte; incomplete final bytes are padding.
   const rowBytes = Math.ceil(config.width * bits / 8);
   const end = config.start + config.height * rowBytes;
-  if (end > 256) throw new RangeError(`Display ends at 0x${(end - 1).toString(16).toUpperCase()}; RAM ends at 0xFF`);
+  if (end > memorySize) throw new RangeError(`Display ends at 0x${(end - 1).toString(16).toUpperCase()}; RAM ends at 0x${(memorySize - 1).toString(16).toUpperCase()}`);
   return { ...config, rowBytes, bytesSpanned: end - config.start, endExclusive: end, bits };
 }
 const byteHex = n => n.toString(16).toUpperCase().padStart(2, '0');
 export function renderDisplay(memory, config, palettes) {
-  const c = validateDisplay(config), result = [], colors = palettes[c.palette];
+  const c = validateDisplay(config, memory.length), result = [], colors = palettes[c.palette];
   if (MODES[c.mode].indexed && (!colors || colors.length !== 2 ** c.bits))
     throw new RangeError(`Palette for ${c.bits}-bit indexed color must have exactly ${2 ** c.bits} entries`);
   for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) {
