@@ -1,0 +1,4 @@
+# Separate class repository; never accidentally commit students' work with app.
+/programs/
+/node_modules/
+.DS_Store

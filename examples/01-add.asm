@@ -1,0 +1,6 @@
+; ADD TWO NUMBERS
+; A = 5 + 3 = 8
+LDI A, 5
+LDI B, 3
+ADD A, B
+HLT

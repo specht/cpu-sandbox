@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>CPU Sandbox — Assembly &amp; machine state</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+<div class="shell">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">⌘</div>
+      <div><strong>CPU SANDBOX</strong><span>Assembly · execution · memory</span></div>
+    </div>
+    <div class="workspace-picker">
+      <label>Student <select id="group" aria-label="Student folder"></select></label>
+      <label>Program <select id="program" aria-label="Assembly program"></select></label>
+      <button id="refresh" title="Refresh files from disk">↻ Refresh</button>
+      <button id="new-program" title="Create a new .asm program on disk">+ New</button>
+      <button id="copy-program" title="Copy this example into a student's directory" hidden>Copy example</button>
+      <span class="server-status" id="connection" role="status">Connecting…</span>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <section class="panel editor-panel" aria-label="Assembly source code">
+      <div class="panel-header">
+        <div><span class="eyebrow">SOURCE</span><strong id="filename">Select a program</strong></div>
+        <div class="header-actions"><span class="dirty" id="dirty" hidden>Unsaved</span><button id="save" disabled>Save <kbd>Ctrl+S</kbd></button><button id="help" title="Instruction reference">? Help</button></div>
+      </div>
+      <div class="editor-area">
+        <div class="line-numbers" id="line-numbers" aria-hidden="true">1</div>
+        <pre id="highlight-layer" aria-hidden="true"><code id="highlight"></code></pre>
+        <textarea id="source" aria-label="Assembly source editor" spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
+      </div>
+      <div class="editor-bottom"><span>Ctrl+S Save · Auto-assemble · Tab inserts spaces</span><span id="line-pos">Ln 1, Col 1</span></div>
+      <div class="diagnostics" id="diagnostics" role="status" aria-live="polite"><span>Choose a program to begin.</span></div>
+
+    </section>
+
+    <section class="panel machine-panel" aria-label="CPU execution">
+      <div class="machine-header">
+        <div><span class="eyebrow">8-BIT PROCESSOR</span><strong id="operation">Not assembled</strong></div>
+        <span class="state-tag" id="run-state">READY</span>
+      </div>
+      <div class="controls">
+
+        <button id="back" disabled title="Step backwards (Left arrow)">← Back</button>
+        <button id="step" disabled title="Step forwards (Right arrow)">Step →</button>
+        <button id="play" disabled title="Play / pause (Space)">▶ Play</button>
+        <button id="instant" disabled title="Run to HLT, or a bounded instruction limit">Run to end</button>
+        <button id="reset" disabled title="Reset to assembled image">Reset</button>
+        <label class="speed-label">Speed <input type="range" id="speed" min="1" max="100" value="35"><span id="speed-label">35</span></label>
+      </div>
+      <div class="machine-scroll">
+        <div class="register-panel">
+          <div class="status-grid">
+            <div class="stat"><span>PC</span><strong id="pc" class="num">--</strong><small>next instruction</small></div>
+            <div class="stat"><span>Cycles</span><strong id="cycles" class="num">0</strong><small>instructions</small></div>
+            <div class="stat"><span>ZF</span><strong id="zf" class="num">0</strong><small>zero flag</small></div>
+            <div class="stat"><span>CF</span><strong id="cf" class="num">0</strong><small>carry flag</small></div>
+          </div>
+          <div class="register-grid" id="registers" aria-label="Registers"><div class="reg">A —</div><div class="reg">B —</div><div class="reg">C —</div><div class="reg">D —</div></div>
+        </div>
+        <div class="screen-section">
+          <div class="section-bar"><div><span class="eyebrow">DISPLAY CONTROLLER</span><span class="subtext" id="display-summary">RAM, interpreted as pixels</span></div><span id="pixel-count"></span></div>
+          <details class="display-settings" id="display-settings">
+            <summary>Configure display · program suggestion can be overridden</summary>
+            <div class="display-fields">
+              <label>Start <input id="display-start" value="0x80" aria-label="Display start address hexadecimal"></label>
+              <label class="display-slider">Width <output id="display-width-value" for="display-width">16 px</output><input id="display-width" type="range" min="1" max="256" step="1" value="16"></label>
+              <label class="display-slider">Height <output id="display-height-value" for="display-height">8 px</output><input id="display-height" type="range" min="1" max="256" step="1" value="8"></label>
+              <label class="display-slider">Bit depth <output id="display-depth-value" for="display-depth">8 bpp</output><input id="display-depth" type="range" min="0" max="4" step="1" value="3" aria-label="Display bit depth"></label>
+              <label>Interpretation <select id="display-mode" aria-label="Pixel interpretation"></select></label>
+              <label>Palette <select id="display-palette" aria-label="Pixel palette"></select></label>
+              <button id="display-default" type="button" title="Restore source .display directive or default mapping">Use suggested</button>
+            </div>
+          </details>
+          <div class="display-notice" id="display-notice" role="status"></div>
+          <div class="framebuffer-wrap" id="framebuffer-wrap"><div class="framebuffer" id="framebuffer" role="img" aria-label="Memory-mapped pixel view"></div></div>
+        </div>
+        <div class="inspector">
+          <div class="inspector-tabs" role="tablist" aria-label="CPU details">
+            <button id="tab-memory" data-panel="memory" role="tab" aria-selected="true">RAM</button>
+            <button id="tab-code" data-panel="code" role="tab" aria-selected="false">Machine code <span id="byte-count">—</span></button>
+            <button id="tab-trace" data-panel="trace" role="tab" aria-selected="false">Execution trace</button>
+            <span id="selected-byte">—</span>
+          </div>
+          <div class="inspector-view memory-wrap" id="panel-memory" role="tabpanel"><div class="memory" id="memory" aria-label="Memory hex dump"></div></div>
+          <div class="inspector-view machine-listing" id="panel-code" role="tabpanel" hidden><div id="machine-listing" aria-label="Assembled machine code"></div></div>
+          <div class="inspector-view trace" id="panel-trace" role="tabpanel" hidden><div id="trace" aria-label="Executed instructions"></div></div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer class="footer"><span>Runs locally. Student source is stored on the host filesystem, not in browser storage.</span><span id="footer-status">Offline</span></footer>
+</div>
+<dialog id="help-dialog" aria-labelledby="help-title">
+  <div class="dialog-head"><h2 id="help-title">Instruction reference</h2><button id="close-help" aria-label="Close help">×</button></div>
+  <div class="help-content">
+    <p>4 registers (A–D), 256 bytes RAM (0x00–0xFF), zero flag ZF and carry/borrow flag CF. Program begins at 0x00. A display controller can interpret any RAM region, using configurable dimensions, packing, format, and palette.</p>
+    <table><tbody>
+      <tr><th>Data</th><td><code>LDI A, 5</code> · <code>MOV B, A</code> · <code>LDA A, 0x70</code> · <code>LDA B, [A]</code> · <code>STA 0x70, A</code> · <code>STA [A], B</code></td></tr>
+      <tr><th>Arithmetic</th><td><code>ADD A, B</code> · <code>SUB A, B</code> · <code>INC A</code> · <code>DEC A</code> · <code>SHL A</code> · <code>SHR A</code></td></tr>
+      <tr><th>Bitwise</th><td><code>AND A, B</code> · <code>OR A, B</code> · <code>XOR A, B</code></td></tr>
+      <tr><th>Conditions</th><td><code>CMP A, 42</code> · <code>CMP A, B</code> · <code>JZ label</code> · <code>JNZ label</code> · <code>JC label</code> · <code>JNC label</code></td></tr>
+      <tr><th>Control</th><td><code>JMP label</code> · <code>CLF</code> · <code>NOP</code> · <code>HLT</code></td></tr>
+      <tr><th>Directives</th><td><code>.org 0x60</code> · <code>.db 1, 2, "Hi"</code> · <code>SIZE .equ 16</code> · <code>.display 0x80, 32, 16, mono, 1bit_monitor_glow</code></td></tr>
+    </tbody></table>
+    <p>Numbers can be decimal, <code>0x</code> hexadecimal, <code>0b</code> binary, or expressions with <code>+</code>, <code>-</code>, parentheses and named constants. Comments start with <code>;</code>. All instructions use original MiniCPU byte encodings.</p>
+    <p><strong>Display controller:</strong> <code>.display start, width, height, mode [, palette]</code> suggests defaults; the panel lets you override them live without changing memory. Modes: <code>mono</code>, <code>indexed2</code>, <code>indexed4</code>, <code>indexed8</code>, <code>gray8</code>, <code>rgb332</code>, <code>rgb24</code>. Rows are packed consecutively with byte alignment. Packed indices use the most significant bits first. Indexed palettes must have exactly 2, 4, 16, or 256 colors for the selected bit depth. Metadata creates no instructions and consumes no RAM.</p>
+    <p><strong>Note:</strong> CPU execution is capped to prevent infinite loops from freezing the browser. Unbounded example programs are intentionally left running until you pause or hit the limit.</p>
+  </div>
+</dialog>
+</body></html>
