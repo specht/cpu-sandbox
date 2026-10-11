@@ -47,20 +47,28 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
     if (!safeDirectory(programRoot)) throw new ApiError(404, 'No student repository found. Clone or create programs/ first.');
     return fileInFolder(path.join(programRoot, group), filename);
   }
-  const files = new Map([
-    ['/', ['web/index.html', 'text/html; charset=utf-8']],
-    ['/app.js', ['web/app.js', 'text/javascript; charset=utf-8']],
-    ['/style.css', ['web/style.css', 'text/css; charset=utf-8']],
-    ['/assembler.js', ['src/assembler.js', 'text/javascript; charset=utf-8']],
-    ['/cpu.js', ['src/cpu.js', 'text/javascript; charset=utf-8']],
-    ['/architectures.js', ['src/architectures.js', 'text/javascript; charset=utf-8']],
-    ['/opcodes.js', ['src/opcodes.js', 'text/javascript; charset=utf-8']],
-    ['/display.js', ['src/display.js', 'text/javascript; charset=utf-8']],
-    ['/palettes.js', ['src/palettes.js', 'text/javascript; charset=utf-8']],
-    ['/vendor/tabler-icons.svg', ['web/vendor/tabler-icons.svg', 'image/svg+xml']],
-    ['/vendor/fonts/OpenSans.ttf', ['web/vendor/fonts/OpenSans.ttf', 'font/ttf']],
-    ['/vendor/fonts/0xProtoNerdFont.ttf', ['web/vendor/fonts/0xProtoNerdFont.ttf', 'font/ttf']],
-  ]);
+  // Static files: the page, its modules, the shared CPU code and vendored assets.
+  const TYPES = {
+    '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
+    '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.jpg': 'image/jpeg',
+  };
+  const STATIC = [['/src/', 'src'], ['/js/', 'web/js'], ['/vendor/fonts/', 'web/vendor/fonts'], ['/vendor/', 'web/vendor'], ['/', 'web']];
+  function staticFile(route) {
+    if (route === '/') route = '/index.html';
+    for (const [prefix, dir] of STATIC) {
+      if (!route.startsWith(prefix)) continue;
+      const name = route.slice(prefix.length);
+      if (!/^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(name) || !TYPES[path.extname(name)]) return null;
+      const file = path.join(base, dir, name);
+      return fs.existsSync(file) && fs.statSync(file).isFile() ? [file, TYPES[path.extname(name)]] : null;
+    }
+    return null;
+  }
+  const cpuOf = text => (text.match(/^[ \t]*\.cpu[ \t]+(8s|8x|8)\b/im)?.[1] ?? '8').toLowerCase();
+  const describe = folder => listAsm(folder).map(name => {
+    const bytes = fs.readFileSync(path.join(folder, name));
+    return { name, cpu: cpuOf(bytes.toString('utf8')), revision: digest(bytes) };
+  });
   return http.createServer(async (req, res) => {
     try {
       // Only same-origin calls are accepted for writes. The server listens on loopback by default.
@@ -73,13 +81,14 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
       const route = url.pathname;
       if (route === '/api/catalog' && req.method === 'GET') {
         const groups = [];
-        if (safeDirectory(exampleRoot)) groups.push({ id: '@examples', label: 'Examples', readonly: true, files: listAsm(exampleRoot) });
-        if (safeDirectory(programRoot)) {
-          for (const e of fs.readdirSync(programRoot, { withFileTypes: true }).sort((a,b) => a.name.localeCompare(b.name))) {
-            if (e.isDirectory() && !e.isSymbolicLink() && isName(e.name)) groups.push({ id: e.name, label: e.name, readonly: false, files: listAsm(path.join(programRoot, e.name)) });
+        if (safeDirectory(exampleRoot)) groups.push({ id: '@examples', label: 'Examples', readonly: true, files: describe(exampleRoot) });
+        const programsExists = safeDirectory(programRoot);
+        if (programsExists) {
+          for (const e of fs.readdirSync(programRoot, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+            if (e.isDirectory() && !e.isSymbolicLink() && isName(e.name)) groups.push({ id: e.name, label: e.name, readonly: false, files: describe(path.join(programRoot, e.name)) });
           }
         }
-        return json(res, 200, { groups, workspace: 'programs/', tip: 'Clone the class repository into programs/; each student has their own directory.' });
+        return json(res, 200, { groups, programsExists });
       }
       if (route === '/api/source' && (req.method === 'GET' || req.method === 'PUT')) {
         const group = url.searchParams.get('group'), file = url.searchParams.get('file');
@@ -95,26 +104,28 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
         if (typeof input.revision !== 'string') throw new ApiError(400, 'Expected revision');
         if (!fs.existsSync(full)) throw new ApiError(404, 'Source not found');
         const current = fs.readFileSync(full);
-        if (digest(current) !== input.revision) throw new ApiError(409, 'The file changed on disk. Reload and compare before saving.');
+        if (digest(current) !== input.revision) throw new ApiError(409, 'The file changed on disk');
         // Single local Node process serializes this synchronous check + write.
         fs.writeFileSync(full, input.source, { flag: 'w' });
         return json(res, 200, { revision: digest(Buffer.from(input.source)), saved: true });
       }
       if (route === '/api/programs' && req.method === 'POST') {
         const input = await bodyJson(req);
+        if (input.group === '@examples') throw new ApiError(403, 'Examples are read-only');
+        if (!isName(input.group)) throw new ApiError(400, 'A folder name may contain letters, digits, - and _');
+        if (!isProgram(input.file)) throw new ApiError(400, 'A file name may contain letters, digits, ., - and _ and must end in .asm');
+        if (!safeDirectory(programRoot)) throw new ApiError(404, 'There is no programs/ folder yet. Clone the class repository into programs/ first.');
+        const folder = path.join(programRoot, input.group);
+        if (!fs.existsSync(folder)) fs.mkdirSync(folder);
         const full = location(input.group, input.file, true);
-        const source = typeof input.source === 'string' ? input.source : '; New assembly program\nHLT\n';
+        const source = typeof input.source === 'string' ? input.source : 'HLT\n';
         if (Buffer.byteLength(source) > MAX_SOURCE) throw new ApiError(413, 'Source is too large');
         try { fs.writeFileSync(full, source, { flag: 'wx' }); }
-        catch (e) { if (e.code === 'EEXIST') throw new ApiError(409, 'Program already exists'); throw e; }
+        catch (e) { if (e.code === 'EEXIST') throw new ApiError(409, `${input.group}/${input.file} already exists`); throw e; }
         return json(res, 201, { group: input.group, file: input.file, revision: digest(Buffer.from(source)) });
       }
-      if (req.method === 'GET' && files.has(route)) {
-        const [relative, type] = files.get(route);
-        const filePath = path.join(base, relative);
-        if (!fs.existsSync(filePath)) throw new ApiError(404, 'Bundled asset not installed');
-        return send(res, 200, fs.readFileSync(filePath), type);
-      }
+      const asset = req.method === 'GET' && staticFile(route);
+      if (asset) return send(res, 200, fs.readFileSync(asset[0]), asset[1]);
       throw new ApiError(404, 'Not found');
     } catch (e) {
       if (e instanceof ApiError) return json(res, e.status, { error: e.message });

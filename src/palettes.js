@@ -1,20 +1,23 @@
-// Selected palettes from specht/pixelram/tools/palettes.yaml, commit
-// 951d93a0cd6dd254cd0e84faa2edefa935f9de50.
-// Entries retain their original index ordering: indexed pixels refer to these positions.
-const parse = str => str.split(' ').map(c => `#${c.toUpperCase()}`);
+// Palettes from specht/pixelram/tools/palettes.yaml (commit 951d93a), keeping
+// their original index order, plus two palettes made for the bundled demos.
+const parse = str => str.trim().split(/\s+/).map(c => `#${c.toUpperCase()}`);
+const hex2 = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
+
+// black → dark red → orange → yellow → white, for heat values 0..255
+const fire = Array.from({ length: 256 }, (_, i) => {
+  const t = i / 255;
+  return hex2(t * 3 * 255) + hex2((t - 0.33) * 2.6 * 255) + hex2((t - 0.72) * 3.6 * 255);
+}).join(' ');
+
 export const PALETTES = Object.freeze({
   '1bit_monitor_glow': parse('222323 f0f6f0'),
   'cga_palette_1_high': parse('000000 ff55ff 55ffff ffffff'),
   'color_graphics_adapter': parse('000000 555555 aaaaaa ffffff 0000aa 5555ff 00aa00 55ff55 00aaaa 55ffff aa0000 ff5555 aa00aa ff55ff aa5500 ffff55'),
   'pico_8': parse('000000 1d2b53 7e2553 008751 ab5236 5f574f c2c3c7 fff1e8 ff004d ffa300 ffec27 00e436 29adff 83769c ff77a8 ffccaa'),
   'sweetie_16': parse('1a1c2c 5d275d b13e53 ef7d57 ffcd75 a7f070 38b764 257179 29366f 3b5dc9 41a6f6 73eff7 f4f4f4 94b0c2 566c86 333c57'),
-  // CPU Sandbox original: a continuous 16-color cycle for the plasma example.
-  // Unlike the PixelRAM palettes above, these colors were designed specifically
-  // to avoid sharp jumps when a wave index wraps from 15 back to 0.
-  'aurora_cycle_16': parse('4282bd 4658c7 6849d0 a14cd9 de4fe1 e751b2 ec537c ef6454 f09f54 efd854 c9ec53 8ce751 52e14f 4cd97e 49d0ac 46b9c7'),
-  'dreamscape8': parse('c9cca1 caa05a ae6a47 8b4049 543344 515262 63787d 8ea091'),
-  'slso8': parse('0d2b45 203c56 544e68 8d697a d08159 ffaa5e ffd4a3 ffecd6'),
-  'endesga_32': parse('be4a2f d77643 ead4aa e4a672 b86f50 733e39 3e2731 a22633 e43b44 f77622 feae34 fee761 63c74d 3e8948 265c42 193c3e 124e89 0099db 2ce8f5 ffffff c0cbdc 8b9bb4 5a6988 3a4466 262b44 181425 ff0044 68386c b55088 f6757a e8b796 c28569'),
+  // CPU Sandbox: index 0 is black, 1..15 run from deep blue over white to ember red.
+  'twilight_16': parse('000000 0b1033 132463 1c3d93 2762c0 3d8fdc 70c1ee b8e7f6 fff6dc ffd98a ffb347 f5871c d95c10 a8360c 6e1c0a 3c0c08'),
+  'fire_256': parse(fire),
   // PixelRAM VGA has 256 entries; the first 16 correspond to VGA's basic colors.
   'vga': parse(`000000 0000aa 00aa00 00aaaa aa0000 aa00aa aa5500 aaaaaa 555555 5555ff 55ff55 55ffff ff5555 ff55ff ffff55 ffffff
     000000 141414 202020 2c2c2c 383838 454545 515151 616161 717171 828282 929292 a2a2a2 b6b6b6 cbcbcb e3e3e3 ffffff
@@ -28,5 +31,4 @@ export const PALETTES = Object.freeze({
     202041 282041 302041 382041 412041 412038 412030 412028 412020 412820 413020 413820 414120 384120 304120 284120 204120 204128 204130 204138 204141 203841 203041 202841
     2c2c41 302c41 342c41 3c2c41 412c41 412c3c 412c34 412c30 412c2c 41302c 41342c 413c2c 41412c 3c412c 34412c 30412c 2c412c 2c4130 2c4134 2c413c 2c4141 2c3c41 2c3441 2c3041
     000000 000000 000000 000000 000000 000000 000000 000000`.replace(/\s+/g, ' ').trim()),
-  'ega_com_extended': parse('292929 52575c 94999e deeedc 7b2d2f d04043 cb8f21 e6c439 6c4b37 8c6946 538a6a 63b465 2c4267 38668b 775780 f4a66c 576e54 82e8e8 9d446a eb7272'),
 });

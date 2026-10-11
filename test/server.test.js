@@ -24,8 +24,11 @@ async function fixture(t) {
 test('catalog lists real student folders and only .asm files (no browser state)',async t=>{
   const {request}=await fixture(t), {payload}=await request('/api/catalog');
   assert.deepEqual(payload.groups.map(g=>g.id),['@examples','anna','ben']);
-  assert.deepEqual(payload.groups[1].files,['sum.asm']);
+  assert.deepEqual(payload.groups[1].files.map(f=>f.name),['sum.asm']);
+  assert.equal(payload.groups[1].files[0].cpu,'8');
+  assert.match(payload.groups[1].files[0].revision,/^[0-9a-f]{64}$/);
   assert.deepEqual(payload.groups[2].files,[]);
+  assert.equal(payload.programsExists,true);
 });
 test('disk backed source can be fetched and saved with revision',async t=>{
   const {request,write,programs}=await fixture(t);
@@ -51,9 +54,11 @@ test('examples cannot be modified and new sources cannot overwrite existing file
   assert.equal(src.readonly,true);
   assert.equal((await write('PUT','/api/source?group=@examples&file=demo.asm',{revision:src.revision,source:'NOP'})).response.status,403);
   assert.equal((await write('POST','/api/programs',{group:'anna',file:'sum.asm',source:'HLT'})).response.status,409);
-  const created=await write('POST','/api/programs',{group:'ben',file:'new.asm',source:'HLT'});
+  const created=await write('POST','/api/programs',{group:'ben',file:'new.asm',source:'.cpu 8x\nHLT'});
   assert.equal(created.response.status,201);
-  assert.ok((await request('/api/catalog')).payload.groups.find(g=>g.id==='ben').files.includes('new.asm'));
+  const ben=(await request('/api/catalog')).payload.groups.find(g=>g.id==='ben');
+  assert.deepEqual(ben.files.map(f=>[f.name,f.cpu]),[['new.asm','8x']]);
+  assert.equal((await write('POST','/api/programs',{group:'@examples',file:'x.asm',source:'HLT'})).response.status,403);
 });
 test('path traversal and symlink escape are rejected',async t=>{
   const {root,programs,request,write}=await fixture(t);
@@ -71,20 +76,23 @@ test('reject large source and cross-origin writes',async t=>{
   const bad=await request('/api/source?group=anna&file=sum.asm',{method:'PUT',headers:{Origin:'http://evil.example','Content-Type':'application/json'},body:JSON.stringify({revision:src.revision,source:'NOP'})});
   assert.equal(bad.response.status,403);
 });
-test('static web entrypoint and ES modules are accessible',async t=>{
-  const {base}=await fixture(t);
-  for(const uri of ['/','/app.js','/assembler.js','/cpu.js','/display.js','/palettes.js','/style.css']) {
-    const res=await fetch(base+uri);assert.equal(res.status,200,uri);
-    assert.ok((await res.text()).length>20);
-  }
+test('a copy can start a new student folder inside programs/',async t=>{
+  const {write,programs}=await fixture(t);
+  const created=await write('POST','/api/programs',{group:'clara',file:'fire.asm',source:'HLT\n'});
+  assert.equal(created.response.status,201);
+  assert.equal(fs.readFileSync(path.join(programs,'clara','fire.asm'),'utf8'),'HLT\n');
+  assert.equal((await write('POST','/api/programs',{group:'clara',file:'../x.asm',source:'HLT'})).response.status,400);
 });
-
-test('browser can import the shared opcode module', async t => {
-  const server = createServer();
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  t.after(() => new Promise(resolve => server.close(resolve)));
-  const url = `http://127.0.0.1:${server.address().port}/opcodes.js`;
-  const response = await fetch(url);
-  assert.equal(response.status, 200);
-  assert.match(await response.text(), /export const OPCODES/);
+test('the page, its modules, the shared CPU code and vendored assets are served',async t=>{
+  const {base}=await fixture(t);
+  for(const [uri,type] of [['/','text/html'],['/style.css','text/css'],['/js/app.js','text/javascript'],['/src/cpu.js','text/javascript'],
+    ['/src/opcodes.js','text/javascript'],['/vendor/codemirror.js','text/javascript'],['/vendor/tabler-icons.svg','image/svg+xml'],
+    ['/vendor/fonts/OpenSans.ttf','font/ttf'],['/background.jpg','image/jpeg']]) {
+    const res=await fetch(base+uri);
+    assert.equal(res.status,200,uri);
+    assert.ok(res.headers.get('content-type').startsWith(type),uri);
+  }
+  for(const uri of ['/server.mjs','/src/../server.mjs','/vendor/LICENSE','/test/cpu.test.js']) {
+    assert.equal((await fetch(base+uri)).status,404,uri);
+  }
 });

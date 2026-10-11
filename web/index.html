@@ -1,124 +1,157 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>CPU Sandbox — Assembly &amp; machine state</title>
-  <link rel="stylesheet" href="/style.css">
-  <script type="module" src="/app.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CPU Sandbox</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/vendor/codemirror.css">
+<link rel="stylesheet" href="/style.css">
 </head>
 <body>
 <div class="shell">
   <header class="topbar">
-    <div class="brand">
-      <div><strong>CPU SANDBOX</strong><span>Assembly · execution · memory</span></div>
-    </div>
-    <div class="workspace-picker">
-      <label>CPU <select id="architecture" aria-label="Choose CPU architecture">
-        <option value="cpu8">MiniCPU 8 · Basic</option>
-        <option value="cpu8s">MiniCPU 8S · Stack</option>
-        <option value="cpu8x">MiniCPU 8X · Extended</option>
-      </select></label>
-      <label>Student <select id="group" aria-label="Student folder"></select></label>
-      <label>Program <select id="program" aria-label="Assembly program"></select></label>
-      <button id="refresh" title="Refresh files from disk"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-refresh"></use></svg><span>Refresh</span></button>
-      <button id="new-program" title="Create a new .asm program on disk"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-plus"></use></svg><span>New</span></button>
-      <button id="copy-program" title="Copy this example into a student's directory" hidden><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-copy"></use></svg><span>Copy example</span></button>
-      <span class="server-status" id="connection" role="status">Connecting…</span>
+    <div class="brand"><strong>CPU SANDBOX</strong></div>
+    <div class="topright">
+      <button type="button" id="reference-open" aria-haspopup="dialog" aria-controls="reference-dialog">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-book"/></svg> Instruction set</button>
+      <span id="connection" class="connection" role="status">Connecting…</span>
     </div>
   </header>
 
-  <main class="workspace">
-    <section class="panel editor-panel" aria-label="Assembly source code">
-      <div class="panel-header">
-        <div><span class="eyebrow">SOURCE</span><strong id="filename">Select a program</strong></div>
-        <div class="header-actions"><span class="dirty" id="dirty" hidden>Unsaved</span><button id="save" disabled><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-device-floppy"></use></svg><span>Save</span><kbd>Ctrl+S</kbd></button><button id="help" title="Instruction reference"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-book"></use></svg><span>Help</span></button></div>
-      </div>
-      <div class="editor-area">
-        <div class="line-numbers" id="line-numbers" aria-hidden="true">1</div>
-        <pre id="highlight-layer" aria-hidden="true"><code id="highlight"></code></pre>
-        <textarea id="source" aria-label="Assembly source editor" spellcheck="false" autocomplete="off" autocapitalize="off" disabled></textarea>
-      </div>
-      <div class="editor-bottom"><span>Ctrl+S Save · Auto-assemble · Tab inserts spaces</span><span id="line-pos">Ln 1, Col 1</span></div>
-      <div class="diagnostics" id="diagnostics" role="status" aria-live="polite"><span>Choose a program to begin.</span></div>
+  <div id="repository-missing" class="notice" hidden></div>
 
+  <main class="view workspace">
+    <section class="code-panel" aria-label="Assembly source code">
+      <div class="section-heading">
+        <div class="file-title">
+          <div id="program-picker" class="picker"></div>
+          <span id="source-chip" class="source-chip" hidden></span>
+        </div>
+        <div class="source-actions">
+          <button type="button" id="source-save" class="save-button" disabled title="Save (Ctrl+S)">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-device-floppy"/></svg> Save</button>
+          <button type="button" id="source-revert" disabled title="Discard unsaved edits">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-refresh"/></svg> Revert</button>
+          <button type="button" id="source-copy" title="Save this program as a new file in a student folder" aria-haspopup="dialog" aria-controls="copy-dialog">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-copy"/></svg> Save copy</button>
+        </div>
+      </div>
+      <div id="source-editor" class="source-editor" aria-label="Source editor"></div>
+      <section id="source-problems" class="source-problems" aria-label="Problems" hidden>
+        <ol id="source-problem-list" class="source-problem-list"></ol>
+      </section>
+      <div class="source-footer">
+        <span class="source-shortcuts">Ctrl+S Save · Ctrl+/ Comment · click a line number to set a breakpoint</span>
+        <span id="source-status" class="source-status" role="status" hidden></span>
+      </div>
     </section>
 
-    <section class="panel machine-panel" aria-label="CPU execution">
-      <div class="machine-header">
-        <div><span class="eyebrow" id="arch-description">8-BIT PROCESSOR</span><strong id="operation">Not assembled</strong></div>
-        <span class="state-tag" id="run-state">READY</span>
+    <section class="visual-panel" aria-label="CPU">
+      <div class="visual-toolbar">
+        <label class="field"><span>CPU</span><select id="architecture" aria-label="CPU level"></select></label>
+        <span id="architecture-summary" class="muted toolbar-note"></span>
       </div>
-      <div class="controls">
 
-        <button id="back" disabled title="Step backwards (Left arrow)"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-player-skip-back"></use></svg><span>Back</span></button>
-        <button id="step" disabled title="Step forwards (Right arrow)"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-player-track-next"></use></svg><span>Step</span></button>
-        <button id="play" disabled title="Play / pause (Space)"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-player-play"></use></svg><span id="play-label">Play</span></button>
-        <button id="instant" disabled title="Run to HLT, or a bounded instruction limit"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-player-skip-forward"></use></svg><span>Run to end</span></button>
-        <button id="reset" disabled title="Reset to assembled image"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-refresh"></use></svg><span>Reset</span></button>
-        <label class="speed-label">Speed <input type="range" id="speed" min="1" max="100" value="35"><span id="speed-label">35</span></label>
-      </div>
-      <div class="machine-scroll">
-        <div class="register-panel">
-          <div class="status-grid">
-            <div class="stat"><span>PC</span><strong id="pc" class="num">--</strong><small>next instruction</small></div>
-            <div class="stat"><span>Cycles</span><strong id="cycles" class="num">0</strong><small>instructions</small></div>
-            <div class="stat"><span>ZF</span><strong id="zf" class="num">0</strong><small>zero flag</small></div>
-            <div class="stat"><span>CF</span><strong id="cf" class="num">0</strong><small>carry flag</small></div>
+      <div id="registers" class="registers" aria-label="Registers and flags"></div>
+
+      <div class="machine">
+        <section class="frame screen-frame" aria-label="Screen">
+          <div class="frame-bar screen-bar">
+            <select id="screen-format" aria-label="Pixel format"></select>
+            <select id="screen-palette" aria-label="Palette"></select>
+            <label class="mini-field" title="Address of the first pixel">at <input id="screen-start" class="mono" spellcheck="false" autocomplete="off" aria-label="Start address"></label>
+            <label class="mini-field" title="Width in pixels"><input id="screen-width" type="number" min="1" max="256" aria-label="Width"></label>
+            <span class="times">×</span>
+            <label class="mini-field" title="Height in pixels"><input id="screen-height" type="number" min="1" max="256" aria-label="Height"></label>
+            <button type="button" id="screen-reset" class="icon-button" title="Back to the program's .display setting" aria-label="Reset screen settings">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-restore"/></svg></button>
           </div>
-          <div class="register-grid" id="registers" aria-label="Registers"><div class="reg">A —</div><div class="reg">B —</div><div class="reg">C —</div><div class="reg">D —</div></div>
-        </div>
-        <div class="screen-section">
-          <div class="section-bar"><div><span class="eyebrow">DISPLAY CONTROLLER</span><span class="subtext" id="display-summary">RAM, interpreted as pixels</span></div><span id="pixel-count"></span></div>
-          <details class="display-settings" id="display-settings">
-            <summary>Configure display · program suggestion can be overridden</summary>
-            <div class="display-fields">
-              <label>Start <input id="display-start" value="0x80" aria-label="Display start address hexadecimal"></label>
-              <label class="display-slider">Width <output id="display-width-value" for="display-width">16 px</output><input id="display-width" type="range" min="1" max="256" step="1" value="16"></label>
-              <label class="display-slider">Height <output id="display-height-value" for="display-height">8 px</output><input id="display-height" type="range" min="1" max="256" step="1" value="8"></label>
-              <label class="display-slider">Bit depth <output id="display-depth-value" for="display-depth">8 bpp</output><input id="display-depth" type="range" min="0" max="4" step="1" value="3" aria-label="Display bit depth"></label>
-              <label>Interpretation <select id="display-mode" aria-label="Pixel interpretation"></select></label>
-              <label>Palette <select id="display-palette" aria-label="Pixel palette"></select></label>
-              <button id="display-default" type="button" title="Restore source .display directive or default mapping"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-restore"></use></svg><span>Use suggested</span></button>
+          <div id="screen-area" class="screen-area">
+            <div id="screen-box" class="screen-box">
+              <canvas id="screen" aria-label="Screen: RAM shown as pixels"></canvas>
+              <span id="screen-grip" class="screen-grip" title="Drag to resize the screen" aria-hidden="true"></span>
             </div>
-          </details>
-          <div class="display-notice" id="display-notice" role="status"></div>
-          <div class="framebuffer-wrap" id="framebuffer-wrap"><div class="framebuffer" id="framebuffer" role="img" aria-label="Memory-mapped pixel view"></div></div>
-        </div>
-        <div class="inspector">
-          <div class="inspector-tabs" role="tablist" aria-label="CPU details">
-            <button id="tab-memory" data-panel="memory" role="tab" aria-selected="true"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-database"></use></svg><span>RAM</span></button>
-            <button id="tab-code" data-panel="code" role="tab" aria-selected="false"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-code"></use></svg><span>Machine code</span> <span id="byte-count">—</span></button>
-            <button id="tab-trace" data-panel="trace" role="tab" aria-selected="false"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-timeline"></use></svg><span>Execution trace</span></button>
-            <label class="memory-page-picker" id="memory-page-picker" hidden>Page <select id="memory-page" aria-label="256-byte RAM page"></select></label><span id="selected-byte">—</span>
           </div>
-          <div class="inspector-view memory-wrap" id="panel-memory" role="tabpanel"><div class="memory" id="memory" aria-label="Memory hex dump"></div></div>
-          <div class="inspector-view machine-listing" id="panel-code" role="tabpanel" hidden><div id="machine-listing" aria-label="Assembled machine code"></div></div>
-          <div class="inspector-view trace" id="panel-trace" role="tabpanel" hidden><div id="trace" aria-label="Executed instructions"></div></div>
+          <div class="frame-footer"><span id="screen-info" class="mono"></span><span id="screen-note" class="frame-note">Drag to move through RAM · drag the corner to resize</span></div>
+        </section>
+
+        <section class="frame memory-frame" aria-label="RAM">
+          <div class="frame-bar">
+            <strong class="frame-title">RAM</strong>
+            <select id="memory-page" class="mono" aria-label="Memory page" hidden></select>
+            <span class="memory-legend" aria-label="Legend">
+              <span><i class="swatch-pc"></i>next instruction</span>
+              <span><i class="swatch-write"></i>just written</span>
+              <span><i class="swatch-screen"></i>screen</span>
+              <span id="legend-stack"><i class="swatch-stack"></i>stack</span>
+            </span>
+          </div>
+          <div id="memory" class="memory" role="grid" aria-label="RAM contents"></div>
+          <div class="frame-footer"><span id="memory-info" class="mono">Click a byte to inspect it.</span></div>
+        </section>
+      </div>
+
+      <div class="timeline">
+        <div class="timeline-top">
+          <span id="cycle-label" class="step-label">0 cycles</span>
+          <span id="next-instruction" class="next-instruction mono"></span>
+          <span id="run-status" class="run-status" role="status">Ready</span>
+        </div>
+        <div class="controls">
+          <div class="step-controls" role="group" aria-label="Execution">
+            <button type="button" id="restart" title="Restart from the assembled program (Home)" aria-label="Restart">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-player-skip-back"/></svg></button>
+            <button type="button" id="step-back" title="Undo one instruction (←)" aria-label="Undo one instruction">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-chevron-left"/></svg></button>
+            <button type="button" id="run" class="play-button" title="Run / pause (Space)">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-player-play"/></svg><span>Run</span></button>
+            <button type="button" id="step-next" title="Execute one instruction (→)" aria-label="Execute one instruction">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-chevron-right"/></svg></button>
+          </div>
+          <div class="speed-field"><label for="clock">Clock</label>
+            <input type="range" id="clock" min="0" max="23" step="1">
+            <output id="clock-output" for="clock">10 kHz</output></div>
+          <span class="keys"><kbd>Space</kbd> run/pause · <kbd>←</kbd> <kbd>→</kbd> step · <kbd>Home</kbd> restart</span>
         </div>
       </div>
     </section>
   </main>
-  <footer class="footer"><span>Runs locally. Student source is stored on the host filesystem, not in browser storage.</span><span id="footer-status">Offline</span></footer>
+
+  <dialog id="reference-dialog" class="app-dialog reference-dialog" aria-labelledby="reference-title">
+    <div class="dialog-header">
+      <h2 id="reference-title">Instruction set</h2>
+      <nav class="tabs" role="tablist" aria-label="CPU level" id="reference-tabs"></nav>
+      <button type="button" id="reference-close" class="icon-button dialog-close" aria-label="Close">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-x"/></svg></button>
+    </div>
+    <div class="dialog-body" id="reference-body"></div>
+  </dialog>
+
+  <dialog id="copy-dialog" class="app-dialog copy-dialog" aria-labelledby="copy-title">
+    <form method="dialog" id="copy-form">
+      <div class="dialog-header">
+        <h2 id="copy-title">Save a copy</h2>
+        <button type="button" id="copy-close" class="icon-button dialog-close" aria-label="Close">
+          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-x"/></svg></button>
+      </div>
+      <div class="dialog-body copy-fields">
+        <label class="stacked">Student folder
+          <input id="copy-group" list="copy-groups" placeholder="your folder, e.g. anna" required pattern="[A-Za-z0-9][A-Za-z0-9_\-]{0,63}" autocomplete="off" spellcheck="false">
+          <datalist id="copy-groups"></datalist></label>
+        <label class="stacked">File name
+          <input id="copy-file" placeholder="program.asm" required pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{0,80}" autocomplete="off" spellcheck="false"></label>
+        <p id="copy-error" class="dialog-status failed" role="alert" hidden></p>
+      </div>
+      <div class="dialog-footer">
+        <p class="dialog-note" id="copy-note">The copy is written to <code>programs/</code> and opened right away.</p>
+        <div class="dialog-actions"><button type="submit" class="dialog-primary-action">
+          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-device-floppy"/></svg> Save copy</button></div>
+      </div>
+    </form>
+  </dialog>
 </div>
-<dialog id="help-dialog" aria-labelledby="help-title">
-  <div class="dialog-head"><h2 id="help-title">Instruction reference</h2><button id="close-help" aria-label="Close help"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-x"></use></svg></button></div>
-  <div class="help-content">
-    <p><strong>Three compatible architectures:</strong> MiniCPU 8 has 256 bytes of shared RAM. MiniCPU 8S adds a downward-growing stack, PUSH/POP and CALL/RET. MiniCPU 8X has 4096 bytes of shared RAM, a 16-bit program counter, 16-bit index registers X/Y, and automatically selected short/long jumps and calls. All A–D registers are still 8-bit; all models share the same grouped opcode table. Select an architecture above to assemble for it. Programs start at 0x0000.</p>
-    <table><tbody>
-      <tr><th>Data</th><td><code>LDI A, 5</code> · <code>MOV B, A</code> · <code>LDA A, 0x70</code> · <code>LDA B, [A]</code> · <code>STA 0x70, A</code> · <code>STA [A], B</code></td></tr>
-      <tr><th>Arithmetic</th><td><code>ADD A, B</code> · <code>SUB A, B</code> · <code>INC A</code> · <code>DEC A</code> · <code>SHL A</code> · <code>SHR A</code></td></tr>
-      <tr><th>Bitwise</th><td><code>AND A, B</code> · <code>OR A, B</code> · <code>XOR A, B</code></td></tr>
-      <tr><th>Conditions</th><td><code>CMP A, 42</code> · <code>CMP A, B</code> · <code>JZ label</code> · <code>JNZ label</code> · <code>JC label</code> · <code>JNC label</code></td></tr>
-      <tr><th>Control</th><td><code>JMP label</code> · <code>CLF</code> · <code>NOP</code> · <code>HLT</code></td></tr>
-      <tr><th>8S and 8X</th><td><code>PUSH A</code> · <code>POP A</code> · <code>CALL subroutine</code> · <code>RET</code> · SP begins one past the last RAM address; CALL saves a return address, RET restores it. On 8X return addresses use two bytes.</td></tr>
-      <tr><th>8X only</th><td><code>LDX 0x0800</code> · <code>STA [X], A</code> · <code>LDA A, [X]</code> · <code>INCX</code> · <code>DECX</code> · <code>LDY 0x0900</code> · <code>LDA A, [Y]</code> · <code>STA [Y], A</code> · <code>INCY</code> · <code>DECY</code>. Jumps and CALL automatically use short PC-relative or long absolute encoding, depending on distance; the mnemonics stay the same.</td></tr>
-      <tr><th>Directives</th><td><code>.org 0x60</code> · <code>.db 1, 2, "Hi"</code> · <code>SIZE .equ 16</code> · <code>.display 0x80, 32, 16, mono, 1bit_monitor_glow</code></td></tr>
-    </tbody></table>
-    <p>Numbers can be decimal, <code>0x</code> hexadecimal, <code>0b</code> binary, or expressions with <code>+</code>, <code>-</code>, parentheses and named constants. Comments start with <code>;</code>. The educational opcode map groups control, data movement, arithmetic, logic, comparisons, stack operations, and branches into hexadecimal families. The stack shares ordinary RAM with programs and pixels.</p>
-    <p><strong>Display controller:</strong> <code>.display start, width, height, mode [, palette]</code> suggests defaults; the panel lets you override them live without changing memory. Modes: <code>mono</code>, <code>indexed2</code>, <code>indexed4</code>, <code>indexed8</code>, <code>gray8</code>, <code>rgb332</code>, <code>rgb24</code>. Rows are packed consecutively with byte alignment. Packed indices use the most significant bits first. Indexed palettes must have exactly 2, 4, 16, or 256 colors for the selected bit depth. Metadata creates no instructions and consumes no RAM.</p>
-    <p><strong>Note:</strong> CPU execution is capped to prevent infinite loops from freezing the browser. Unbounded example programs are intentionally left running until you pause or hit the limit.</p>
-  </div>
-</dialog>
-</body></html>
+<script src="/vendor/codemirror.js"></script>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>

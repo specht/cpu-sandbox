@@ -1,116 +1,77 @@
-# Teaching with CPU Sandbox
+# Teaching with the CPU Sandbox
 
-MiniCPU 8 has four 8-bit registers, 256 bytes of shared RAM and ZF/CF.
-8S adds a stack and subroutines; 8X adds 16-bit addressing and 4 KiB RAM. The
-visualizer can *interpret* any portion of RAM as a framebuffer in different
-formats. This tiny, completely inspectable architecture is useful for
-connecting algorithms and machine-level execution.
+The examples form one path from a single addition to a fractal. Every
+example opens on the CPU level it needs (its `.cpu` line); the picker shows
+the level next to the file name.
 
-## Short progression
+## MiniCPU 8: instructions, memory, loops
 
-1. **Instructions and state:** Run `01-add.asm`. Examine register changes and
-   machine bytes. Ask which bytes encode the instruction and its operands.
-2. **Control flow:** In `02-countdown.asm`, step through `DEC`/`JNZ`; observe
-   the program counter and zero flag. Change the initial value.
-3. **Algorithms:** In `03-division.asm`, interpret the loop invariant:
-   `numerator = quotient × divisor + remainder`. Explain why the loop terminates.
-4. **Representation:** In `04-square-root.asm`, subtract successive odd numbers
-   to calculate the integer square root. Determine the output for 0, 1, 24, 25.
-5. **Addressing and memory:** In `08-data.asm`, compare immediate, direct and
-   register-indirect modes. Locate the string bytes with `.org` and `.db`.
-6. **Graphics:** In `05-fill-rectangle.asm`, calculate the address of pixel
-   `(x,y) = (3,2)` as `0x80 + 2×16 + 3 = 0xA3`; discuss how row bytes follow from width and bit depth.
-7. **Complexity:** Use `06-primes.asm` to count executed instructions, and propose
-   changes to the divisibility test. Distinguish time and memory complexity.
-8. **Persistent loops:** `07-bouncing-dot.asm` intentionally never halts;
-   practice pausing, resetting and exploring a pixel-based state machine.
-9. **Packed pixels:** Compare `09-monochrome-32x8.asm`, `10-cga-2bit.asm` and
-   `11-pico8-4bit.asm`. Keep RAM unchanged and switch only pixel format: how
-   do groups of bits become colors? Why does the resolution change?
-10. **Color representation:** Compare `13-rgb332.asm` and `14-rgb24.asm`.
-    Why is RGB888 so memory-expensive? How many bytes does each row use?
-11. **Monochrome animation:** Run `15-checkerboard-animation.asm` and
-    change bit depth while the CPU keeps drawing. Explain why 512 pixels
-    occupy only 64 bytes. Why is the program still able to execute?
-12. **Self-modifying code:** Step through `12-self-modifying.asm` and watch the
-    machine-code inspector change the immediate byte from 0 to 42. Predict
-    register B at program termination before pressing Step.
+1. **`01-add`**: step through four instructions. Which bytes in the margin
+   are the opcode, which the operands? How many cycles does each take?
+2. **`02-countdown`**: `DEC` and `JNZ`. Watch PC jump back and ZF change.
+   Change the start value — what happens with 0?
+3. **`03-division`**: quotient and remainder by subtraction. The loop
+   invariant is `13 = quotient × 4 + remainder`. Why does the loop end?
+4. **`04-square-root`**: subtract odd numbers. Predict D for 0, 1, 24, 25.
+5. **`05-memory`**: constant, fixed address, address in a register. Find the
+   string at `0x60` in the RAM view.
+6. **`06-rectangle`**: pixel (x, y) is at `0x80 + 16·y + x`. Draw only the
+   border instead, then compare the cycle counts.
+7. **`07-primes`**: trial division is slow — note the cycles, then make it
+   faster (stop at √n, skip even numbers, or write a sieve).
+8. **`08-self-modifying`**: a program changes its own instruction. Predict B
+   before you run it. The margin shows the changed byte in amber.
+9. **`09-pixel-formats`**: one ramp of bytes, many pictures. Switch the pixel
+   format and explain each picture from the bits.
+10. **`10-bouncing-dot`**: a program that never halts. Pause, step back and
+    find where direction and trail are stored.
+11. **`11-fire`** (demo): the whole effect in 96 bytes next to its own
+    screen. Set the clock to 100 kHz and to 1 MHz: how many frames per
+    second does each give? Drag the screen down over the code.
+
+## MiniCPU 8S: subroutines and the stack
+
+12. **`12-subroutines`**: step through nested `CALL`s and watch SP and the
+    bytes at `0xFC`–`0xFF`. Which return address is on the stack when?
+13. **`13-recursion`**: Fibonacci by a function that calls itself, with its
+    argument and a local variable on the stack (`SUB SP`, `[SP+n]`). Draw the stack
+    for fib(3) on paper, then step through it. Why would a local variable at
+    a fixed address break the recursion?
+14. **`14-scroller`** (demo): two subroutines move a 32 × 8 LED sign. Change
+    the message — each letter is a list entry pointing to a glyph. Add a
+    glyph of your own. How many cycles does one frame need?
+
+## MiniCPU 8X: more memory, pointers
+
+15. **`15-pointers`**: X reads, Y writes. Why are A–D not enough as pointers
+    on 8X? Compare the bytes of `LDA A, 0x70` on 8S and on 8X (switch the CPU
+    menu): the same source, longer code, more cycles.
+16. **`16-lines`**: Bresenham's line algorithm with only addition and
+    comparison. `plot` builds a 16-bit address byte by byte with
+    `MOV XH`/`MOV XL`. Add a second shape.
+17. **`17-mandelbrot`** (demo): signed fixed-point numbers, a table of squares
+    instead of multiplication, and 9-bit arithmetic with the carry flag. Run it
+    at 1 MHz (about six seconds) and at 16 MHz. Try another section of the set
+    by changing the offsets in `row` and `pixel`.
 
 ## Exercises
 
-- Write a program that calculates `1+2+...+n` for values small enough not to
-  overflow. Document what happens when an 8-bit result exceeds 255.
-- Implement integer multiplication by repeated addition, and explain how to
-  avoid an off-by-one error when the multiplier is zero.
-- Read eight values at addresses `0x70..0x77` using register-indirect loads
-  and find their maximum. Explain why code and data can share RAM.
-- Draw only the border of a rectangle, then compare its store count with the
-  filled rectangle example.
-- Rewrite the prime number algorithm as a sieve (if it can fit in this tiny
-  memory model); compare instruction counts and discuss trade-offs.
+- Sum 1 + 2 + … + n. What happens when the result passes 255? Use CF to
+  detect it.
+- Multiply by repeated addition; then by shifting and adding. Count cycles.
+- Find the largest of eight bytes at `0x70`–`0x77` with `LDA A, [B]`.
+- Write a function `plot(x, y)` for the 16 × 8 gray screen that takes its
+  arguments on the stack, and use it to draw a diagonal (8S).
+- Compute n! recursively and find the largest n whose result fits in a byte.
+- Add two 16-bit numbers stored as low/high bytes (carry!).
+- Make the fire burn sideways, or give the scroller a second line of text.
 
-## Pitfalls worth discussing
+## Worth discussing
 
-- There is **one RAM**; the display reads whichever region the controller
-  chooses. A program can accidentally overwrite its own instructions when its
-  graphics region intersects its program. The controller is not CPU hardware.
-- The registers and arithmetic wrap at 8 bits; interpreting `CF` as borrow
-  for subtraction is not the same as signed arithmetic.
-- A label represents a byte address, **not** an instruction index.
-- RAM is writable, including bytes that originally held machine instructions.
-  This makes self-modifying programs possible (and occasionally surprising).
-- Halting and an infinite loop are different: the latter needs a manual pause
-  or an execution bound. Never claim the bounded Run-to-end means termination.
-
-### Suggested experiment: one byte, four interpretations
-
-Load `10-cga-2bit.asm`, run to HLT and inspect RAM at `0xA0`. It contains
-`0x1B`, binary `00011011`. With 2-bit indexing this maps to four palette
-indices `0, 1, 2, 3`. Change the controller to 1-bit indexed at the same
-start address (adjust width and height to suit): now the identical byte
-represents *eight* pixels. Change to grayscale: the same byte represents
-*one* pixel with brightness 27. No assembly or CPU step is involved in any
-of these changes. This makes the distinction between a stored byte and the
-meaning a device assigns to it explicit.
-
-The students' files live in the Git-tracked class repository under `programs/`.
-Examples bundled with the application are read-only; copies belong to students.
-
-## A three-model teaching progression
-
-13. **Opcodes by family:** Compare `LDI A, 5` (`10 00 05`), `ADD A, B` (`20 01`),
-    and `JMP label` (`60 addr`). Use the [encoding table](instruction-encoding.md)
-    to explain why opcode families have recognizable leading hexadecimal digits.
-14. **Why subroutines?** Select **MiniCPU 8S** and run
-    `18-stack-subroutines.asm`. Single-step nested `CALL`/`RET` instructions,
-    observe the SP and RAM near the upper edge. Compare the cost of repeated code
-    with a reusable pixel routine, and predict the return address on the stack.
-15. **Larger memory:** Select **MiniCPU 8X**, run
-    `19-extended-color-gradient.asm` and inspect RAM page `0x0800`.
-    Explain how 32×32 pixels at four bits each require 512 bytes.
-16. **Long jumps:** Still on **MiniCPU 8X**, open
-    `20-extended-high-code.asm`, and step from `0x0000` to `0x0200` via
-    `JMP` on 8X. Inspect why some 8X jumps are short PC-relative while distant targets use a long absolute address. The source mnemonic stays `JMP`.
-
-These models use one *source-compatible* assembly language. Select a model in
-UI and let the assembler generate its bytes; the byte encoding deliberately
-is not compatible with the legacy Ruby MiniCPU.
-
-## Graphics progression: a visual reason to extend the CPU
-
-17. **Basic CPU — Prism Gradient:** Select MiniCPU 8 and run
-    `17-prism-gradient.asm`. Each loop iteration packs adjacent palette
-    indices into one byte. Explain why 256 visible pixels fit in 128 bytes.
-18. **Stack CPU — Neon Halo:** Switch to MiniCPU 8S and run
-    `21-stack-neon-halo.asm`. The reusable `shade_pair` subroutine preserves
-    A, calls `RET`, and writes a *radial* color field. Inspect SP and why the
-    display stops at `0xEF` rather than using the stack's final 16 bytes.
-19. **Extended CPU — Neon Orbit:** Select MiniCPU 8X and run
-    `22-extended-neon-orbit.asm`. This uses a 64×48 image at `0x0800`,
-    compares horizontal and vertical distance from the image center, and
-    approximates radial distance without square roots or multiplication.
-    Inspect SP, X, and RAM page `0x0800`. Why could this not fit in 256 bytes?
-
-The three images are computed at run time using normal MiniCPU instructions,
-not bitmap literals stored in the assembly source. Use **Run to end** rather
-than real-time Play for the larger still pictures.
+- There is **one RAM**. The screen and the stack are just regions of it, and
+  a store to the wrong address can change the program itself.
+- A label is the address of a byte, not a line number.
+- 8-bit arithmetic wraps: 255 + 1 = 0 with CF set. `-1` is 255.
+- "Halted" and "still running" are different: an endless loop needs Pause.
+- Cycles are what take time, not lines of source: compare a loop on 8S
+  and on 8X.

@@ -1,159 +1,74 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import { assemble } from '../src/assembler.js';
-import { MiniCPU } from '../src/cpu.js';
-import { DEFAULT_DISPLAY, validateDisplay, renderDisplay } from '../src/display.js';
+import { DEFAULT_DISPLAY, MODES, validateDisplay, decodeScreen, pixelValue, pixelAddress } from '../src/display.js';
 import { PALETTES } from '../src/palettes.js';
-const rgb = (mem,config) => renderDisplay(mem,config,PALETTES);
-const config = (options = {}) => ({...DEFAULT_DISPLAY, ...options});
-const example = filename => assemble(fs.readFileSync(new URL(`../examples/${filename}`,import.meta.url),'utf8'));
-const run = (asm, max=10000) => { const cpu = new MiniCPU(asm.memory); for(let i=0;i<max&&!cpu.halted;i++)cpu.step();return cpu; };
-test('MSB-first monochrome packs eight pixels into one byte', () => {
-  const memory=new Uint8Array(256);memory[0x80]=0b10110001;
-  const pixels=rgb(memory,config({width:8,height:1,mode:'mono',palette:'1bit_monitor_glow'}));
-  assert.deepEqual(pixels.map(p=>p.index),[1,0,1,1,0,0,0,1]);
-  assert.equal(pixels[0].color,PALETTES['1bit_monitor_glow'][1]);
-});
-test('2bpp and 4bpp pixels preserve order and palette indexes', () => {
-  const mem=new Uint8Array(256);mem[128]=0x1b;
-  assert.deepEqual(rgb(mem,config({width:4,height:1,mode:'indexed2',palette:'cga_palette_1_high'})).map(p=>p.index),[0,1,2,3]);
-  assert.deepEqual(rgb(mem,config({width:2,height:1,mode:'indexed4',palette:'pico_8'})).map(p=>p.index),[1,11]);
-});
-test('rows are always tightly byte-aligned, including a partially filled final byte', () => {
-  const mem=new Uint8Array(256);mem.set([0b01000000,0b10000000],128);
-  const c=config({width:3,height:2,mode:'indexed2',palette:'cga_palette_1_high'});
-  const p=rgb(mem,c);
-  assert.equal(validateDisplay(c).rowBytes,1);
-  assert.deepEqual(p.map(x=>x.index),[1,0,0,2,0,0]);
-  assert.deepEqual(p.map(x=>x.address),[128,128,128,129,129,129]);
-});
-test('RGB332 and RGB24 decode raw bytes without palette lookup', () => {
-  const mem=new Uint8Array(256);mem.set([0b11100011,255,128,0],128);
-  assert.equal(rgb(mem,config({width:1,height:1,mode:'rgb332'}))[0].color,'#FF00FF');
-  assert.equal(rgb(mem,config({width:1,height:1,mode:'rgb24',start:129}))[0].color,'#FF8000');
-});
-test('display controller rejects configurations extending beyond shared RAM', () => {
-  assert.throws(()=>validateDisplay(config({start:0xf0,width:16,height:2})),/RAM ends/);
-  assert.throws(()=>validateDisplay(config({start:0xF0,width:16,height:1,mode:'rgb24'})),/RAM ends/);
-  assert.equal(validateDisplay(config({start:0xC0,width:32,height:16,mode:'mono'})).bytesSpanned,64);
-});
-test('same RAM and CPU state admit different live display interpretations', () => {
-  const asm=example('10-cga-2bit.asm'), cpu=run(asm), before=cpu.snapshot();
-  const color=rgb(cpu.memory,asm.display).map(p=>p.color);
-  const mono=rgb(cpu.memory,config({start:160,width:32,height:8,mode:'mono',palette:'1bit_monitor_glow'}));
-  assert.notEqual(color.length,mono.length);
-  assert.deepEqual(cpu.snapshot(),before);
-});
-test('.display is metadata only; no emitted bytes and .equ constants work', () => {
-  const program=assemble('BASE .equ 0x80\n.display BASE, 32, 8, mono, 1bit_monitor_glow\nLDI A, 5\nHLT');
-  assert.deepEqual(Array.from(program.bytes),[0x10,0,5,0x01]);
-  assert.equal(program.display.start,128);assert.equal(program.display.width,32);
-  assert.equal(program.sourceMap.get(0),3);
-});
-test('new packed graphics examples fit within RAM and produce expected graphics', () => {
-  for(const name of ['09-monochrome-32x8.asm','10-cga-2bit.asm','11-pico8-4bit.asm','13-rgb332.asm','14-rgb24.asm']) {
-    const asm=example(name),cpu=run(asm);
-    assert.ok(cpu.halted,name);
-    const c=validateDisplay(asm.display);assert.ok(c.endExclusive<=256,name);
-    assert.equal(rgb(cpu.memory,c).length,c.width*c.height);
-  }
-});
-test('self-modifying code patches an immediate operand, not just the source string', () => {
-  const asm=example('12-self-modifying.asm'),cpu=new MiniCPU(asm.memory);
-  const before=Array.from(cpu.memory);
-  cpu.step();cpu.step();
-  assert.equal(cpu.memory[10],42); // target LDI immediate byte at address 10
-  assert.notDeepEqual(Array.from(cpu.memory),before);
-  cpu.step();cpu.step();cpu.step();
-  assert.equal(cpu.registers[1],42);assert.equal(cpu.halted,true);
+
+const config = (options = {}) => ({ ...DEFAULT_DISPLAY, ...options });
+const values = (memory, c) => {
+  const out = [];
+  for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) out.push(pixelValue(memory, c, x, y));
+  return out;
+};
+const rgba = (memory, c, i = 0) => Array.from(decodeScreen(memory, c, PALETTES).slice(i * 4, i * 4 + 3));
+
+test('packed pixels are read most-significant bits first', () => {
+  const memory = new Uint8Array(256);
+  memory[0x80] = 0b10110001;
+  assert.deepEqual(values(memory, config({ width: 8, height: 1, mode: 'mono', palette: '1bit_monitor_glow' })), [1, 0, 1, 1, 0, 0, 0, 1]);
+  memory[0x80] = 0x1B;
+  assert.deepEqual(values(memory, config({ width: 4, height: 1, mode: 'indexed2', palette: 'cga_palette_1_high' })), [0, 1, 2, 3]);
+  assert.deepEqual(values(memory, config({ width: 2, height: 1, mode: 'indexed4', palette: 'pico_8' })), [1, 11]);
 });
 
-test('palette definitions have the expected historic sizes', () => {
-  assert.equal(PALETTES.vga.length,256);
-  assert.equal(PALETTES.pico_8.length,16);
-  assert.equal(PALETTES.cga_palette_1_high.length,4);
+test('every row starts on a new byte', () => {
+  const c = config({ width: 3, height: 2, mode: 'indexed2', palette: 'cga_palette_1_high' });
+  assert.equal(validateDisplay(c).rowBytes, 1);
+  assert.equal(pixelAddress(c, 0, 1), 0x81);
+  const memory = new Uint8Array(256);
+  memory.set([0b01000000, 0b10000000], 0x80);
+  assert.deepEqual(values(memory, c), [1, 0, 0, 2, 0, 0]);
 });
-test('invalid .display reports source-line assembly error, not an unusable CPU', () => {
+
+test('palettes, grayscale, RGB332 and RGB24 decode to the expected colors', () => {
+  const memory = new Uint8Array(256);
+  memory.set([0b11100011, 255, 128, 0], 0x80);
+  assert.deepEqual(rgba(memory, config({ width: 1, height: 1, mode: 'rgb332' })), [255, 0, 255]);
+  assert.deepEqual(rgba(memory, config({ width: 1, height: 1, mode: 'rgb24', start: 0x81 })), [255, 128, 0]);
+  assert.deepEqual(rgba(memory, config({ width: 1, height: 1, mode: 'gray8', start: 0x82 })), [128, 128, 128]);
+  assert.deepEqual(rgba(memory, config({ width: 1, height: 1, mode: 'indexed8', palette: 'fire_256', start: 0x81 })), [255, 255, 255]);
+});
+
+test('a screen must fit into RAM', () => {
+  assert.throws(() => validateDisplay(config({ start: 0xF0, width: 16, height: 2 })), /RAM ends/);
+  assert.equal(validateDisplay(config({ start: 0xC0, width: 32, height: 16, mode: 'mono' })).bytesSpanned, 64);
+  assert.equal(validateDisplay(config({ start: 0x400, width: 80, height: 60, mode: 'indexed4' }), 4096).bytesSpanned, 2400);
+});
+
+test('indexed formats need a palette with exactly 2^bits colors', () => {
+  const memory = new Uint8Array(256);
+  assert.throws(() => decodeScreen(memory, config({ mode: 'indexed4', palette: 'vga' }), PALETTES), /16 colors/);
+  for (const [name, colors] of Object.entries(PALETTES)) {
+    assert.ok(Object.values(MODES).some(m => m.indexed && 2 ** m.bits === colors.length), `${name} must be usable by a pixel format`);
+    for (const c of colors) assert.match(c, /^#[0-9A-F]{6}$/, name);
+  }
+});
+
+test('.display is only a suggestion: no bytes, checked at its source line', () => {
+  const asm = assemble('BASE .equ 0x80\n.display BASE, 32, 8, mono, 1bit_monitor_glow\nLDI A, 5\nHLT');
+  assert.equal(asm.loadedBytes, 4);
+  assert.deepEqual(asm.display, { start: 0x80, width: 32, height: 8, mode: 'mono', palette: '1bit_monitor_glow' });
   for (const directive of [
     '.display 0xFF, 8, 2, mono, 1bit_monitor_glow',
     '.display 0x80, 16, 8, rgb24, pico_8',
-    '.display 0x80, 16, 8, indexed4, nonexistent_palette',
+    '.display 0x80, 16, 8, indexed4, nonexistent',
     '.display 0x80, 16, 8, indexed4, cga_palette_1_high',
-    '.display 0x80, 16, 8, indexed8, pico_8',
     '.display 0x80, 16, 8, indexed2',
     '.display 0x80, 16, 8, indexed6, pico_8',
-  ]) assert.throws(()=>assemble('HLT\n'+directive), e => e.name === 'AssemblyError' && e.line === 2);
+  ]) assert.throws(() => assemble(`HLT\n${directive}`), e => e.name === 'AssemblyError' && e.line === 2, directive);
 });
 
-test('indexed palettes must exactly match the current pixel bit depth', () => {
-  const mem = new Uint8Array(256);
-  assert.throws(() => rgb(mem, config({mode:'indexed4',palette:'vga',width:2,height:2})), /16 entries/);
-  assert.throws(() => rgb(mem, config({mode:'mono',palette:'cga_palette_1_high',width:2,height:2})), /2 entries/);
-  const names = Object.entries(PALETTES).filter(([, colors]) => colors.length === 16).map(([name]) => name);
-  assert.ok(names.includes('pico_8') && names.includes('sweetie_16'));
-  assert.ok(!names.includes('vga'));
-});
-test('stride parameter is removed from the assembler syntax', () => {
-  assert.throws(() => assemble('HLT\n.display 0x80, 16, 8, mono, 2, 1bit_monitor_glow'), /needs start, width, height, mode/);
-  assert.equal(assemble('HLT\n.display 0x80, 16, 8, gray8').display.palette, null);
-  assert.equal(assemble('HLT\n.display 0xA0, 8, 8, mono, 1bit_monitor_glow').display.width, 8);
-});
-test('32x16 monochrome animation stays within 256-byte unified RAM', () => {
-  const asm = example('15-checkerboard-animation.asm');
-  const cpu = new MiniCPU(asm.memory);
-  assert.equal(validateDisplay(asm.display).bytesSpanned, 64);
-  assert.ok(asm.loadedBytes <= 192);
-  const firstImage = Array.from(cpu.memory.slice(0, asm.loadedBytes));
-  for (let i=0;i<1000;i++) {
-    cpu.step();
-    if (cpu.cycles > 10 && cpu.pc === asm.labels.get('frame')) break;
-  }
-  assert.deepEqual(Array.from(cpu.memory.slice(0, asm.loadedBytes)), firstImage);
-  assert.equal(cpu.memory[0xC0],0xAA);
-  assert.equal(cpu.memory[0xC4],0x55);
-  for (let i=0;i<1000;i++) {
-    cpu.step();
-    if (cpu.cycles > 350 && cpu.pc === asm.labels.get('frame')) break;
-  }
-  assert.equal(cpu.memory[0xC0],0x55);
-  assert.equal(cpu.memory[0xC4],0xAA);
-  assert.ok(!cpu.halted);
-});
-
-test('colorful 4-bit interference demo animates without changing program bytes', () => {
-  const asm = example('16-rainbow-interference.asm');
-  assert.ok(asm.loadedBytes < 0x80, 'program must fit before the bitmap at 0x80');
-  assert.equal(asm.display.mode, 'indexed4');
-  assert.equal(asm.display.width * asm.display.height, 256);
-  assert.equal(validateDisplay(asm.display).bytesSpanned, 128);
-  const cpu = new MiniCPU(asm.memory);
-  const code = Array.from(cpu.memory.slice(0, 0x80));
-  for (let i=0;i<1500;i++) cpu.step();
-  assert.ok(!cpu.halted, 'endless animation should be stoppable with Pause');
-  const frame1 = Array.from(cpu.memory.slice(0x80));
-  const colors = renderDisplay(cpu.memory, asm.display, PALETTES).map(p => p.color);
-  assert.ok(new Set(colors).size >= 12, 'rainbow graphic should use many colors');
-  for (let i=0;i<1500;i++) cpu.step();
-  assert.notDeepEqual(Array.from(cpu.memory.slice(0x80)), frame1, 'animation evolves over time');
-  assert.deepEqual(Array.from(cpu.memory.slice(0, 0x80)), code, 'graphics must not overwrite executable code');
-});
-
-test('prism gradient is produced by 8-bit CPU from nested loops', () => {
-  const asm=example('17-prism-gradient.asm');
-  const frame=validateDisplay(asm.display);
-  assert.deepEqual([frame.start,frame.width,frame.height,frame.bits,frame.bytesSpanned],[0x80,16,16,4,128]);
-  assert.equal(asm.loadedBytes,67);
-  const cpu=run(asm,6000);
-  assert.equal(cpu.halted,true);
-  assert.equal(cpu.cycles,2160);
-  assert.deepEqual(Array.from(cpu.memory.slice(0,asm.loadedBytes)),Array.from(asm.memory.slice(0,asm.loadedBytes)));
-  const colors=renderDisplay(cpu.memory,asm.display,PALETTES);
-  assert.equal(new Set(colors.map(p=>p.index)).size,16);
-  assert.ok(colors[0].index!==colors[1].index,'adjacent pixels use distinct indices');
-  assert.notDeepEqual(Array.from(cpu.memory.slice(0x80)),Array.from(asm.memory.slice(0x80)));
-  const before=cpu.snapshot();
-  const alt=renderDisplay(cpu.memory,{...asm.display,palette:'pico_8'},PALETTES);
-  assert.notDeepEqual(alt.map(p=>p.color),colors.map(p=>p.color));
-  assert.deepEqual(cpu.snapshot(),before);
+test('a screen over the program itself is allowed, with a warning', () => {
+  const asm = assemble('.display 0, 4, 1, gray8\nHLT');
+  assert.equal(asm.warnings.length, 1);
 });

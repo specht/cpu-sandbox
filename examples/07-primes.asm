@@ -1,7 +1,8 @@
+; PRIMES BY TRIAL DIVISION, 2..127
+; Pixel n of the screen (RAM 0x80 + n) turns white if n is prime.
+; Deliberately simple and slow: note the cycle count, then make it faster.
 .display 0x80, 16, 8, gray8
-; BRUTE-FORCE PRIMES, 2..127
-; RAM[0x80 + n] becomes 0xFF for prime numbers n.
-; Intentionally slow: compare the number of executed instructions.
+
 BASE    .equ 0x80
 PIXEL   .equ 0xFF
         LDI A, BASE

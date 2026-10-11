@@ -1,329 +1,142 @@
 # CPU Sandbox
 
-A browser-based assembly editor, two-pass assembler and interactive **8-bit MiniCPU**.
-Students select their **own assembly programs from a directory on disk**, edit them in
-the browser, and save them back to the same files. Git remains the source of truth.
+Write assembly for a small 8-bit fantasy CPU in the browser, step through it
+instruction by instruction, and watch registers, RAM and a memory-mapped
+screen change. Student programs are plain `.asm` files on disk, kept in a
+class Git repository.
 
-No C compiler, Ruby runtime, Dart SDK, external frontend libraries, database, or
-account is required. The first implementation uses a dependency-free **Node.js local
-host** and JavaScript assembler/CPU. A Dart host could later implement the same small
-HTTP API; this version prioritizes a tested, self-contained workflow.
-
-## Start
-
-Prerequisite: Node.js 18+ (22+ recommended).
+Requirements: Node.js 18 or newer. Nothing to install, no build step.
 
 ```sh
 ./run
-# Open http://127.0.0.1:8765
+# open http://127.0.0.1:8765
 ```
 
-The bundled examples are available immediately, without student files. They
-are read-only by design: **Copy example** saves a new copy into a student directory.
+The bundled examples work right away. They are read-only; **Save copy**
+stores a copy in a student folder.
 
-### Attach a class repository
+## Class repository
 
-As in the Data Structures Sandbox, keep the classroom sources in a **separate Git
-repository**, cloned into a fixed directory. For example:
+As in the Sorting and Data Structure Sandboxes, student programs live in a
+separate Git repository cloned into `programs/`:
 
 ```sh
 cd cpu-sandbox
-# Substitute the GitLab URL for this particular class/year:
 git clone git@git.nhcham.org:YOUR-GROUP/YOUR-CLASS-ASSEMBLY.git programs
 ./run
 ```
 
-The expected layout is:
-
 ```text
-cpu-sandbox/                      # app (teacher)
-├── run
-├── server.mjs
-├── src/                      # browser assembler and CPU
-├── examples/                 # bundled read-only demonstrations
-├── web/
-└── programs/                 # separate Git repository, not tracked by the app
+cpu-sandbox/            the app
+├── examples/           bundled, read-only
+└── programs/           the class repository (ignored by the app's Git)
     ├── anna/
-    │   ├── sum.asm
-    │   └── rectangle.asm
+    │   └── sum.asm
     └── ben/
-        └── square-root.asm
+        └── fire.asm
 ```
 
-Student folders and `.asm` files are discovered **on every refresh**, so new Git
-pulls or changes from other editors appear without restarting the host. Existing
-student files are **never created or overwritten** during application startup.
+New folders, files and changes from `git pull` appear in the browser within a
+few seconds. **Save** refuses to overwrite a file that changed on disk in the
+meantime. `./run --programs DIR --port 8765 --host 127.0.0.1` changes the
+defaults.
 
-For a local trial without Git, use:
+## Three CPU levels
 
-```sh
-mkdir -p programs/demo-student
-cp examples/01-add.asm programs/demo-student/add.asm
-./run
-```
+| | MiniCPU 8 | MiniCPU 8S | MiniCPU 8X |
+| --- | --- | --- | --- |
+| Adds | registers A–D, ZF/CF, jumps | a stack: `PUSH POP CALL RET`, arguments and locals at `[SP+n]` | 4 KiB RAM, 16-bit addresses, pointers X/Y |
+| RAM | 256 bytes | 256 bytes | 4096 bytes |
+| Demo | fire | scrolling text | Mandelbrot set |
 
-Do this *instead of* cloning a class repository into `programs/`, not before it.
+A program states its level with `.cpu 8`, `.cpu 8s` or `.cpu 8x` (default 8);
+the CPU menu edits that line. The same source runs on higher levels, where
+8X encodes every address in two bytes. Details, the full instruction table and
+the cycle model: [docs/cpu-levels.md](docs/cpu-levels.md). The **Instruction
+set** button shows the same reference in the browser.
 
 ## In the browser
 
-1. Choose **Student** and **Program**, or start with a read-only **Example**.
-   Syntax coloring and assembly happen automatically after a short typing pause
-   (about 280 ms); errors point to source lines. **Save** (Ctrl+S) is independent
-   and explicitly writes the `.asm` back to disk.
-2. Study the machine state: registers A–D, ZF/CF, program counter, RAM, and
-   the decoded pixels. The source line of the current instruction is highlighted.
-3. **Step** / **Back** to inspect instructions; **Play** and **speed** for
-   animation; **Run to end** for bounded fast execution; **Reset** restores the
-   initial assembled program image. Infinite-loop demos remain stoppable.
-4. Switch inspector tabs between **RAM**, **Machine code**, and **Execution
-   trace**. A program that modifies its own machine code displays the actual
-   changed bytes in the machine-code inspector.
-5. Open **Configure display** to alter the memory-mapped screen controller
-   *live*, including during execution. Width, height and bit depth use sliders;
-   indexed palettes are filtered by bit depth. Screen pixels stay square.
-   These controls NEVER alter CPU memory.
-   The program's `.display` directive is merely the initial suggestion: **Use
-   suggested** restores it. No directive means a 16×8 grayscale interpretation
-   starting at `0x80`.
-6. **Save** (Ctrl+S) writes the edited `.asm` file to the student directory.
-   If another editor or a Git operation changed it meanwhile, the server
-   refuses to overwrite and reports a revision conflict.
+- **Left:** the editor. The margin shows the address and the bytes of every
+  line; bytes the program has overwritten turn amber. Assembly happens while
+  you type, problems are listed under the editor. Click a line number to set a
+  breakpoint.
+- **Right:** registers and flags (changes are highlighted), the screen, and
+  RAM. The next instruction is blue in RAM and highlighted in the editor.
+- **Bottom:** restart, step back, run/pause, step, and the **clock** from 1 Hz
+  to 16 MHz. Every instruction costs a realistic number of cycles, so a
+  program takes as long as it would on real hardware at that clock.
 
-There is no required **Assemble** button. When assembly succeeds after a source
-change, the CPU restarts with the new program; unsaved edits may still run.
-A new assembly never silently saves the file. The compiled bytes and execution
-history exist only in browser memory.
+The screen is a view of RAM: drag the picture to move through memory, drag its
+corner to resize it, and pick the pixel format and palette above it. This
+never changes RAM. See [docs/screen.md](docs/screen.md).
 
-The two panels fill the available desktop viewport, with independent scrolling
-for the editor and the inspector; smaller screens use a responsive vertical
-layout. Syntax highlighting is dependency-free and based on assembly tokens.
-
-### Keyboard shortcuts
-
-| Keys | Action |
+| Keys | |
 | --- | --- |
-| Ctrl+S | Save source to disk |
-| Ctrl+Enter | Force immediate assembly (usually unnecessary) |
-| Tab | Insert two spaces in editor |
-| Right / Left | Step forward / backward (outside editor) |
-| Space | Play / Pause (outside editor) |
+| Ctrl+S | save |
+| Space | run / pause (outside the editor) |
+| ← → | step back / forward |
+| Home | restart |
+| Ctrl+/ | comment lines |
 
-## Memory-mapped display controller
+## Examples
 
-The CPU architecture has **256 shared bytes of RAM** and **no dedicated graphics
-hardware**. The screen is simply a configurable interpretation of bytes from
-this RAM. For example, these modes all use 64 bytes of memory:
-
-| Pixel format | Example resolution | Layout |
+| | Level | |
 | --- | --- | --- |
-| Monochrome (`mono`) | 32×16 | 1 bit/pixel, eight pixels/byte |
-| 2-bit indexed (`indexed2`) | 16×16 | 2 bits/pixel, four pixels/byte |
-| 4-bit indexed (`indexed4`) | 16×8 | 4 bits/pixel, two pixels/byte |
-| 8-bit (`indexed8`, `gray8`, `rgb332`) | 8×8 | one pixel/byte |
-| RGB888 (`rgb24`) | 4×5 | three bytes/pixel = 60 bytes |
+| `01-add` … `04-square-root` | 8 | registers, flags, loops |
+| `05-memory`, `06-rectangle` | 8 | addressing, pixels in RAM |
+| `07-primes`, `08-self-modifying` | 8 | cost of algorithms, code is data |
+| `09-pixel-formats`, `10-bouncing-dot` | 8 | screen formats, an endless loop |
+| `11-fire` | 8 | demo: rising flames in 96 bytes |
+| `12-subroutines`, `13-recursion` | 8S | the stack, arguments and local variables |
+| `14-scroller` | 8S | demo: LED sign |
+| `15-pointers`, `16-lines` | 8X | X/Y, Bresenham lines |
+| `17-mandelbrot` | 8X | demo: fixed-point fractal with a table of squares |
 
-Indexed modes use the pixel value as the **index into a palette**. Grayscale uses
-0–255 brightness, RGB332 stores 3 red, 3 green and 2 blue bits, and RGB24 uses
-three consecutive R,G,B bytes. Packed pixels are read **most-significant bits
-first**. Only palettes whose number of entries matches the bit depth can be chosen. Current built-in palettes
-are a curated subset of [PixelRAM's palettes](https://github.com/specht/pixelram/blob/main/tools/palettes.yaml):
-1-bit monitor glow, CGA, Color Graphics Adapter 16, VGA 256,
-PICO-8, Sweetie 16, Dreamscape 8, SLSO8 and Endesga 32. The original palette
-indices are preserved. CPU Sandbox additionally bundles an original cyclic
-16-color palette (`aurora_cycle_16`) for the static plasma example.
+A suggested order with questions and exercises: [docs/teaching.md](docs/teaching.md).
 
-A program can suggest a display configuration without emitting instructions:
+## Assembly in brief
 
 ```asm
-; 256 pixels, 32 by 8, packed into 32 bytes at 0xA0
-.display 0xA0, 32, 8, mono, 1bit_monitor_glow
+.cpu 8s                         ; CPU level
+.display 0x80, 16, 8, gray8     ; suggested screen
+
+SIZE    .equ 16                 ; constant
+        LDI A, 0x80             ; label, instruction, operands
+loop:   STA [A], A
+        INC A
+        JNZ loop
+        HLT
+message: .db "Hi", 0            ; data
 ```
 
-Syntax: `.display start, width, height, mode [, palette]`. Every row starts
-immediately after the previous row (rounded up to the next byte when packed).
-Indexed modes require a palette with exactly 2^bit-depth colors; grayscale
-and RGB modes take no palette. The mapping must fit the selected CPU’s RAM (256 bytes on 8/8S or 4 KiB on 8X).
-The browser controller can override the suggestion; it never changes RAM. [Display controller reference](docs/display-controller.md)
-contains more examples and an explanation of the mapping.
+Numbers: `42`, `0x2A`, `0b101010`, `'A'`; expressions with `+ - * / & | << >>`.
+Comments start with `;`.
 
-Try examples `09`–`15` to compare packing, color indices, RGB and genuinely
-self-modifying code. In example `12`, the processor overwrites an `LDI`
-instruction's immediate operand: both its bytes and its effect change while
-its assembly source text remains unchanged.
-
-## Instruction set
-
-Designed to remain compatible with `specht/lowlevel/minicpu`:
-
-| Category | Mnemonics |
-| --- | --- |
-| Move / memory | `LDI`, `LDA`, `STA`, `MOV` |
-| Arithmetic | `ADD`, `SUB`, `INC`, `DEC`, `SHL`, `SHR` |
-| Boolean | `AND`, `OR`, `XOR` |
-| Comparison | `CMP` immediate or register |
-| Branching | `JMP`, `JZ`, `JNZ`, `JC`, `JNC` |
-| Other | `CLF`, `NOP`, `HLT` |
-| Assembly directives | `.org`, `.db` / `.byte`, `.equ`, `.display` (metadata only), labels |
-
-The CPU uses 8-bit unsigned wraparound and flags: `CF` represents carry for
-addition/shifts and borrow for subtraction/comparison. `ZF` indicates zero.
-LDI, LDA, STA and MOV do not change flags. `HLT` terminates execution. More
-examples and exercises: [docs/teaching.md](docs/teaching.md).
-
-## Run tests
+## Tests
 
 ```sh
-npm test            # uses Node's built-in test runner; no npm install needed
+npm test        # Node's built-in test runner, no npm install
 ```
 
-Tests exercise assembly, instruction encoding and execution (including 61,704
-instructions in the prime-number demo), display bit packing, palette sizes, packed row alignment, palette
-indices, self-modifying code, disk discovery/read/write, optimistic conflicts,
-and path-traversal/symlink rejection.
+## How it works
 
-## Architecture and boundaries
+- `src/` — assembler, CPU, screen decoding and palettes. The same modules run
+  in Node (tests) and in the browser. `src/opcodes.js` is the only place that
+  defines opcodes, sizes and cycles; the browser reference is generated from it.
+- `web/` — the page. CodeMirror, fonts and icons are bundled; there are no
+  requests to other servers.
+- `server.mjs` — serves the page and reads and writes `.asm` files under
+  `programs/<student>/`. It listens on `127.0.0.1`, has no login and must not be
+  exposed to an untrusted network. Writes need same-origin JSON; file names,
+  symbolic links and sizes (64 KiB) are checked.
 
-- **Local backend:** `server.mjs` serves the browser and a small filesystem API.
-  It reads real `.asm` files under `programs/<student>/` and writes only there.
-  A read-only `@examples` group is provided separately.
-- **Browser:** `src/assembler.js` compiles editor text into MiniCPU bytecode;
-  `src/cpu.js` executes it instruction by instruction; `src/display.js`
-  decodes the same 256 RAM bytes into configurable pixels and never mutates
-  them; `web/app.js` renders everything and interacts with the disk API.
-- **Security:** HTTP server listens on `127.0.0.1` by default, has **no login**, and
-  must **not** be published on the open internet. Filename checks and symlink
-  rejection prevent basic filesystem traversal; writes require same-origin JSON.
-  Larger deployments would require authentication and additional sandboxing.
-- **Limits:** programs have max 256-byte address space; individual source files
-  max 64 KiB; fast execution capped at 200,000 instructions; reverse history
-  keeps the last 3,000 snapshots to keep memory bounded.
-- **No native C tools:** this is a fresh independent project, not a modification
-  of the old `lowlevel` source repository. No source file or commit is touched on
-  your GitLab server.
-
-## Backend endpoints
-
-| Method | Endpoint | Purpose |
+| Method | Endpoint | |
 | --- | --- | --- |
-| GET | `/api/catalog` | List examples, student directories and `.asm` files |
-| GET | `/api/source?group=anna&file=sum.asm` | Retrieve source and SHA-256 revision |
-| PUT | `/api/source?group=anna&file=sum.asm` | Save `{source, revision}`; HTTP 409 on conflict |
-| POST | `/api/programs` | Create `{group, file, source}` with no-overwrite semantics |
+| GET | `/api/catalog` | examples and student folders with their files |
+| GET, PUT | `/api/source?group=anna&file=sum.asm` | read / save (HTTP 409 if changed on disk) |
+| POST | `/api/programs` | create `{group, file, source}`; never overwrites |
 
-`--programs /path/to/class-repo`, `--port 8765`, and `--host 127.0.0.1` are
-available to `./run`. Use `--host` other than loopback only on a *trusted* network.
-
-## Local fonts and icons
-
-The interface uses **Open Sans** for controls and headings, **0xProto Nerd Font**
-for the editor, memory, and machine listings, and a bundled
-`web/vendor/tabler-icons.svg` sprite for buttons. It makes **no CDN requests**
-and does not search sibling projects or the host's installed fonts.
-
-Font binary files must be placed in the app itself before packaging/deploying:
-
-- `web/vendor/fonts/OpenSans.ttf` (Open Sans, SIL Open Font License 1.1)
-- `web/vendor/fonts/0xProtoNerdFont.ttf` (0xProto Nerd Font, SIL Open Font License 1.1)
-
-Include the respective upstream license texts when distributing these fonts.
-The font stylesheet falls back to system fonts until both local TTF assets
-have been added. Tabler icon artwork is MIT-licensed (https://tabler.io/icons).
-
-
-### Color demo: Rainbow Interference
-
-Load `16-rainbow-interference.asm` and press **Play**. Increase the speed to
-watch a shifting 16-color pattern appear, while the RAM inspector shows the
-same 128 bytes that encode its **256 square pixels**. Each byte contains two
-4-bit indices into the `sweetie_16` palette. No dedicated framebuffer or
-extra CPU RAM is involved. Pause and change the display controller between
-4-bit indexed, monochrome, and grayscale to explore the same bytes.
-
-The example continually overwrites only addresses `0x80..0xFF`, leaving its
-own executable instructions untouched. This is also a good starting point for
-asking how to draw larger/colorful images within a 256-byte shared address
-space before considering an extended architecture.
-
-### Graphics showcases: one for each CPU model
-
-All images below are computed by the CPU using ordinary arithmetic and RAM
-writes. They are **not pre-rendered bitmaps** and need no graphics instructions.
-Choose the matching CPU in the top bar, open the example, and select
-**Run to end**. Step through individual writes to see how colors are packed.
-
-| CPU | Example | Output | Framebuffer | Main technique |
-| --- | --- | --- | --- | --- |
-| MiniCPU 8 | `17-prism-gradient.asm` | 16×16, 16 colors | 128 B at `0x80` | Nested loops, palette indices, 2 pixels/byte |
-| MiniCPU 8S | `21-stack-neon-halo.asm` | 16×12, 16 colors | 96 B at `0x90` | CALL/RET, saved register, Manhattan-distance rings |
-| MiniCPU 8X | `22-extended-neon-orbit.asm` | 64×48, 16 colors | 1,536 B at `0x0800` | 16-bit index X, CALL, approximate radial distance |
-
-The **8S framebuffer ends at `0xEF`** to leave space for the stack at
-`0xF0..0xFF`. All three programs leave their machine code intact. You can
-reinterpret their exact framebuffer bytes by changing the display controller
-or selecting a different 16-color palette—neither alters RAM.
-
-See [the graphics walkthrough](docs/graphics-showcases.md) for the assembly
-algorithms, memory maps, and discussion prompts.
-
-## CPU models and opcode families
-
-Select the processor at the top of the browser. The source is automatically
-reassembled and the CPU reset when the model changes; unsaved source edits are
-not discarded. The three models share **one deliberately designed opcode map**:
-
-| Model | Program counter | RAM | New facilities |
-| --- | --- | --- | --- |
-| MiniCPU 8 | 8-bit | 256 B | Basic A–D registers, flags, jumps |
-| MiniCPU 8S | 8-bit | 256 B | Shared-RAM stack, `PUSH`, `POP`, `CALL`, `RET` |
-| MiniCPU 8X | 16-bit | 4 KiB | 16-bit X/Y, 16-bit SP, automatically sized jumps/calls, `[X]`/`[Y]` access |
-
-| Opcode range | Family |
-| --- | --- |
-| `00`–`0F` | Control (`NOP`, `HLT`, `CLF`) |
-| `10`–`1F` | Data movement and addressing (`LDI`, `LDA`, `STA`, `MOV`, `LDX`) |
-| `20`–`2F` | Arithmetic and shifts |
-| `30`–`3F` | Bitwise logic |
-| `40`–`4F` | Comparisons |
-| `50`–`5F` | Stack and subroutines |
-| `60`–`6F` | Jumps (short absolute on 8/8S; long absolute or short PC-relative on 8X) |
-| `70`–`FF` | Reserved |
-
-See [the complete instruction encodings](docs/instruction-encoding.md).
-The ISA is **source-compatible across model levels**: every MiniCPU 8 assembly
-program can be reassembled for 8S or 8X. The earlier Ruby emulator's machine
-code bytes are **not** compatible. Assemblies and examples are not binary files,
-so there is no migration step.
-
-The stack is ordinary memory at the high end of the address space and grows
-downward. Its content may overlap a framebuffer or other program data: this is
-intentional and visible to students, so keep the display away from the stack
-when writing graphics subroutines. On MiniCPU 8 and 8S a jump or `CALL` carries a one-byte address. On 8X
-the **same mnemonic** gets a signed one-byte PC-relative displacement for nearby
-targets (−128..+127 bytes), or a two-byte absolute address when too far away.
-There are no special `*16` source mnemonics; the assembler resolves all labels.
-8X also has two symmetric 16-bit index registers, **X** and **Y**, so copy
-loops can use one for the source and one for the destination.
-
-
-### Bitmap text and wireframe graphics
-
-Two larger examples demonstrate how subroutines and 16-bit addressing allow
-algorithms beyond colored fills, without introducing special graphics opcodes:
-
-- **`23-stack-bitmap-text.asm`** (MiniCPU 8S) draws "CPU" using three
-  seven-byte bitmap glyphs and a reusable `drawChar` subroutine. The 24×8
-  one-bit display takes 24 bytes at `0xD0..0xE7`, leaving stack room at the
-  top of RAM. The glyph data, code, and display occupy ordinary shared RAM.
-- **`24-extended-wireframe-cube.asm`** (MiniCPU 8X) rasterizes twelve
-  isometric cube edges using a major-axis Bresenham line routine. It draws
-  to a 64×48 monochrome display (384 bytes at `0x0800`). The projected
-  2D endpoints are provided explicitly: full 3D transformation is a separate
-  extension. Its `plot` routine demonstrates self-modifying code by updating
-  the address operand of an `LDX` instruction in zero-page RAM because the
-  present ISA cannot load an address computed from 8-bit registers into `X` or `Y`.
-  Watch those operand bytes change in the memory inspector.
-
-Both programs halt and restore SP to its initial value. Use **Run to end**
-for the larger wireframe example, then step through one call to `drawLine`.
-See [graphics algorithms](docs/graphics-algorithms.md) for explanations and
-possible follow-up exercises.
+The interpreter runs a few million instructions per second in the browser,
+well above the 16 MHz clock setting. Each step is journaled, so **step back**
+undoes the last 50,000 instructions exactly.

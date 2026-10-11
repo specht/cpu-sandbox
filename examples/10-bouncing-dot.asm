@@ -1,6 +1,8 @@
+; BOUNCING DOT WITH A TRAIL
+; A tiny animation that never halts: the dot runs back and forth on a
+; 16-pixel strip at 0xF0..0xFF. Direction and trail live in RAM at 0x70.
 .display 0xF0, 16, 1, gray8
-; BOUNCING DOT, WITH A TWO-PIXEL TRAIL
-; Bottom framebuffer row is 0xF0..0xFF (16 pixels).
+
 PIXEL   .equ 0xEE
 LEFT    .equ 0xF0
 RIGHT   .equ 0xFF

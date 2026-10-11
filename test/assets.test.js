@@ -3,43 +3,43 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer } from '../server.mjs';
 
 const base = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const page = fs.readFileSync(path.join(base,'web/index.html'), 'utf8');
-const css = fs.readFileSync(path.join(base,'web/style.css'), 'utf8');
-const sprite = fs.readFileSync(path.join(base,'web/vendor/tabler-icons.svg'), 'utf8');
+const read = file => fs.readFileSync(path.join(base, file), 'utf8');
+const page = read('web/index.html'), css = read('web/style.css'), sprite = read('web/vendor/tabler-icons.svg');
+const scripts = fs.readdirSync(path.join(base, 'web/js')).map(f => read(`web/js/${f}`)).join('\n');
 
-test('buttons use real bundled Tabler sprite IDs, not Unicode glyphs', () => {
-  const names = [...page.matchAll(/\/vendor\/tabler-icons\.svg#(ti-[a-z-]+)/g)].map(x => x[1]);
-  assert.ok(names.length >= 12);
-  for (const id of names) assert.match(sprite, new RegExp(`id="${id}"`));
-  for (const id of ['ti-player-pause','ti-player-play']) assert.match(sprite, new RegExp(`id="${id}"`));
-  assert.doesNotMatch(page, /▶|↻|⏯|Ⅱ Pause|← Back|Step →/);
+test('every icon used by the page and its scripts exists in the bundled sprite', () => {
+  const used = new Set([
+    ...[...page.matchAll(/tabler-icons\.svg#(ti-[a-z0-9-]+)/g)].map(m => m[1]),
+    ...[...scripts.matchAll(/icon\('([a-z0-9-]+)'/g)].map(m => `ti-${m[1]}`),
+    ...[...scripts.matchAll(/icon\([^()]*\? '([a-z0-9-]+)' : '([a-z0-9-]+)'/g)].flatMap(m => [`ti-${m[1]}`, `ti-${m[2]}`]),
+    'ti-edit', 'ti-book', // the source chip
+  ]);
+  assert.ok(used.size >= 10);
+  for (const id of used) assert.match(sprite, new RegExp(`id="${id}"`), id);
 });
-test('font styles use local files and preserve fallback families', () => {
-  assert.match(css, /font-family:'Open Sans'/);
-  assert.match(css, /font-family:'0xProto Nerd Font'/);
+
+test('fonts, icons and the editor are local; nothing comes from a CDN', () => {
   assert.match(css, /\/vendor\/fonts\/OpenSans\.ttf/);
   assert.match(css, /\/vendor\/fonts\/0xProtoNerdFont\.ttf/);
-  assert.doesNotMatch(page+css, /https:\/\/fonts\.|fonts\.googleapis|cdn\.jsdelivr/);
-});
-test('backend serves icon sprite with SVG mime type', async t => {
-  const server = createServer();
-  await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
-  t.after(() => new Promise(resolve => server.close(resolve)));
-  const response = await fetch(`http://127.0.0.1:${server.address().port}/vendor/tabler-icons.svg`);
-  assert.equal(response.status,200);
-  assert.match(response.headers.get('content-type'),/image\/svg\+xml/);
-  assert.match(await response.text(),/id="ti-cpu"/);
+  assert.match(page, /\/vendor\/codemirror\.js/);
+  assert.doesNotMatch(page + css + scripts, /https?:\/\/(?!127\.0\.0\.1|www\.w3\.org)[a-z]/i);
 });
 
-test('editor syntax overlay uses identical font metrics and no header logo', () => {
-  assert.doesNotMatch(page, /class="logo"/);
-  assert.doesNotMatch(page, /tabler-icons\.svg#ti-cpu/);
-  assert.match(css, /#highlight-layer code,[\s\S]*?font-family:\s*'0xProto Nerd Font'/);
-  assert.match(css, /#highlight-layer \.hl-mnemonic\s*\{\s*font-weight:\s*400/);
-  assert.match(css, /font-variant-ligatures:\s*none/);
-  const app = fs.readFileSync(path.join(base, 'web/app.js'), 'utf8');
-  assert.match(app, /layer\.style\.left = .*line-numbers.*getBoundingClientRect\(\)\.width/);
+test('the top bar shows only the name, like the other sandboxes', () => {
+  const brand = page.match(/<div class="brand">([\s\S]*?)<\/div>/)[1];
+  assert.equal(brand.trim(), '<strong>CPU SANDBOX</strong>');
+});
+
+test('docs/cpu-levels.md lists every instruction with its opcode, size and cycles', async () => {
+  const { INSTRUCTIONS, sizeOf, cycleLabel } = await import('../src/opcodes.js');
+  const { ARCHITECTURES } = await import('../src/architectures.js');
+  const doc = read('docs/cpu-levels.md');
+  for (const i of INSTRUCTIONS) {
+    const code = i.code.toString(16).toUpperCase().padStart(2, '0');
+    const row = doc.split('\n').find(line => line.startsWith(`| \`${code}\` | \`${i.syntax}\``));
+    assert.ok(row, `${i.syntax} is missing (regenerate the table)`);
+    assert.ok(row.includes(`${sizeOf(i, ARCHITECTURES.cpu8x)} | `) && row.includes(`· ${cycleLabel(i, ARCHITECTURES.cpu8x)} |`), `${i.syntax} is out of date`);
+  }
 });
