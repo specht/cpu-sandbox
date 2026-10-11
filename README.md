@@ -110,8 +110,8 @@ layout. Syntax highlighting is dependency-free and based on assembly tokens.
 
 ## Memory-mapped display controller
 
-MiniCPU 8 and 8S have **256 shared bytes of RAM**, while 8X has **4 KiB**.
-None has dedicated graphics hardware. The screen is simply a configurable interpretation of bytes from
+The CPU architecture has **256 shared bytes of RAM** and **no dedicated graphics
+hardware**. The screen is simply a configurable interpretation of bytes from
 this RAM. For example, these modes all use 64 bytes of memory:
 
 | Pixel format | Example resolution | Layout |
@@ -255,7 +255,7 @@ Choose the matching CPU in the top bar, open the example, and select
 | --- | --- | --- | --- | --- |
 | MiniCPU 8 | `17-prism-gradient.asm` | 16×16, 16 colors | 128 B at `0x80` | Nested loops, palette indices, 2 pixels/byte |
 | MiniCPU 8S | `21-stack-neon-halo.asm` | 16×12, 16 colors | 96 B at `0x90` | CALL/RET, saved register, Manhattan-distance rings |
-| MiniCPU 8X | `22-extended-neon-orbit.asm` | 64×48, 16 colors | 1,536 B at `0x0800` | 16-bit index X, CALL16, approximate radial distance |
+| MiniCPU 8X | `22-extended-neon-orbit.asm` | 64×48, 16 colors | 1,536 B at `0x0800` | 16-bit index X, CALL, approximate radial distance |
 
 The **8S framebuffer ends at `0xEF`** to leave space for the stack at
 `0xF0..0xFF`. All three programs leave their machine code intact. You can
@@ -275,7 +275,7 @@ not discarded. The three models share **one deliberately designed opcode map**:
 | --- | --- | --- | --- |
 | MiniCPU 8 | 8-bit | 256 B | Basic A–D registers, flags, jumps |
 | MiniCPU 8S | 8-bit | 256 B | Shared-RAM stack, `PUSH`, `POP`, `CALL`, `RET` |
-| MiniCPU 8X | 16-bit | 4 KiB | 16-bit X and SP, extended jumps, `CALL16`, `[X]` access |
+| MiniCPU 8X | 16-bit | 4 KiB | 16-bit X/Y, 16-bit SP, automatically sized jumps/calls, `[X]`/`[Y]` access |
 
 | Opcode range | Family |
 | --- | --- |
@@ -285,7 +285,7 @@ not discarded. The three models share **one deliberately designed opcode map**:
 | `30`–`3F` | Bitwise logic |
 | `40`–`4F` | Comparisons |
 | `50`–`5F` | Stack and subroutines |
-| `60`–`6F` | Jumps, including long jumps |
+| `60`–`6F` | Jumps (short absolute on 8/8S; long absolute or short PC-relative on 8X) |
 | `70`–`FF` | Reserved |
 
 See [the complete instruction encodings](docs/instruction-encoding.md).
@@ -297,6 +297,33 @@ so there is no migration step.
 The stack is ordinary memory at the high end of the address space and grows
 downward. Its content may overlap a framebuffer or other program data: this is
 intentional and visible to students, so keep the display away from the stack
-when writing graphics subroutines. A short jump or `CALL` uses an 8-bit absolute
-address; use `JMP16`, `JZ16`, `JNZ16`, `JC16`, `JNC16`, or `CALL16` to reach code
-above `0x00FF` on 8X.
+when writing graphics subroutines. On MiniCPU 8 and 8S a jump or `CALL` carries a one-byte address. On 8X
+the **same mnemonic** gets a signed one-byte PC-relative displacement for nearby
+targets (−128..+127 bytes), or a two-byte absolute address when too far away.
+There are no special `*16` source mnemonics; the assembler resolves all labels.
+8X also has two symmetric 16-bit index registers, **X** and **Y**, so copy
+loops can use one for the source and one for the destination.
+
+
+### Bitmap text and wireframe graphics
+
+Two larger examples demonstrate how subroutines and 16-bit addressing allow
+algorithms beyond colored fills, without introducing special graphics opcodes:
+
+- **`23-stack-bitmap-text.asm`** (MiniCPU 8S) draws "CPU" using three
+  seven-byte bitmap glyphs and a reusable `drawChar` subroutine. The 24×8
+  one-bit display takes 24 bytes at `0xD0..0xE7`, leaving stack room at the
+  top of RAM. The glyph data, code, and display occupy ordinary shared RAM.
+- **`24-extended-wireframe-cube.asm`** (MiniCPU 8X) rasterizes twelve
+  isometric cube edges using a major-axis Bresenham line routine. It draws
+  to a 64×48 monochrome display (384 bytes at `0x0800`). The projected
+  2D endpoints are provided explicitly: full 3D transformation is a separate
+  extension. Its `plot` routine demonstrates self-modifying code by updating
+  the address operand of an `LDX` instruction in zero-page RAM because the
+  present ISA cannot load an address computed from 8-bit registers into `X` or `Y`.
+  Watch those operand bytes change in the memory inspector.
+
+Both programs halt and restore SP to its initial value. Use **Run to end**
+for the larger wireframe example, then step through one call to `drawLine`.
+See [graphics algorithms](docs/graphics-algorithms.md) for explanations and
+possible follow-up exercises.

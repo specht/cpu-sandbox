@@ -2,7 +2,7 @@ import { architecture } from './architectures.js';
 import { OPCODES as OP } from './opcodes.js';
 import { validateDisplay, MODES } from './display.js';
 import { PALETTES } from './palettes.js';
-/** MiniCPU two-pass assembler. No eval, no external dependencies. */
+/** MiniCPU assembler with iterative branch relaxation. No eval or external dependencies. */
 const REGISTERS = Object.freeze({ A: 0, B: 1, C: 2, D: 3, R0: 0, R1: 1, R2: 2, R3: 3 });
 const FORMS = Object.freeze({
   LDI: ['ri', OP.LDI], LDA: ['load', OP.LDA_DIRECT], STA: ['store', OP.STA_DIRECT],
@@ -16,8 +16,7 @@ const FORMS = Object.freeze({
   CLF: ['none', OP.CLF], NOP: ['none', OP.NOP], HLT: ['none', OP.HLT],
   PUSH: ['r', OP.PUSH], POP: ['r', OP.POP], CALL: ['address', OP.CALL], RET: ['none', OP.RET],
   LDX: ['word', OP.LDX], INCX: ['none', OP.INCX], DECX: ['none', OP.DECX],
-  JMP16: ['word', OP.JMP16], JZ16: ['word', OP.JZ16], JNZ16: ['word', OP.JNZ16],
-  JC16: ['word', OP.JC16], JNC16: ['word', OP.JNC16], CALL16: ['word', OP.CALL16],
+  LDY: ['word', OP.LDY], INCY: ['none', OP.INCY], DECY: ['none', OP.DECY],
 });
 export const MNEMONICS = Object.freeze(Object.keys(FORMS));
 
@@ -161,12 +160,12 @@ const byte = (token, symbols, line) => {
   return v;
 };
 const STACK_OPS = new Set(['PUSH','POP','CALL','RET']);
-const EXT_OPS = new Set(['LDX','INCX','DECX','JMP16','JZ16','JNZ16','JC16','JNC16','CALL16']);
+const EXT_OPS = new Set(['LDX','INCX','DECX','LDY','INCY','DECY']);
 function supported(node, arch) {
   if (STACK_OPS.has(node.op) && !arch.stack) fail(node.line, `${node.op} requires MiniCPU 8S or 8X`);
   if (EXT_OPS.has(node.op) && !arch.index) fail(node.line, `${node.op} requires MiniCPU 8X`);
-  if (node.op === 'LDA' && node.args?.[1]?.trim().toUpperCase() === '[X]' && !arch.index) fail(node.line, 'Address register X requires MiniCPU 8X');
-  if (node.op === 'STA' && node.args?.[0]?.trim().toUpperCase() === '[X]' && !arch.index) fail(node.line, 'Address register X requires MiniCPU 8X');
+  if (node.op === 'LDA' && /^\[(X|Y)\]$/i.test(node.args?.[1]?.trim()) && !arch.index) fail(node.line, 'Index registers X/Y require MiniCPU 8X');
+  if (node.op === 'STA' && /^\[(X|Y)\]$/i.test(node.args?.[0]?.trim()) && !arch.index) fail(node.line, 'Index registers X/Y require MiniCPU 8X');
 }
 function expected(node, count) {
   if (node.args.length !== count || node.args.some(s => !s)) fail(node.line, `${node.op ?? '.' + node.type} expects ${count} operand(s), got ${node.args.length}`);
@@ -179,10 +178,11 @@ function sizeOf(node, arch) {
   expected(node, form === 'none' ? 0 : ['r', 'address', 'word'].includes(form) ? 1 : 2);
   if (form === 'none') return 1;
   if (form === 'word') return 3;
-  if (form === 'r' || form === 'rr' || form === 'address') return 2;
+  if (form === 'address') return arch.addressBits === 16 && node.longJump ? 3 : 2;
+  if (form === 'r' || form === 'rr') return 2;
   if (form === 'cmp') return register(node.args[1]) ? 2 : 3;
-  if (form === 'load') return bracketed(node.args[1]) && (register(inner(node.args[1])) || inner(node.args[1]).toUpperCase()==='X') ? 2 : 3;
-  if (form === 'store') return bracketed(node.args[0]) && (register(inner(node.args[0])) || inner(node.args[0]).toUpperCase()==='X') ? 2 : 3;
+  if (form === 'load') return bracketed(node.args[1]) && (register(inner(node.args[1])) || ['X','Y'].includes(inner(node.args[1]).toUpperCase())) ? 2 : 3;
+  if (form === 'store') return bracketed(node.args[0]) && (register(inner(node.args[0])) || ['X','Y'].includes(inner(node.args[0]).toUpperCase())) ? 2 : 3;
   return 3;
 }
 
@@ -190,33 +190,56 @@ function sizeOf(node, arch) {
 export function assemble(text, { architecture: architectureId = 'cpu8' } = {}) {
   const arch = architecture(architectureId);
   const nodes = parseSource(text);
-  const symbols = new Map();
   const diagnostics = [];
-  let pc = 0;
-  for (const node of nodes) {
-    if (node.label) {
-      if (symbols.has(node.label)) fail(node.line, `Duplicate symbol: ${node.label}`);
-      symbols.set(node.label, pc);
+  // Relaxation: start with compact instructions, then widen only branches whose
+  // signed PC-relative displacement does not fit in one byte. Widening is
+  // monotonic and stable even when earlier instructions move later labels.
+  // On MiniCPU 8/8S, all branches are the original 8-bit absolute form.
+  const branchNodes = nodes.filter(node => node.type === 'instruction' && FORMS[node.op]?.[0] === 'address');
+  let symbols;
+  const layout = () => {
+    const labels = new Map();
+    let pc = 0;
+    for (const node of nodes) {
+      node.address = pc;
+      if (node.label) {
+        if (labels.has(node.label)) fail(node.line, `Duplicate symbol: ${node.label}`);
+        labels.set(node.label, pc);
+      }
+      if (node.type === 'equ') {
+        expected({ ...node, op: '.equ' }, 2);
+        const [name, value] = node.args;
+        if (!/^[a-z_]\w*$/i.test(name) || labels.has(name)) fail(node.line, `Invalid or duplicate constant: ${name}`);
+        labels.set(name, bounded(value, labels, node.line, arch.memorySize - 1, 'Constant'));
+      } else if (node.type === 'org') {
+        expected({ ...node, op: '.org' }, 1);
+        pc = bounded(node.args[0], labels, node.line, arch.memorySize - 1, 'Origin');
+      } else if (node.type === 'display') {
+        if (![4, 5].includes(node.args.length)) fail(node.line, '.display needs start, width, height, mode [, palette]');
+      } else if (node.type === 'db' || node.type === 'byte') {
+        if (!node.args.length || node.args.some(s => !s)) fail(node.line, '.db needs one or more values');
+        pc += node.args.reduce((n, s) => n + (isString(s) ? decodeString(s, node.line).length : 1), 0);
+      } else if (node.type === 'instruction') {
+        pc += sizeOf(node, arch);
+      } else if (node.type !== 'label') fail(node.line, `Unknown directive: .${node.type}`);
+      if (pc > arch.memorySize) fail(node.line, `Program exceeds the ${arch.memorySize}-byte address space`);
     }
-    if (node.type === 'equ') {
-      expected({ ...node, op: '.equ' }, 2);
-      const [name, value] = node.args;
-      if (!/^[a-z_]\w*$/i.test(name) || symbols.has(name)) fail(node.line, `Invalid or duplicate constant: ${name}`);
-      symbols.set(name, bounded(value, symbols, node.line, arch.memorySize - 1, 'Constant'));
-    } else if (node.type === 'org') {
-      expected({ ...node, op: '.org' }, 1);
-      pc = bounded(node.args[0], symbols, node.line, arch.memorySize - 1, 'Origin');
-    } else if (node.type === 'display') {
-      // Visualization metadata: no bytes, no effect on the CPU. Parsed after labels are known.
-      if (![4, 5].includes(node.args.length)) fail(node.line, '.display needs start, width, height, mode [, palette]');
-    } else if (node.type === 'db' || node.type === 'byte') {
-      if (!node.args.length || node.args.some(s => !s)) fail(node.line, '.db needs one or more values');
-      pc += node.args.reduce((n, s) => n + (isString(s) ? decodeString(s, node.line).length : 1), 0);
-    } else if (node.type === 'instruction') {
-      pc += sizeOf(node, arch);
-    } else if (!['label'].includes(node.type)) fail(node.line, `Unknown directive: .${node.type}`);
-    if (pc > arch.memorySize) fail(node.line, `Program exceeds the ${arch.memorySize}-byte address space`);
-  }
+    return labels;
+  };
+  if (arch.index) {
+    // Every widening adds one byte; there can be no more than N iterations.
+    for (let round = 0; round <= branchNodes.length; round++) {
+      symbols = layout();
+      let widened = 0;
+      for (const node of branchNodes) {
+        if (node.longJump) continue;
+        const target = bounded(node.args[0], symbols, node.line, arch.memorySize - 1, 'Jump/call target');
+        const displacement = target - (node.address + 2);
+        if (displacement < -128 || displacement > 127) { node.longJump = true; widened++; }
+      }
+      if (!widened) break;
+    }
+  } else symbols = layout();
   let display = null;
   for (const node of nodes.filter(n => n.type === 'display')) {
     if (display) fail(node.line, 'Only one .display directive is allowed');
@@ -242,7 +265,7 @@ export function assemble(text, { architecture: architectureId = 'cpu8' } = {}) {
   }
   const memory = new Uint8Array(arch.memorySize), used = new Uint8Array(arch.memorySize);
   const listing = [], sourceMap = new Map();
-  pc = 0;
+  let pc = 0;
   const put = (value, node) => {
     if (pc >= arch.memorySize) fail(node.line, `Write beyond RAM at 0x${pc.toString(16).toUpperCase()}`);
     if (used[pc]) fail(node.line, `Overlapping code or data at 0x${pc.toString(16).padStart(2, '0').toUpperCase()}`);
@@ -272,16 +295,26 @@ export function assemble(text, { architecture: architectureId = 'cpu8' } = {}) {
       else if (form === 'r') { put(op, node); put(reg(a[0], node.line), node); }
       else if (form === 'ri') { put(op, node); put(reg(a[0], node.line), node); put(byte(a[1], symbols, node.line), node); }
       else if (form === 'rr') { put(op, node); put(rr(a[0], a[1]), node); }
-      else if (form === 'address') { put(op, node); put(byte(a[0], symbols, node.line), node); }
+      else if (form === 'address') {
+        const v = bounded(a[0], symbols, node.line, arch.memorySize - 1, 'Jump/call target');
+        if (!arch.index) { put(op, node); put(v, node); }
+        else if (node.longJump) {
+          put(OP[`${node.op}_LONG`], node); put(v & 255, node); put(v >> 8, node);
+        } else {
+          const offset = v - (pc + 2);
+          if (offset < -128 || offset > 127) fail(node.line, 'Internal jump relaxation error');
+          put(OP[`${node.op}_REL`], node); put(offset & 255, node);
+        }
+      }
       else if (form === 'cmp') {
         if (register(a[1])) { put(OP.CMP_REG, node); put(rr(a[0], a[1]), node); }
         else { put(OP.CMP_IMM, node); put(reg(a[0], node.line), node); put(byte(a[1], symbols, node.line), node); }
       } else if (form === 'load') {
-        if (bracketed(a[1]) && inner(a[1]).toUpperCase() === 'X') { put(OP.LDA_X,node); put(reg(a[0],node.line),node); }
+        if (bracketed(a[1]) && ['X','Y'].includes(inner(a[1]).toUpperCase())) { put(OP['LDA_'+inner(a[1]).toUpperCase()],node); put(reg(a[0],node.line),node); }
         else if (bracketed(a[1]) && register(inner(a[1]))) { put(OP.LDA_INDIRECT, node); put(rr(a[0], inner(a[1])), node); }
         else { put(OP.LDA_DIRECT, node); put(reg(a[0], node.line), node); put(addrValue(a[1], node), node); }
       } else if (form === 'store') {
-        if (bracketed(a[0]) && inner(a[0]).toUpperCase() === 'X') { put(OP.STA_X,node); put(reg(a[1],node.line),node); }
+        if (bracketed(a[0]) && ['X','Y'].includes(inner(a[0]).toUpperCase())) { put(OP['STA_'+inner(a[0]).toUpperCase()],node); put(reg(a[1],node.line),node); }
         else if (bracketed(a[0]) && register(inner(a[0]))) { put(OP.STA_INDIRECT, node); put(rr(inner(a[0]), a[1]), node); }
         else { put(OP.STA_DIRECT, node); put(addrValue(a[0], node), node); put(reg(a[1], node.line), node); }
       }

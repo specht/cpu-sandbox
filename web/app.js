@@ -24,12 +24,12 @@ function syntaxLine(text) {
   const code = at < 0 ? text : text.slice(0,at);
   const comment = at < 0 ? '' : `<span class="hl-comment">${safe(text.slice(at))}</span>`;
   const pattern = /(?:\.[A-Za-z]+|0[xX][\da-fA-F]+|0[bB][01_]+|\b\d+\b|\b[A-Za-z_][\w]*\b|"[^"\n]*")/g;
-  const mnemonics = new Set(['LDI','LDA','STA','MOV','ADD','SUB','INC','DEC','SHL','SHR','AND','OR','XOR','CMP','JZ','JNZ','JC','JNC','JMP','CLF','NOP','HLT','PUSH','POP','CALL','RET','LDX','INCX','DECX','JMP16','JZ16','JNZ16','JC16','JNC16','CALL16']);
+  const mnemonics = new Set(['LDI','LDA','STA','MOV','ADD','SUB','INC','DEC','SHL','SHR','AND','OR','XOR','CMP','JZ','JNZ','JC','JNC','JMP','CLF','NOP','HLT','PUSH','POP','CALL','RET','LDX','INCX','DECX','LDY','INCY','DECY']);
   let result = '', previous = 0;
   for (const match of code.matchAll(pattern)) {
     result += safe(code.slice(previous,match.index));
     const word = match[0], upper = word.toUpperCase();
-    const kind = word[0] === '.' ? 'directive' : word[0] === '"' ? 'string' : /^0[xXbB]|^\d/.test(word) ? 'number' : mnemonics.has(upper) ? 'mnemonic' : /^(A|B|C|D|X|SP|R[0-3])$/.test(upper) ? 'register' : 'label';
+    const kind = word[0] === '.' ? 'directive' : word[0] === '"' ? 'string' : /^0[xXbB]|^\d/.test(word) ? 'number' : mnemonics.has(upper) ? 'mnemonic' : /^(A|B|C|D|X|Y|SP|R[0-3])$/.test(upper) ? 'register' : 'label';
     result += `<span class="hl-${kind}">${safe(word)}</span>`;
     previous = match.index + word.length;
   }
@@ -446,6 +446,9 @@ function renderCpu() {
     const index = document.createElement('div'); index.className='reg';
     index.innerHTML = `<b>X</b><strong>${live ? '0x' + hex(cpu.x,4) : '--'}</strong>`;
     $('registers').append(index);
+    const indexY = document.createElement('div'); indexY.className='reg';
+    indexY.innerHTML = `<b>Y</b><strong>${live ? '0x' + hex(cpu.y,4) : '--'}</strong>`;
+    $('registers').append(indexY);
   }
   for (let i = 0; i < 256; i++) {
     const addr = memoryPage * 256 + i;

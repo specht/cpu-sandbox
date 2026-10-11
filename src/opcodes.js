@@ -18,6 +18,11 @@ export const OPCODES = Object.freeze({
   LDX: 0x18, // cpu8x · Data movement
   INCX: 0x19, // cpu8x · Data movement
   DECX: 0x1A, // cpu8x · Data movement
+  LDA_Y: 0x1B, // cpu8x · Data movement
+  STA_Y: 0x1C, // cpu8x · Data movement
+  LDY: 0x1D, // cpu8x · Data movement
+  INCY: 0x1E, // cpu8x · Data movement
+  DECY: 0x1F, // cpu8x · Data movement
   ADD: 0x20, // cpu8 · Arithmetic & shifts
   SUB: 0x21, // cpu8 · Arithmetic & shifts
   INC: 0x22, // cpu8 · Arithmetic & shifts
@@ -33,17 +38,23 @@ export const OPCODES = Object.freeze({
   POP: 0x51, // cpu8s · Stack & subroutines
   CALL: 0x52, // cpu8s · Stack & subroutines
   RET: 0x53, // cpu8s · Stack & subroutines
-  CALL16: 0x54, // cpu8x · Stack & subroutines
+  CALL_REL: 0x54, // cpu8x · PC-relative short subroutine
+  CALL_LONG: 0x55, // cpu8x · absolute 16-bit subroutine
   JMP: 0x60, // cpu8 · Branches
   JZ: 0x61, // cpu8 · Branches
   JNZ: 0x62, // cpu8 · Branches
   JC: 0x63, // cpu8 · Branches
   JNC: 0x64, // cpu8 · Branches
-  JMP16: 0x68, // cpu8x · Branches
-  JZ16: 0x69, // cpu8x · Branches
-  JNZ16: 0x6A, // cpu8x · Branches
-  JC16: 0x6B, // cpu8x · Branches
-  JNC16: 0x6C, // cpu8x · Branches
+  JMP_REL: 0x6A, // cpu8x · signed PC-relative branch
+  JZ_REL: 0x6B, // cpu8x · signed PC-relative branch
+  JNZ_REL: 0x6C, // cpu8x · signed PC-relative branch
+  JC_REL: 0x6D, // cpu8x · signed PC-relative branch
+  JNC_REL: 0x6E, // cpu8x · signed PC-relative branch
+  JMP_LONG: 0x65, // cpu8x · absolute 16-bit branch
+  JZ_LONG: 0x66, // cpu8x · absolute 16-bit branch
+  JNZ_LONG: 0x67, // cpu8x · absolute 16-bit branch
+  JC_LONG: 0x68, // cpu8x · absolute 16-bit branch
+  JNC_LONG: 0x69, // cpu8x · absolute 16-bit branch
 });
 
 export const OPCODE_TABLE = Object.freeze([
@@ -61,6 +72,11 @@ export const OPCODE_TABLE = Object.freeze([
   Object.freeze({ name: 'LDX', code: OPCODES.LDX, family: 'Data movement', since: 'cpu8x' }),
   Object.freeze({ name: 'INCX', code: OPCODES.INCX, family: 'Data movement', since: 'cpu8x' }),
   Object.freeze({ name: 'DECX', code: OPCODES.DECX, family: 'Data movement', since: 'cpu8x' }),
+  Object.freeze({ name: 'LDA_Y', code: OPCODES.LDA_Y, family: 'Data movement', since: 'cpu8x' }),
+  Object.freeze({ name: 'STA_Y', code: OPCODES.STA_Y, family: 'Data movement', since: 'cpu8x' }),
+  Object.freeze({ name: 'LDY', code: OPCODES.LDY, family: 'Data movement', since: 'cpu8x' }),
+  Object.freeze({ name: 'INCY', code: OPCODES.INCY, family: 'Data movement', since: 'cpu8x' }),
+  Object.freeze({ name: 'DECY', code: OPCODES.DECY, family: 'Data movement', since: 'cpu8x' }),
   Object.freeze({ name: 'ADD', code: OPCODES.ADD, family: 'Arithmetic & shifts', since: 'cpu8' }),
   Object.freeze({ name: 'SUB', code: OPCODES.SUB, family: 'Arithmetic & shifts', since: 'cpu8' }),
   Object.freeze({ name: 'INC', code: OPCODES.INC, family: 'Arithmetic & shifts', since: 'cpu8' }),
@@ -76,15 +92,14 @@ export const OPCODE_TABLE = Object.freeze([
   Object.freeze({ name: 'POP', code: OPCODES.POP, family: 'Stack & subroutines', since: 'cpu8s' }),
   Object.freeze({ name: 'CALL', code: OPCODES.CALL, family: 'Stack & subroutines', since: 'cpu8s' }),
   Object.freeze({ name: 'RET', code: OPCODES.RET, family: 'Stack & subroutines', since: 'cpu8s' }),
-  Object.freeze({ name: 'CALL16', code: OPCODES.CALL16, family: 'Stack & subroutines', since: 'cpu8x' }),
+  Object.freeze({ name: 'CALL_REL', code: OPCODES.CALL_REL, family: 'Stack & subroutines', since: 'cpu8x' }),
+  Object.freeze({ name: 'CALL_LONG', code: OPCODES.CALL_LONG, family: 'Stack & subroutines', since: 'cpu8x' }),
   Object.freeze({ name: 'JMP', code: OPCODES.JMP, family: 'Branches', since: 'cpu8' }),
   Object.freeze({ name: 'JZ', code: OPCODES.JZ, family: 'Branches', since: 'cpu8' }),
   Object.freeze({ name: 'JNZ', code: OPCODES.JNZ, family: 'Branches', since: 'cpu8' }),
   Object.freeze({ name: 'JC', code: OPCODES.JC, family: 'Branches', since: 'cpu8' }),
   Object.freeze({ name: 'JNC', code: OPCODES.JNC, family: 'Branches', since: 'cpu8' }),
-  Object.freeze({ name: 'JMP16', code: OPCODES.JMP16, family: 'Branches', since: 'cpu8x' }),
-  Object.freeze({ name: 'JZ16', code: OPCODES.JZ16, family: 'Branches', since: 'cpu8x' }),
-  Object.freeze({ name: 'JNZ16', code: OPCODES.JNZ16, family: 'Branches', since: 'cpu8x' }),
-  Object.freeze({ name: 'JC16', code: OPCODES.JC16, family: 'Branches', since: 'cpu8x' }),
-  Object.freeze({ name: 'JNC16', code: OPCODES.JNC16, family: 'Branches', since: 'cpu8x' }),
+  ...['LONG','REL'].flatMap(suffix => ['JMP','JZ','JNZ','JC','JNC'].map(name =>
+    Object.freeze({ name: `${name}_${suffix}`, code: OPCODES[`${name}_${suffix}`], family: 'Branches', since: 'cpu8x' })
+  )),
 ]);

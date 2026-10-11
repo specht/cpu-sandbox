@@ -90,7 +90,7 @@ Examples bundled with the application are read-only; copies belong to students.
     Explain how 32×32 pixels at four bits each require 512 bytes.
 16. **Long jumps:** Still on **MiniCPU 8X**, open
     `20-extended-high-code.asm`, and step from `0x0000` to `0x0200` via
-    `JMP16`. Explain why an 8-bit absolute jump cannot encode the target.
+    `JMP` on 8X. Inspect why some 8X jumps are short PC-relative while distant targets use a long absolute address. The source mnemonic stays `JMP`.
 
 These models use one *source-compatible* assembly language. Select a model in
 UI and let the assembler generate its bytes; the byte encoding deliberately

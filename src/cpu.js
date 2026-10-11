@@ -16,14 +16,15 @@ export class MiniCPU {
     this.pc = 0; this.zf = false; this.cf = false; this.halted = false; this.cycles = 0;
     this.sp = this.arch.stack ? this.arch.memorySize : null;
     this.x = this.arch.index ? 0 : null;
+    this.y = this.arch.index ? 0 : null;
     this.last = null;
   }
   snapshot() {
-    return { memory: this.memory.slice(), registers: this.registers.slice(), pc: this.pc, zf: this.zf, cf: this.cf, halted: this.halted, cycles: this.cycles, sp: this.sp, x: this.x, last: this.last };
+    return { memory: this.memory.slice(), registers: this.registers.slice(), pc: this.pc, zf: this.zf, cf: this.cf, halted: this.halted, cycles: this.cycles, sp: this.sp, x: this.x, y: this.y, last: this.last };
   }
   restore(s) {
     this.memory.set(s.memory); this.registers.set(s.registers);
-    this.pc = s.pc; this.zf = s.zf; this.cf = s.cf; this.halted = s.halted; this.cycles = s.cycles; this.sp = s.sp; this.x = s.x; this.last = s.last;
+    this.pc = s.pc; this.zf = s.zf; this.cf = s.cf; this.halted = s.halted; this.cycles = s.cycles; this.sp = s.sp; this.x = s.x; this.y = s.y; this.last = s.last;
   }
   fetch() {
     if (this.pc < 0 || this.pc >= this.memory.length) throw new CpuFault(this.pc, 'Program counter outside RAM');
@@ -65,6 +66,7 @@ export class MiniCPU {
     const requireStack = () => { if (!this.arch.stack) throw new CpuFault(start, 'Instruction requires MiniCPU 8S or 8X'); };
     const requireExtended = () => { if (!this.arch.index) throw new CpuFault(start, 'Instruction requires MiniCPU 8X'); };
     const word = () => { const lo = this.fetch(), hi = this.fetch(); return lo | (hi << 8); };
+    const relative = () => { const b = this.fetch(); return checkAddress(this.pc + (b < 128 ? b : b - 256)); };
     const checkAddress = addr => { if (addr < 0 || addr >= this.memory.length) throw new CpuFault(start, `Address 0x${hex(addr,4)} outside RAM`); return addr; };
     let text = '';
     switch (opcode) {
@@ -74,16 +76,21 @@ export class MiniCPU {
       case OP.STA_X: { requireExtended(); const s = take(); this.memory[checkAddress(this.x)] = r[s]; text = `STA [X], ${NAMES[s]}`; break; }
       case OP.INCX: { requireExtended(); this.x = (this.x + 1) & 0xFFFF; text = 'INCX'; break; }
       case OP.DECX: { requireExtended(); this.x = (this.x - 1) & 0xFFFF; text = 'DECX'; break; }
+      case OP.LDY: { requireExtended(); const value = word(); this.y = value; text = `LDY 0x${hex(value,4)}`; break; }
+      case OP.LDA_Y: { requireExtended(); const d = take(); r[d] = this.memory[checkAddress(this.y)]; text = `LDA ${NAMES[d]}, [Y]`; break; }
+      case OP.STA_Y: { requireExtended(); const s = take(); this.memory[checkAddress(this.y)] = r[s]; text = `STA [Y], ${NAMES[s]}`; break; }
+      case OP.INCY: { requireExtended(); this.y = (this.y + 1) & 0xFFFF; text = 'INCY'; break; }
+      case OP.DECY: { requireExtended(); this.y = (this.y - 1) & 0xFFFF; text = 'DECY'; break; }
       case OP.PUSH: { requireStack(); const d = take(); this.push(r[d],start); text = `PUSH ${NAMES[d]}`; break; }
       case OP.POP: { requireStack(); const d = take(); r[d] = this.pop(start); text = `POP ${NAMES[d]}`; break; }
-      case OP.JZ16: { requireExtended(); const addr = word(); if (this.zf) this.pc = checkAddress(addr); text = `JZ16 0x${hex(addr,4)}`; break; }
-      case OP.JNZ16: { requireExtended(); const addr = word(); if (!this.zf) this.pc = checkAddress(addr); text = `JNZ16 0x${hex(addr,4)}`; break; }
-      case OP.JC16: { requireExtended(); const addr = word(); if (this.cf) this.pc = checkAddress(addr); text = `JC16 0x${hex(addr,4)}`; break; }
-      case OP.JNC16: { requireExtended(); const addr = word(); if (!this.cf) this.pc = checkAddress(addr); text = `JNC16 0x${hex(addr,4)}`; break; }
-      case OP.JMP16: { requireExtended(); const addr = word(); this.pc = checkAddress(addr); text = `JMP16 0x${hex(addr,4)}`; break; }
-      case OP.CALL: { requireStack(); const addr = this.fetch(); this.pushReturn(this.pc,start); this.pc = addr; text = `CALL 0x${hex(addr)}`; break; }
+      case OP.CALL: case OP.CALL_REL: case OP.CALL_LONG: {
+        requireStack();
+        if (opcode !== OP.CALL && !this.arch.index) throw new CpuFault(start, 'Long/relative CALL requires MiniCPU 8X');
+        const addr = opcode === OP.CALL_REL ? relative() : checkAddress(opcode === OP.CALL_LONG ? word() : this.fetch());
+        this.pushReturn(this.pc,start); this.pc = addr;
+        text = `CALL 0x${hex(addr,this.arch.addressBits===16?4:2)}`; break;
+      }
       case OP.RET: { requireStack(); this.pc = checkAddress(this.popReturn(start)); text = 'RET'; break; }
-      case OP.CALL16: { requireExtended(); const addr = checkAddress(word()); this.pushReturn(this.pc,start); this.pc = addr; text = `CALL16 0x${hex(addr,4)}`; break; }
       case OP.LDI: { const d = take(), imm = this.fetch(); r[d] = imm; text = `LDI ${NAMES[d]}, 0x${hex(imm)}`; break; }
       case OP.LDA_DIRECT: { const d = take(), addr = this.fetch(); r[d] = this.memory[addr]; text = `LDA ${NAMES[d]}, 0x${hex(addr)}`; break; }
       case OP.STA_DIRECT: { const addr = this.fetch(), src = take(); this.memory[addr] = r[src]; text = `STA 0x${hex(addr)}, ${NAMES[src]}`; break; }
@@ -101,11 +108,19 @@ export class MiniCPU {
       case OP.XOR: { const [d, s] = pair(); r[d] ^= r[s]; this.cf = false; zero(r[d]); text = `XOR ${NAMES[d]}, ${NAMES[s]}`; break; }
       case OP.CMP_IMM: { const d = take(), imm = this.fetch(), value = r[d] - imm; this.cf = value < 0; zero(value); text = `CMP ${NAMES[d]}, 0x${hex(imm)}`; break; }
       case OP.CMP_REG: { const [d, s] = pair(), value = r[d] - r[s]; this.cf = value < 0; zero(value); text = `CMP ${NAMES[d]}, ${NAMES[s]}`; break; }
-      case OP.JZ: { const addr = this.fetch(); if (this.zf) this.pc = addr; text = `JZ 0x${hex(addr)}`; break; }
-      case OP.JNZ: { const addr = this.fetch(); if (!this.zf) this.pc = addr; text = `JNZ 0x${hex(addr)}`; break; }
-      case OP.JC: { const addr = this.fetch(); if (this.cf) this.pc = addr; text = `JC 0x${hex(addr)}`; break; }
-      case OP.JNC: { const addr = this.fetch(); if (!this.cf) this.pc = addr; text = `JNC 0x${hex(addr)}`; break; }
-      case OP.JMP: { const addr = this.fetch(); this.pc = addr; text = `JMP 0x${hex(addr)}`; break; }
+      case OP.JMP: case OP.JZ: case OP.JNZ: case OP.JC: case OP.JNC:
+      case OP.JMP_REL: case OP.JZ_REL: case OP.JNZ_REL: case OP.JC_REL: case OP.JNC_REL:
+      case OP.JMP_LONG: case OP.JZ_LONG: case OP.JNZ_LONG: case OP.JC_LONG: case OP.JNC_LONG: {
+        const mnemonic = Object.keys(OP).find(name => OP[name] === opcode).split('_')[0];
+        const form = Object.keys(OP).find(name => OP[name] === opcode);
+        if (form.includes('_') && !this.arch.index) throw new CpuFault(start, 'Extended jump requires MiniCPU 8X');
+        const addr = form.endsWith('_REL') ? relative() : checkAddress(form.endsWith('_LONG') ? word() : this.fetch());
+        const taken = mnemonic === 'JMP' || (mnemonic === 'JZ' && this.zf) || (mnemonic === 'JNZ' && !this.zf)
+          || (mnemonic === 'JC' && this.cf) || (mnemonic === 'JNC' && !this.cf);
+        if (taken) this.pc = addr;
+        text = `${mnemonic} 0x${hex(addr,this.arch.addressBits===16?4:2)}`;
+        break;
+      }
       case OP.CLF: this.zf = false; this.cf = false; text = 'CLF'; break;
       case OP.NOP: text = 'NOP'; break;
       case OP.HLT: this.halted = true; this.pc = start; text = 'HLT'; break;

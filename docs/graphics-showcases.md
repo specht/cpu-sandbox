@@ -55,7 +55,7 @@ scaling (`SHL B`)?
 
 **Discussion:** Why does this calculation form nearly circular rings rather
 than diamond shapes? How can `X` address `0x0800` if each general-purpose
-register remains 8-bit? How is `CALL16` different from `CALL`? What is the
+register remains 8-bit? How does the address operand of `CALL` differ between 8S and 8X? What is the
 minimal architectural change needed to store 1,536 bytes of pixel data?
 
 ## Teaching suggestion

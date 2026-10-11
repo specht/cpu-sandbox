@@ -1,11 +1,11 @@
 ; MiniCPU 8X: execute code above address 0x00FF.
-; JMP remains an 8-bit absolute jump; JMP16 reaches high memory.
-JMP16 start
+; JMP auto-selects a long absolute target when the label is too far away.
+JMP start
 
 .org 0x0200
 start:
     LDI A, 0x2A
-    CALL16 subroutine
+    CALL subroutine
     HLT
 
 subroutine:

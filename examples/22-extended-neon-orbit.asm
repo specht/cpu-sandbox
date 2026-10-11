@@ -2,7 +2,7 @@
 ; Approximate radial shading with only 8-bit arithmetic.
 ; 64x48 pixels, 16 colors: 1536 bytes at 0x0800..0x0DFF.
 ; Each screen byte stores TWO computed pixels.
-; CALL16 computes a color from x and y; the stack stays above RAM.
+; CALL computes a color from x and y; the stack stays above RAM.
 .display 0x0800, 64, 48, indexed4, aurora_cycle_16
 
     LDX 0x0800
@@ -13,7 +13,7 @@ row:
     STA xpos, A
 pair:
     LDA A, xpos
-    CALL16 shade
+    CALL shade
     SHL A
     SHL A
     SHL A
@@ -21,7 +21,7 @@ pair:
     PUSH A               ; first pixel's color
     LDA A, xpos
     INC A
-    CALL16 shade
+    CALL shade
     POP B
     OR B, A              ; pack two palette indices
     STA [X], B
