@@ -40,6 +40,7 @@ const editor = new SourceEditor($('source-editor'), {
   onChange: () => { updateDirty(); scheduleAssembly(); },
   onSave: () => save(),
   onBreakpoints: () => updateBreakpoints(),
+  onFormat: () => formatDraft(),
 });
 const screen = new Screen({
   canvas: $('screen'), area: $('screen-area'), grip: $('screen-grip'), info: $('screen-info'),
@@ -80,6 +81,12 @@ async function openProgram(value, { force = false } = {}) {
   }
 }
 
+function formatDraft() {
+  if (!state.program || state.saving) return;
+  const changed = editor.format();
+  setStatus(changed ? `Formatted ${changed} line${changed === 1 ? '' : 's'}${state.program.readonly ? '' : ' · save with Ctrl+S'}` : 'Already formatted');
+}
+
 function updateDirty() {
   const program = state.program;
   state.dirty = !!program && editor.value !== program.original;
@@ -87,6 +94,7 @@ function updateDirty() {
   $('source-save').hidden = !!program?.readonly;
   $('source-revert').disabled = !state.dirty || state.saving;
   $('source-copy').disabled = !program;
+  $('source-format').disabled = !program || state.saving;
   const chip = $('source-chip');
   chip.replaceChildren();
   chip.hidden = !program || (!state.dirty && !program.readonly);
@@ -229,8 +237,7 @@ function setArchitecture(arch) {
   const facts = [arch.memorySize === 4096 ? '4 KiB RAM' : '256 bytes RAM', `${arch.addressBits}-bit addresses`];
   if (arch.stack) facts.push('stack');
   if (arch.index) facts.push('X, Y');
-  $('architecture-summary').replaceChildren(el('span', {}, facts.join(' · ')),
-    el('button', { type: 'button', class: 'link-button', onclick: () => reference.open(arch.id) }, `What can ${arch.name} do?`));
+  $('architecture-summary').textContent = facts.join(' · ');
   if (arch === state.arch && state.cpu) return;
   state.arch = arch;
   screen.setMemorySize(arch.memorySize);
@@ -392,33 +399,44 @@ function renderControls() {
   }
 }
 
-const REGISTER_ORDER = ['PC', 'A', 'B', 'C', 'D', 'SP', 'X', 'Y', 'ZF', 'CF'];
+const REGISTER_GROUPS = [['A', 'B', 'C', 'D'], ['X', 'Y'], ['PC', 'SP'], ['ZF', 'CF']];
+const printable = v => (v >= 0x20 && v < 0x7F ? `'${String.fromCharCode(v)}'` : '');
 
 function renderRegisters() {
   const cpu = state.cpu, arch = state.arch, digits = arch.addressBits / 4;
   const changed = cpu && !state.running ? cpu.changedByLastStep() : new Set();
-  const chips = [];
-  for (const name of REGISTER_ORDER) {
-    if (name === 'SP' && !arch.stack) continue;
-    if ((name === 'X' || name === 'Y') && !arch.index) continue;
-    let value = '—', detail = '', title = '';
-    if (cpu) {
-      if (name === 'PC') { value = hex(cpu.pc, digits); title = 'Program counter: address of the next instruction'; }
-      else if (name === 'SP') { value = hex(cpu.sp, digits); title = 'Stack pointer: the stack is RAM from SP to the end'; }
-      else if (name === 'X' || name === 'Y') { value = hex(cpu[name.toLowerCase()], 4); title = `Pointer register ${name}: ${name}H = ${hex(cpu[name.toLowerCase()] >> 8)}, ${name}L = ${hex(cpu[name.toLowerCase()] & 255)}`; }
-      else if (name === 'ZF' || name === 'CF') { value = cpu[name.toLowerCase()] ? '1' : '0'; title = name === 'ZF' ? 'Zero flag' : 'Carry flag'; }
-      else {
-        const v = cpu.registers['ABCD'.indexOf(name)];
-        value = hex(v); detail = String(v);
-        title = `${name} = ${v} = 0b${v.toString(2).padStart(8, '0')}`;
+  const groups = [];
+  for (const group of REGISTER_GROUPS) {
+    const chips = [];
+    for (const name of group) {
+      if (name === 'SP' && !arch.stack) continue;
+      if ((name === 'X' || name === 'Y') && !arch.index) continue;
+      let value = '—', title = '';
+      const extra = [];
+      if (name === 'PC') { title = 'Program counter: address of the next instruction'; if (cpu) value = hex(cpu.pc, digits); }
+      else if (name === 'SP') { title = 'Stack pointer: the stack is RAM from SP to the end'; if (cpu) value = hex(cpu.sp, digits); }
+      else if (name === 'X' || name === 'Y') {
+        const v = cpu ? cpu[name.toLowerCase()] : 0;
+        title = `${name}: 16-bit pointer register. ${name}H = ${hex(v >> 8)}, ${name}L = ${hex(v & 255)}`;
+        if (cpu) { value = hex(v, 4); extra.push(el('span', { class: 'register-decimal wide' }, String(v))); }
+      } else if (name === 'ZF' || name === 'CF') {
+        title = name === 'ZF' ? 'Zero flag: the last result was zero' : 'Carry flag: carry or borrow of the last result';
+        if (cpu) value = cpu[name.toLowerCase()] ? '1' : '0';
+      } else {
+        const v = cpu ? cpu.registers['ABCD'.indexOf(name)] : 0;
+        title = `${name} = 0x${hex(v)} = ${v} = 0b${v.toString(2).padStart(8, '0')}${printable(v) ? ` = ${printable(v)}` : ''}`;
+        if (cpu) {
+          value = hex(v);
+          extra.push(el('span', { class: 'register-decimal' }, String(v)), el('span', { class: 'register-char' }, printable(v)));
+        }
       }
+      chips.push(el('span', { class: `register${changed.has(name) ? ' changed' : ''}${name.endsWith('F') ? ' flag' : ''}`, title },
+        el('b', { class: 'register-name' }, name), el('span', { class: 'register-value' }, value), ...extra));
     }
-    chips.push(el('span', { class: `register${changed.has(name) ? ' changed' : ''}${name.endsWith('F') ? ' flag' : ''}`, title },
-      el('span', { class: 'register-name' }, name), el('span', { class: 'register-value' }, value),
-      detail ? el('span', { class: 'register-decimal' }, detail) : null));
+    if (chips.length) groups.push(el('span', { class: 'register-group' }, ...chips));
   }
-  const key = chips.map(chip => chip.outerHTML).join('');
-  if (key !== renderRegisters.key) { renderRegisters.key = key; $('registers').replaceChildren(...chips); }
+  const key = groups.map(group => group.outerHTML).join('');
+  if (key !== renderRegisters.key) { renderRegisters.key = key; $('registers').replaceChildren(...groups); }
 }
 
 function renderMachine() {
@@ -488,6 +506,7 @@ $('restart').addEventListener('click', restartMachine);
 $('screen-reset').addEventListener('click', () => { setSuggestedScreen(); renderMachine(); });
 $('source-save').addEventListener('click', save);
 $('source-revert').addEventListener('click', revert);
+$('source-format').addEventListener('click', () => formatDraft());
 $('source-copy').addEventListener('click', openCopyDialog);
 $('reference-open').addEventListener('click', () => reference.open(state.arch.id));
 

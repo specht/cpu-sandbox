@@ -9,7 +9,7 @@ w       .equ 8
 h       .equ 4
 gray    .equ 0xCC
 
-        LDI A, 0x80 + 16 * y0 + x0      ; top left corner
+        LDI A, 0x80 + 16 * y0 + x0  ; top left corner
         LDI B, gray
         LDI C, h
 row:    LDI D, w
@@ -17,8 +17,7 @@ column: STA [A], B
         INC A
         DEC D
         JNZ column
-        LDI D, 16 - w                   ; skip to the start of the next row
-        ADD A, D
+        ADD A, 16 - w           ; skip to the start of the next row
         DEC C
         JNZ row
         HLT

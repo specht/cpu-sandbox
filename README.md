@@ -45,15 +45,18 @@ defaults.
 
 | | MiniCPU 8 | MiniCPU 8S | MiniCPU 8X |
 | --- | --- | --- | --- |
-| Adds | registers A–D, ZF/CF, jumps | a stack: `PUSH POP CALL RET`, arguments and locals at `[SP+n]` | 4 KiB RAM, 16-bit addresses, pointers X/Y |
+| Adds | registers A–D, ZF/CF, jumps | a stack: `PUSH POP CALL RET`, arguments and locals at `[SP+n]` | 4 KiB RAM, 16-bit addresses, 16-bit registers X/Y |
 | RAM | 256 bytes | 256 bytes | 4096 bytes |
-| Demo | fire | scrolling text | Mandelbrot set |
+| Demo | fire | scrolling text | Mandelbrot set, a bigger fire |
 
 A program states its level with `.cpu 8`, `.cpu 8s` or `.cpu 8x` (default 8);
-the CPU menu edits that line. The same source runs on higher levels, where
-8X encodes every address in two bytes. Details, the full instruction table and
-the cycle model: [docs/cpu-levels.md](docs/cpu-levels.md). The **Instruction
-set** button shows the same reference in the browser.
+the CPU menu edits that line. All levels share one instruction set: higher
+levels add registers (SP, then X and Y), and the instructions students already
+know work with them. The same source runs on higher levels, where 8X encodes
+every address in two bytes. Details, the full instruction table and the cycle
+model: [docs/cpu-levels.md](docs/cpu-levels.md). The **Documentation** button
+shows the same reference in the browser, together with the devices, the
+assembler directives and an ASCII table.
 
 ## In the browser
 
@@ -67,7 +70,7 @@ set** button shows the same reference in the browser.
   to 16 MHz. Every instruction costs a realistic number of cycles, so a
   program takes as long as it would on real hardware at that clock.
 
-The screen is a view of RAM: drag the picture to move through memory, drag its
+The screen is a view of RAM: drag the picture up or down to move through memory, drag its
 corner to resize it, and pick the pixel format and palette above it. This
 never changes RAM. See [docs/screen.md](docs/screen.md).
 
@@ -82,7 +85,13 @@ to the program (Esc gives them back). See [docs/devices.md](docs/devices.md).
 | Space | run / pause (outside the editor and the screen) |
 | ← → | step back / forward |
 | Home | restart |
-| Ctrl+/ | comment lines |
+| Ctrl+/ or Ctrl+# | comment lines |
+| Ctrl+Shift+K | delete the line |
+| Shift+Alt+F | format the source (also the **Format** button) |
+
+The sun/moon button switches between the dark and the light theme. The choice
+is stored in `.settings.yaml` in the app folder, which Git ignores, so it
+stays on this computer and never reaches a student repository.
 
 ## Examples
 
@@ -92,13 +101,14 @@ to the program (Esc gives them back). See [docs/devices.md](docs/devices.md).
 | `05-memory`, `06-rectangle` | 8 | addressing, pixels in RAM |
 | `07-primes`, `08-self-modifying` | 8 | cost of algorithms, code is data |
 | `09-pixel-formats`, `10-bouncing-dot` | 8 | screen formats, an endless loop |
-| `11-fire` | 8 | demo: rising flames in 96 bytes |
+| `11-fire` | 8 | demo: flickering flames, code and screen in 256 bytes |
 | `12-subroutines`, `13-recursion` | 8S | the stack, arguments and local variables |
 | `14-scroller` | 8S | demo: LED sign |
 | `15-pointers`, `16-lines` | 8X | X/Y, Bresenham lines |
 | `17-mandelbrot` | 8X | demo: fixed-point fractal with a table of squares |
-| `18-input` | 8 | devices: joystick, keyboard, timer, number display |
-| `19-breakout` | 8X | a game: paddle, ball, colored bricks, sound |
+| `18-inferno` | 8X | demo: the DOOM fire at 64 × 48 pixels |
+| `19-input` | 8 | devices: joystick, keyboard, timer, number display |
+| `20-breakout` | 8X | a game: paddle, ball, colored bricks, sound |
 
 A suggested order with questions and exercises: [docs/teaching.md](docs/teaching.md).
 
@@ -117,13 +127,17 @@ loop:   STA [A], A
 message: .db "Hi", 0            ; data
 ```
 
-Numbers: `42`, `0x2A`, `0b101010`, `'A'`; expressions with `+ - * / & | << >>`.
-Comments start with `;`.
+Square brackets always mean memory: `LDI A, 0x70` loads the number 0x70,
+`LDA A, [0x70]` the byte at address 0x70, `LDA A, [B]` the byte at the address
+in B. Numbers: `42`, `0x2A`, `0b101010`, `'A'`; expressions with
+`+ - * / & | << >>`. Comments start with `;`.
 
 ## Tests
 
 ```sh
 npm test        # Node's built-in test runner, no npm install
+npm run docs    # regenerate the instruction table in docs/cpu-levels.md
+node scripts/light-theme.mjs web/style.css web/light.css   # after changing colors
 ```
 
 ## How it works

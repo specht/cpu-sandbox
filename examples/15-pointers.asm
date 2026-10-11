@@ -1,20 +1,19 @@
 ; POINTERS INTO 4 KiB
 ; A, B, C, D can only hold numbers up to 255, but 8X has 4096 bytes of RAM.
-; X and Y are 16-bit pointers: LDX/LDY set them, [X]/[Y] read and write
-; where they point, INCX/INCY move them on. Here X reads a picture from
-; 0x0400 and Y copies it onto the screen at 0x0800.
+; X and Y are 16-bit pointer registers: LDI X, 0x0400 sets X, [X] reads or
+; writes the byte X points to, INC X moves on, CMP X, … compares all 16 bits.
+; X reads a picture at 0x0400 and Y copies it to the screen at 0x0800.
 
 .cpu 8x
 .display 0x0800, 16, 8, indexed4, sweetie_16
 
-        LDX image
-        LDY 0x0800
+        LDI X, image
+        LDI Y, 0x0800
 copy:   LDA A, [X]
         STA [Y], A
-        INCX
-        INCY
-        MOV A, XL               ; XL is the low byte of X
-        CMP A, image + 64 & 0xFF
+        INC X
+        INC Y
+        CMP X, image + 64       ; past the last byte of the picture?
         JNZ copy
         HLT
 

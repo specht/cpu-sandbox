@@ -25,9 +25,10 @@ the level next to the file name.
    format and explain each picture from the bits.
 10. **`10-bouncing-dot`**: a program that never halts. Pause, step back and
     find where direction and trail are stored.
-11. **`11-fire`** (demo): the whole effect in 96 bytes next to its own
+11. **`11-fire`** (demo): the whole effect in 80 bytes next to its own
     screen. Set the clock to 100 kHz and to 1 MHz: how many frames per
-    second does each give? Drag the screen down over the code.
+    second does each give? Drag the screen down over the code. What changes
+    when the random cooling uses `AND C, 15` instead of `AND C, 31`?
 
 ## MiniCPU 8S: subroutines and the stack
 
@@ -44,22 +45,26 @@ the level next to the file name.
 ## MiniCPU 8X: more memory, pointers
 
 15. **`15-pointers`**: X reads, Y writes. Why are A–D not enough as pointers
-    on 8X? Compare the bytes of `LDA A, 0x70` on 8S and on 8X (switch the CPU
-    menu): the same source, longer code, more cycles.
+    on 8X? Compare the bytes of `LDA A, [0x70]` on 8S and on 8X (switch the
+    CPU menu): the same source, longer code, more cycles.
 16. **`16-lines`**: Bresenham's line algorithm with only addition and
-    comparison. `plot` builds a 16-bit address byte by byte with
-    `MOV XH`/`MOV XL`. Add a second shape.
+    comparison. `plot` computes a 16-bit address with `ADD X, X` and
+    `ADD X, A`. Add a second shape.
 17. **`17-mandelbrot`** (demo): signed fixed-point numbers, a table of squares
     instead of multiplication, and 9-bit arithmetic with the carry flag. Run it
     at 1 MHz (about six seconds) and at 16 MHz. Try another section of the set
     by changing the offsets in `row` and `pixel`.
+18. **`18-inferno`** (demo): the fire from MiniCPU 8 at 64 × 48 pixels, with
+    the even simpler algorithm from DOOM. Compare it with `11-fire`: what
+    does 8X make possible, and what does each pixel cost in cycles? Make the
+    wind blow the other way.
 
 ## Devices: input and output
 
-18. **`18-input`** (MiniCPU 8): the program polls three devices in a loop. Why
+19. **`19-input`** (MiniCPU 8): the program polls three devices in a loop. Why
     does the dot move exactly ten times per second, at any clock? What happens
     at 1 kHz? Which key codes do Enter and Backspace give?
-19. **`19-breakout`** (MiniCPU 8X): a complete game. Find where it waits for
+20. **`20-breakout`** (MiniCPU 8X): a complete game. Find where it waits for
     the timer, reads the joystick and asks the screen what the ball is about
     to hit. Lower the clock until the game slows down — how many cycles does
     one step need? Then tap Space very briefly: why is the tap sometimes
@@ -74,7 +79,7 @@ the level next to the file name.
 - Write a function `plot(x, y)` for the 16 × 8 gray screen that takes its
   arguments on the stack, and use it to draw a diagonal (8S).
 - Compute n! recursively and find the largest n whose result fits in a byte.
-- Add two 16-bit numbers stored as low/high bytes (carry!).
+- Add two 16-bit numbers stored as low/high bytes with `ADD` and `ADC`.
 - Make the fire burn sideways, or give the scroller a second line of text.
 - A reaction game: wait a random time (port 3), light the screen and count
   timer ticks until Space is pressed. Show the result on the number display.

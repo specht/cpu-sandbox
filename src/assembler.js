@@ -1,5 +1,5 @@
 import { architecture, architectureFromDirective, ARCHITECTURES } from './architectures.js';
-import { INSTRUCTIONS, OPCODES as OP, availableOn } from './opcodes.js';
+import { INSTRUCTIONS, availableOn, sizeOf, REG, WIDE_OPERATIONS } from './opcodes.js';
 import { validateDisplay, MODES } from './display.js';
 import { PALETTES } from './palettes.js';
 import { DEVICES, deviceAt } from './devices.js';
@@ -16,17 +16,16 @@ export class AssemblyError extends Error {
 }
 const fail = (line, message) => { throw new AssemblyError(line, message); };
 
-const REGISTERS = Object.freeze({ A: 0, B: 1, C: 2, D: 3 });
-const BYTE_REGISTERS = Object.freeze({ XL: 4, XH: 5, YL: 6, YH: 7 });
-const SPECIAL = new Set(['X', 'Y', 'SP', 'PC', ...Object.keys(REGISTERS), ...Object.keys(BYTE_REGISTERS)]);
+const SPECIAL = new Set([...Object.keys(REG), 'SP', 'PC']);
+const BYTE = 1, HALF = 2, WIDE = 4; // kinds of registers an operand may be
 
 /** Every mnemonic the assembler accepts (used for syntax highlighting). */
 export const MNEMONICS = Object.freeze([...new Set(INSTRUCTIONS.map(i => i.syntax.split(' ')[0]))]);
 export const DIRECTIVES = Object.freeze(['.cpu', '.org', '.db', '.equ', '.display']);
 
-const isRegister = token => Object.hasOwn(REGISTERS, token.trim().toUpperCase());
-const bracketed = token => /^\[.*\]$/.test(token.trim());
-const inner = token => token.trim().slice(1, -1).trim().toUpperCase();
+const upper = token => (token ?? '').trim().toUpperCase();
+const isRegister = token => Object.hasOwn(REG, upper(token));
+const bracketed = token => /^\[.*\]$/.test((token ?? '').trim());
 
 function stripComment(line) {
   let quote = null;
@@ -147,19 +146,30 @@ const byteValue = (token, symbols, line) => {
   return v & 0xFF;
 };
 
-function register(token, line, arch, { bytes = false } = {}) {
-  const name = (token ?? '').trim().toUpperCase();
-  if (Object.hasOwn(REGISTERS, name)) return REGISTERS[name];
-  if (Object.hasOwn(BYTE_REGISTERS, name)) {
-    if (!arch.index) fail(line, `${name} is part of the pointer register ${name[0]}, which needs MiniCPU 8X`);
-    if (!bytes) fail(line, `${name} can only be used with MOV`);
-    return BYTE_REGISTERS[name];
-  }
-  if (name === 'X' || name === 'Y') fail(line, `${name} holds an address: use [${name}], LD${name}, INC${name} or MOV with ${name}L/${name}H`);
-  return fail(line, `Expected a register (A, B, C or D), got “${token ?? ''}”`);
-}
-
 const LEVEL_NAME = { cpu8s: 'MiniCPU 8S or 8X', cpu8x: 'MiniCPU 8X' };
+const WIDE_LIST = 'LDI, LDA, STA, MOV, ADD, SUB, CMP, INC, DEC, PUSH and POP';
+
+/**
+ * Splits an operand into a register, a memory reference or a constant:
+ *   A … Y              {kind: 'reg', n}
+ *   [0x70] / [label]   {kind: 'mem', at: 'abs', text}
+ *   [B] / [X]          {kind: 'mem', at: 'reg', n}
+ *   [SP] / [SP+2]      {kind: 'mem', at: 'sp', text}
+ *   42 / label         {kind: 'const', text}
+ */
+function operand(token, line) {
+  const text = (token ?? '').trim();
+  if (upper(text) === 'SP') return { kind: 'sp' };
+  if (isRegister(text)) return { kind: 'reg', n: REG[upper(text)] };
+  if (!bracketed(text)) return { kind: 'const', text };
+  const inside = text.slice(1, -1).trim();
+  if (!inside) fail(line, 'Empty brackets');
+  if (isRegister(inside)) return { kind: 'mem', at: 'reg', n: REG[upper(inside)] };
+  const stack = inside.match(/^SP\b\s*(?:\+(.*))?$/i);
+  if (stack) return { kind: 'mem', at: 'sp', text: stack[1]?.trim() || '0' };
+  if (/^SP\b/i.test(inside)) fail(line, 'Only [SP+n] is possible: n counts up from SP');
+  return { kind: 'mem', at: 'abs', text: inside };
+}
 
 /**
  * Picks the instruction for a source line and checks its operands.
@@ -170,127 +180,150 @@ function encode(node, arch) {
   const count = n => {
     if (args.length !== n || args.some(a => !a)) fail(line, `${op} expects ${n === 0 ? 'no operands' : n === 1 ? 'one operand' : 'two operands'}`);
   };
-  const need = name => {
+  const need = (name, detail = '') => {
     const info = INSTRUCTIONS.find(i => i.name === name);
-    if (!availableOn(info, arch.id)) fail(line, `${info.syntax.replace(/ .*/, '')}${/^(LDA|STA)_(X|Y|SP)$/.test(name) ? ` with [${name.split('_')[1]}${name.endsWith('SP') ? '+n' : ''}]` : /_SP$/.test(name) ? ' SP' : ''} needs ${LEVEL_NAME[info.since]} (use .cpu ${info.since.slice(3)})`);
+    if (!availableOn(info, arch.id)) fail(line, `${op}${detail} needs ${LEVEL_NAME[info.since]} (use .cpu ${info.since.slice(3)})`);
     return info;
   };
+  /** A register operand of the allowed kinds; explains what is wrong otherwise. */
+  const reg = (o, kinds, name = op) => {
+    if (o.kind === 'sp') fail(line, 'SP only appears in ADD SP, n · SUB SP, n · [SP+n]');
+    if (o.kind !== 'reg') fail(line, `${name} expects a register here`);
+    const n = o.n, kind = n < 4 ? BYTE : n < 8 ? HALF : WIDE, label = Object.keys(REG).find(k => REG[k] === n);
+    if (kind !== BYTE && !arch.index) fail(line, `${label} ${kind === WIDE ? 'is a 16-bit pointer register' : `is a byte of ${label[0]}`}, which needs MiniCPU 8X (use .cpu 8x)`);
+    if (!(kinds & kind)) {
+      if (kind === HALF) fail(line, `${label} can only be used with MOV`);
+      if (kind === WIDE) fail(line, `${name} does not work with ${label}. X and Y work with ${WIDE_LIST}`);
+      fail(line, `${name} expects X or Y here`);
+    }
+    return n;
+  };
   const addrBytes = arch.addressBits / 8;
-  const addr = (token, symbols, put) => {
-    if (bracketed(token)) fail(line, `Brackets mean “address in a register”; write a fixed address without brackets`);
-    const v = ranged(token, symbols, line, arch.memorySize - 1, 'Address');
+  const putAddress = (text, symbols, put) => {
+    const v = ranged(text, symbols, line, arch.memorySize - 1, 'Address');
     put(v & 0xFF);
     if (addrBytes === 2) put(v >> 8);
   };
-  const simple = (name, form) => {
-    const info = need(name);
-    switch (form) {
-      case 'none': count(0); return { info, size: 1, emit: put => put(info.code) };
-      case 'r': count(1); { const r = register(args[0], line, arch); return { info, size: 2, emit: put => { put(info.code); put(r); } }; }
-      case 'rr': count(2); {
-        const d = register(args[0], line, arch), s = register(args[1], line, arch);
-        return { info, size: 2, emit: put => { put(info.code); put((d << 4) | s); } };
-      }
-      case 'a': count(1); return { info, size: 1 + addrBytes, emit: (put, symbols) => { put(info.code); addr(args[0], symbols, put); } };
-      case 'w': count(1); return {
-        info, size: 3, emit: (put, symbols) => {
-          const v = ranged(args[0], symbols, line, arch.memorySize - 1, 'Address');
-          put(info.code); put(v & 0xFF); put(v >> 8);
-        },
-      };
-      default: throw new Error(form);
+  const putConstant = (text, symbols, put, wide) => {
+    const v = expression(text, symbols, line);
+    if (wide) {
+      if (v < -32768 || v > 0xFFFF) fail(line, `${v} does not fit in 16 bits`);
+      put(v & 0xFF); put((v >> 8) & 0xFF);
+    } else {
+      if (v < -128 || v > 255) fail(line, `${v} does not fit in a byte (0..255, or −128..−1)`);
+      put(v & 0xFF);
     }
   };
-  const stackOffset = token => token.trim().slice(1, -1).trim().match(/^SP\b\s*(?:\+(.*))?$/i);
-  const pointer = token => {
-    const name = inner(token);
-    if (name === 'X' || name === 'Y') return name;
-    if (Object.hasOwn(REGISTERS, name)) return 'R';
-    return fail(line, `[${name}] is not a pointer: use [A]..[D], [SP+n], or [X]/[Y] on 8X`);
+  const result = (info, wide, emit) => ({ info, size: sizeOf(info, arch, wide), emit });
+  const none = name => { count(0); const info = need(name); return result(info, false, put => put(info.code)); };
+  const single = (name, kinds) => {
+    count(1);
+    const info = need(name), n = reg(operand(args[0], line), kinds);
+    return result(info, n >= 8, put => { put(info.code); put(n); });
+  };
+  /** ADD/SUB/CMP/ADC/SBC/AND/OR/XOR: register or constant as second operand. */
+  const alu = (name, destKinds, sourceKinds) => {
+    count(2);
+    const dest = operand(args[0], line), source = operand(args[1], line);
+    const d = reg(dest, destKinds);
+    if (source.kind === 'mem') fail(line, `${op} works on registers; load the byte first with LDA`);
+    if (source.kind === 'const') {
+      const info = need(`${name}_I`);
+      return result(info, d >= 8, (put, symbols) => { put(info.code); put(d); putConstant(source.text, symbols, put, d >= 8); });
+    }
+    const info = need(name), s = reg(source, sourceKinds);
+    if (d < 8 && s >= 8) fail(line, `${op} ${Object.keys(REG)[d]}, ${Object.keys(REG).find(k => REG[k] === s)}: a 16-bit register does not fit into 8 bits`);
+    return result(info, d >= 8, put => { put(info.code); put((d << 4) | s); });
   };
 
   switch (op) {
-    case 'NOP': case 'HLT': case 'CLF': case 'RET': case 'INCX': case 'DECX': case 'INCY': case 'DECY':
-      return simple(op, 'none');
-    case 'INC': case 'DEC': case 'SHL': case 'SHR': case 'PUSH': case 'POP':
-      return simple(op, 'r');
-    case 'ADD': case 'SUB':
-      if (args[0]?.trim().toUpperCase() === 'SP') {
+    case 'NOP': case 'HLT': case 'CLF': case 'RET':
+      return none(op);
+    case 'INC': case 'DEC':
+      return single(op, BYTE | WIDE);
+    case 'PUSH': case 'POP':
+      return single(op, BYTE | WIDE);
+    case 'SHL': case 'SHR':
+      return single(op, BYTE);
+    case 'ADD': case 'SUB': {
+      if (operand(args[0], line).kind === 'sp') {
         count(2);
-        const info = need(`${op}_SP`);
-        return { info, size: 2, emit: (put, symbols) => { put(info.code); put(ranged(args[1], symbols, line, 255, 'Byte count')); } };
+        const info = need(`${op}_SP`, ' SP');
+        return result(info, false, (put, symbols) => { put(info.code); put(ranged(args[1], symbols, line, 255, 'Byte count')); });
       }
-      return simple(op, 'rr');
-    case 'AND': case 'OR': case 'XOR':
-      return simple(op, 'rr');
-    case 'JMP': case 'JZ': case 'JNZ': case 'JC': case 'JNC': case 'CALL':
-      return simple(op, 'a');
-    case 'LDX': case 'LDY':
-      return simple(op, 'w');
+      return alu(op, BYTE | WIDE, BYTE | WIDE);
+    }
+    case 'CMP':
+      return alu(op, BYTE | WIDE, BYTE | WIDE);
+    case 'ADC': case 'SBC': case 'AND': case 'OR': case 'XOR':
+      return alu(op, BYTE, BYTE);
+    case 'JMP': case 'JZ': case 'JNZ': case 'JC': case 'JNC': case 'CALL': {
+      count(1);
+      const info = need(op);
+      if (bracketed(args[0])) fail(line, `${op} takes a label or an address, without brackets`);
+      return result(info, false, (put, symbols) => { put(info.code); putAddress(args[0], symbols, put); });
+    }
     case 'IN': {
       count(2);
-      const info = need('IN'), d = register(args[0], line, arch);
-      return { info, size: 3, port: args[1], emit: (put, symbols) => { put(info.code); put(d); put(ranged(args[1], symbols, line, 255, 'Port')); } };
+      const info = need('IN'), d = reg(operand(args[0], line), BYTE);
+      return { ...result(info, false, (put, symbols) => { put(info.code); put(d); put(ranged(args[1], symbols, line, 255, 'Port')); }), port: args[1] };
     }
     case 'OUT': {
       count(2);
-      const info = need('OUT'), s = register(args[1], line, arch);
-      return { info, size: 3, port: args[0], emit: (put, symbols) => { put(info.code); put(ranged(args[0], symbols, line, 255, 'Port')); put(s); } };
+      const info = need('OUT'), s = reg(operand(args[1], line), BYTE);
+      return { ...result(info, false, (put, symbols) => { put(info.code); put(ranged(args[0], symbols, line, 255, 'Port')); put(s); }), port: args[0] };
     }
     case 'MOV': {
       count(2);
       const info = need('MOV');
-      const d = register(args[0], line, arch, { bytes: true }), s = register(args[1], line, arch, { bytes: true });
-      return { info, size: 2, emit: put => { put(info.code); put((d << 4) | s); } };
+      const dest = operand(args[0], line), source = operand(args[1], line);
+      if (source.kind === 'const') fail(line, `MOV copies a register; use LDI ${args[0].trim()}, ${args[1].trim()} for a constant`);
+      if (source.kind === 'mem' || dest.kind === 'mem') fail(line, 'MOV copies between registers; use LDA and STA for memory');
+      const d = reg(dest, BYTE | HALF | WIDE), s = reg(source, BYTE | HALF | WIDE);
+      if ((d >= 8) !== (s >= 8)) fail(line, 'MOV needs two registers of the same size: X and Y have 16 bits, all others 8');
+      return result(info, d >= 8, put => { put(info.code); put((d << 4) | s); });
     }
     case 'LDI': {
       count(2);
-      const info = need('LDI'), r = register(args[0], line, arch);
-      return { info, size: 3, emit: (put, symbols) => { put(info.code); put(r); put(byteValue(args[1], symbols, line)); } };
-    }
-    case 'CMP': {
-      count(2);
-      if (isRegister(args[1])) return simple('CMP_R', 'rr');
-      const info = need('CMP'), r = register(args[0], line, arch);
-      return { info, size: 3, emit: (put, symbols) => { put(info.code); put(r); put(byteValue(args[1], symbols, line)); } };
+      const info = need('LDI'), d = reg(operand(args[0], line), BYTE | WIDE), source = operand(args[1], line);
+      if (source.kind === 'mem') fail(line, `LDI loads a constant. To read the memory at ${args[1].trim()}, write LDA ${args[0].trim()}, ${args[1].trim()}`);
+      if (source.kind === 'reg') fail(line, `To copy a register, write MOV ${args[0].trim()}, ${args[1].trim()}`);
+      return result(info, d >= 8, (put, symbols) => { put(info.code); put(d); putConstant(source.text, symbols, put, d >= 8); });
     }
     case 'LDA': {
       count(2);
-      const d = register(args[0], line, arch);
-      if (bracketed(args[1]) && stackOffset(args[1])) {
-        const info = need('LDA_SP'), offset = stackOffset(args[1])[1] ?? '0';
-        return { info, size: 3, emit: (put, symbols) => { put(info.code); put(d); put(ranged(offset, symbols, line, 255, 'Offset')); } };
+      const dest = operand(args[0], line), source = operand(args[1], line);
+      if (source.kind !== 'mem') {
+        fail(line, source.kind === 'const'
+          ? `LDA reads memory: write LDA ${args[0].trim()}, [${args[1].trim()}] for the byte at address ${args[1].trim()}, or LDI ${args[0].trim()}, ${args[1].trim()} for the number itself`
+          : `To copy a register, write MOV ${args[0].trim()}, ${args[1].trim()}`);
       }
-      if (bracketed(args[1])) {
-        const kind = pointer(args[1]);
-        if (kind === 'R') {
-          const info = need('LDA_R'), p = REGISTERS[inner(args[1])];
-          return { info, size: 2, emit: put => { put(info.code); put((d << 4) | p); } };
-        }
-        const info = need(`LDA_${kind}`);
-        return { info, size: 2, emit: put => { put(info.code); put(d); } };
+      if (source.at === 'sp') {
+        const info = need('LDA_SP', ' with [SP+n]'), d = reg(dest, BYTE | WIDE);
+        return result(info, d >= 8, (put, symbols) => { put(info.code); put(d); put(ranged(source.text, symbols, line, 255, 'Offset')); });
       }
-      const info = need('LDA');
-      return { info, size: 2 + addrBytes, emit: (put, symbols) => { put(info.code); put(d); addr(args[1], symbols, put); } };
+      if (source.at === 'reg') {
+        const info = need('LDA_R'), d = reg(dest, BYTE), p = reg({ kind: 'reg', n: source.n }, BYTE | WIDE, 'A pointer');
+        return result(info, false, put => { put(info.code); put((d << 4) | p); });
+      }
+      const info = need('LDA'), d = reg(dest, BYTE | WIDE);
+      return result(info, d >= 8, (put, symbols) => { put(info.code); put(d); putAddress(source.text, symbols, put); });
     }
     case 'STA': {
       count(2);
-      const s = register(args[1], line, arch);
-      if (bracketed(args[0]) && stackOffset(args[0])) {
-        const info = need('STA_SP'), offset = stackOffset(args[0])[1] ?? '0';
-        return { info, size: 3, emit: (put, symbols) => { put(info.code); put(ranged(offset, symbols, line, 255, 'Offset')); put(s); } };
+      const dest = operand(args[0], line), source = operand(args[1], line);
+      if (dest.kind !== 'mem') fail(line, `STA writes to memory: write STA [${args[0].trim()}], ${args[1].trim()}`);
+      if (source.kind !== 'reg') fail(line, 'STA stores a register; load the value into a register first');
+      if (dest.at === 'sp') {
+        const info = need('STA_SP', ' with [SP+n]'), s = reg(source, BYTE | WIDE);
+        return result(info, s >= 8, (put, symbols) => { put(info.code); put(ranged(dest.text, symbols, line, 255, 'Offset')); put(s); });
       }
-      if (bracketed(args[0])) {
-        const kind = pointer(args[0]);
-        if (kind === 'R') {
-          const info = need('STA_R'), p = REGISTERS[inner(args[0])];
-          return { info, size: 2, emit: put => { put(info.code); put((p << 4) | s); } };
-        }
-        const info = need(`STA_${kind}`);
-        return { info, size: 2, emit: put => { put(info.code); put(s); } };
+      if (dest.at === 'reg') {
+        const info = need('STA_R'), p = reg({ kind: 'reg', n: dest.n }, BYTE | WIDE, 'A pointer'), s = reg(source, BYTE);
+        return result(info, false, put => { put(info.code); put((p << 4) | s); });
       }
-      const info = need('STA');
-      return { info, size: 2 + addrBytes, emit: (put, symbols) => { put(info.code); addr(args[0], symbols, put); put(s); } };
+      const info = need('STA'), s = reg(source, BYTE | WIDE);
+      return result(info, s >= 8, (put, symbols) => { put(info.code); putAddress(dest.text, symbols, put); put(s); });
     }
     default:
       return fail(line, `Unknown instruction ${op}`);

@@ -51,10 +51,14 @@ test('helpful assembly errors point at the right line', () => {
   fails('LDI A, 300', /does not fit in a byte/);
   fails('.org 0xFF\nLDI A, 4', /does not fit/, 2);
   fails('C: HLT', /register name/);
-  fails('LDA A, [0x70]', /not a pointer/);
-  fails('LDI X, 1', /holds an address/);
+  fails('LDA A, 0x70', /write LDA A, \[0x70\] for the byte at address 0x70, or LDI A, 0x70/);
+  fails('STA 0x70, A', /write STA \[0x70\], A/);
+  fails('LDI A, [0x70]', /LDA A, \[0x70\]/);
   fails('PUSH A', /needs MiniCPU 8S or 8X/);
-  fails('LDX 0x100', /needs MiniCPU 8X/);
+  fails('LDI X, 0x100', /needs MiniCPU 8X/);
+  fails('.cpu 8x\nSHL X', /X and Y work with LDI, LDA, STA/, 2);
+  fails('.cpu 8x\nADD A, X', /does not fit into 8 bits/, 2);
+  fails('.cpu 8x\nMOV A, X', /same size/, 2);
   fails('.cpu 8s\nLDA A, [X]', /needs MiniCPU 8X/, 2);
   fails('.cpu 8s\nMOV XL, A', /needs MiniCPU 8X/, 2);
   fails('.cpu 8x\nINC XL', /only be used with MOV/, 2);
@@ -69,7 +73,7 @@ test('.cpu chooses the level; without it the option (default MiniCPU 8) applies'
 });
 
 test('MiniCPU 8X uses two-byte addresses for LDA, STA, jumps and CALL', () => {
-  const asm = assemble('.cpu 8x\nLDA A, 0x0812\nSTA 0x0F00, B\nJMP far\n.org 0x0300\nfar: CALL sub\nHLT\nsub: RET');
+  const asm = assemble('.cpu 8x\nLDA A, [0x0812]\nSTA [0x0F00], B\nJMP far\n.org 0x0300\nfar: CALL sub\nHLT\nsub: RET');
   assert.deepEqual(Array.from(asm.memory.slice(0, 12)), [OP.LDA, 0, 0x12, 0x08, OP.STA, 0x00, 0x0F, 1, OP.JMP, 0x00, 0x03, 0]);
   const cpu = new MiniCPU(asm.memory, 'cpu8x');
   for (let i = 0; i < 4; i++) cpu.step();
@@ -82,7 +86,7 @@ test('MiniCPU 8X uses two-byte addresses for LDA, STA, jumps and CALL', () => {
 });
 
 test('the same source assembles to longer code on 8X, but computes the same', () => {
-  const source = 'LDI A, 13\nLDI B, 4\nLDI C, 0\nloop: CMP A, B\nJC done\nSUB A, B\nINC C\nJMP loop\ndone: STA 0x70, C\nHLT';
+  const source = 'LDI A, 13\nLDI B, 4\nLDI C, 0\nloop: CMP A, B\nJC done\nSUB A, B\nINC C\nJMP loop\ndone: STA [0x70], C\nHLT';
   const small = run(source), wide = run('.cpu 8x\n' + source);
   assert.equal(wide.asm.loadedBytes - small.asm.loadedBytes, 3);
   assert.deepEqual(Array.from(small.cpu.registers), Array.from(wide.cpu.registers));
@@ -148,11 +152,13 @@ test('cycle model: bytes fetched + data accesses + PC loads + pointer math', () 
   assert.equal(cyclesOf(info('LDI'), cpu8), 3);
   assert.equal(cyclesOf(info('LDA'), cpu8), 4);
   assert.equal(cyclesOf(info('LDA'), cpu8x), 5);
-  assert.equal(cyclesOf(info('JZ'), cpu8, false), 2);
-  assert.equal(cyclesOf(info('JZ'), cpu8, true), 3);
+  assert.equal(cyclesOf(info('JZ'), cpu8, { taken: false }), 2);
+  assert.equal(cyclesOf(info('JZ'), cpu8, { taken: true }), 3);
   assert.equal(cyclesOf(info('CALL'), ARCHITECTURES.cpu8s), 4);
   assert.equal(cyclesOf(info('CALL'), cpu8x), 6);
-  assert.equal(cyclesOf(info('INCX'), cpu8x), 2);
+  assert.equal(cyclesOf(info('INC'), cpu8x, { wide: true }), 3);
+  assert.equal(cyclesOf(info('LDI'), cpu8x, { wide: true }), 5);
+  assert.equal(cyclesOf(info('LDA'), cpu8x, { wide: true }), 6);
   assert.equal(cyclesOf(info('SUB_SP'), cpu8x), 3);
   assert.equal(sizeOf(info('JMP'), cpu8x), 3);
   const { cpu } = run('LDI A, 1\nCMP A, 1\nJZ next\nnext: JNZ next\nHLT');
@@ -196,7 +202,60 @@ test('faults leave the state unchanged and stop the CPU until undone', () => {
 });
 
 test('the disassembler reproduces every listing line', () => {
-  const asm = assemble('.cpu 8x\nLDI A, 5\nLDA B, [C]\nSTA [X], D\nMOV XL, A\nLDA A, 0x0812\nCMP A, B\nJNZ 0x0100\nLDX 0x0800\nINCY\nSUB SP, 4\nIN B, 2\nOUT 0x10, C\nLDA A, [SP+3]\nSTA [SP+0], B\nRET');
+  const asm = assemble('.cpu 8x\nLDI A, 5\nLDA B, [C]\nSTA [X], D\nMOV XL, A\nLDA A, [0x0812]\nCMP A, B\nJNZ 0x0100\nLDI X, 0x0800\nINC Y\nCMP X, 0x0806\nADD A, 16\nSTA [0x0123], Y\nPUSH X\nSUB SP, 4\nIN B, 2\nOUT 0x10, C\nLDA A, [SP+3]\nSTA [SP+0], B\nRET');
   const texts = asm.listing.map(e => disassemble(asm.memory, e.address, ARCHITECTURES.cpu8x).text);
-  assert.deepEqual(texts, ['LDI A, 5', 'LDA B, [C]', 'STA [X], D', 'MOV XL, A', 'LDA A, 0x0812', 'CMP A, B', 'JNZ 0x0100', 'LDX 0x0800', 'INCY', 'SUB SP, 4', 'IN B, 0x02', 'OUT 0x10, C', 'LDA A, [SP+3]', 'STA [SP+0], B', 'RET']);
+  assert.deepEqual(texts, ['LDI A, 5', 'LDA B, [C]', 'STA [X], D', 'MOV XL, A', 'LDA A, [0x0812]', 'CMP A, B', 'JNZ 0x0100', 'LDI X, 0x0800', 'INC Y', 'CMP X, 0x0806', 'ADD A, 16', 'STA [0x0123], Y', 'PUSH X', 'SUB SP, 4', 'IN B, 0x02', 'OUT 0x10, C', 'LDA A, [SP+3]', 'STA [SP+0], B', 'RET']);
+});
+
+test('one instruction set: X and Y take part in loads, stores, arithmetic and the stack', () => {
+  const { asm, cpu } = run(`.cpu 8x
+        LDI X, 0x0800
+        LDI Y, 0x0FFE
+        STA [0x0700], X         ; two bytes, low byte first
+        LDA Y, [0x0700]
+        ADD X, 0x0100
+        ADD X, A                ; an 8-bit register is added to all 16 bits
+        INC Y
+        PUSH X
+        POP Y
+        LDI A, 0xFF
+        LDI B, 0x01
+        ADD A, B                ; A = 0, CF = 1
+        ADC B, 0                ; B = 2
+        SBC A, 0                ; A = 0 − 0 − 0 = 0 … CF was cleared by ADC
+        CMP X, 0x0900
+        HLT`);
+  assert.deepEqual(Array.from(asm.memory.slice(0, 4)), [OP.LDI, 8, 0x00, 0x08]);
+  assert.deepEqual([cpu.memory[0x0700], cpu.memory[0x0701]], [0x00, 0x08]);
+  assert.equal(cpu.x, 0x0900);
+  assert.equal(cpu.y, 0x0900);
+  assert.equal(cpu.registers[1], 2);
+  assert.ok(cpu.zf && !cpu.cf, 'CMP X, 0x0900 compares all 16 bits');
+  let flags = run('.cpu 8x\nLDI X, 0xFFFF\nINC X\nHLT').cpu;
+  assert.equal(flags.x, 0); assert.ok(flags.zf && flags.cf, '16-bit carry');
+  flags = run('.cpu 8x\nLDI X, 0x00FF\nINC X\nHLT').cpu;
+  assert.equal(flags.x, 0x0100); assert.ok(!flags.zf && !flags.cf, 'no carry out of the low byte');
+});
+
+test('immediates work with every arithmetic and logic instruction on every level', () => {
+  const { cpu } = run('LDI A, 10\nADD A, 5\nSUB A, 3\nAND A, 0x0E\nOR A, 0x10\nXOR A, 0x01\nLDI B, 250\nADD B, 10\nADC C, 0\nHLT');
+  assert.equal(cpu.registers[0], ((10 + 5 - 3) & 0x0E | 0x10) ^ 1);
+  assert.equal(cpu.registers[1], 4);
+  assert.equal(cpu.registers[2], 1, 'ADC added the carry of ADD B, 10');
+});
+
+test('the formatter aligns labels, instructions and comments without changing the bytes', async () => {
+  const { formatSource } = await import('../src/format.js');
+  const source = 'size .equ 16\nlong_name .equ 2\nloop: ldi a,size ; count\n  sta [ 0x70 ],a\n   ; note\n.ORG 0x40\nmsg:   .db "a;b, c",  0\nhlt';
+  assert.equal(formatSource(source), [
+    'size      .equ 16',
+    'long_name .equ 2',
+    'loop:   LDI A, size             ; count',
+    '        STA [0x70], A',
+    '        ; note',
+    '.org 0x40',
+    'msg:    .db "a;b, c",  0',
+    '        HLT'].join('\n'));
+  assert.deepEqual(assemble(formatSource(source)).memory, assemble(source).memory);
+  assert.equal(formatSource(formatSource(source)), formatSource(source));
 });

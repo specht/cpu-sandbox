@@ -26,12 +26,12 @@ loop:   IN A, KEYBOARD          ; a typed key?
         OUT NUMBER, A           ; show its character code
 
 wait:   IN A, TIMER             ; wait for the next tick: 10 moves per second
-        LDA B, tick
+        LDA B, [tick]
         SUB A, B
         CMP A, 6
         JC loop
         IN A, TIMER
-        STA tick, A
+        STA [tick], A
 
         IN A, JOYSTICK          ; bits: 1 = ←, 2 = →, 4 = ↑, 8 = ↓
         CMP A, 0
@@ -39,33 +39,26 @@ wait:   IN A, TIMER             ; wait for the next tick: 10 moves per second
         LDI B, 0                ; erase the dot
         STA [C], B
         MOV B, A
-        LDI D, 1
-        AND B, D
+        AND B, 1
         JZ no_left
         DEC C
 no_left:
         MOV B, A
-        LDI D, 2
-        AND B, D
+        AND B, 2
         JZ no_right
         INC C
 no_right:
         MOV B, A
-        LDI D, 4
-        AND B, D
+        AND B, 4
         JZ no_up
-        LDI D, 16
-        SUB C, D
+        SUB C, 16
 no_up:
         MOV B, A
-        LDI D, 8
-        AND B, D
+        AND B, 8
         JZ no_down
-        LDI D, 16
-        ADD C, D
+        ADD C, 16
 no_down:
-        LDI D, 0x80             ; keep the dot on the screen (0x80..0xFF)
-        OR C, D
+        OR C, 0x80              ; keep the dot on the screen (0x80..0xFF)
         LDI B, 255              ; draw the dot
         STA [C], B
         JMP loop

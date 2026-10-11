@@ -2,6 +2,7 @@
 // address and bytes of every line in the margin, breakpoints, and the line
 // of the next instruction.
 import { MNEMONICS } from '/src/assembler.js';
+import { formatSource } from '/src/format.js';
 import { hex } from '/src/cpu.js';
 import { el } from './util.js';
 
@@ -34,7 +35,7 @@ CodeMirror.defineMode('minicpu', () => ({
 const MAX_SHOWN_BYTES = 4;
 
 export class SourceEditor {
-  constructor(container, { onChange, onSave, onBreakpoints }) {
+  constructor(container, { onChange, onSave, onBreakpoints, onFormat = () => {} }) {
     this.container = container;
     this.onChange = onChange;
     this.onBreakpoints = onBreakpoints;
@@ -43,19 +44,32 @@ export class SourceEditor {
     this.problemLines = [];
     this.marks = [];
     this.byteMarkers = [];
+    // CodeMirror only matches key names in its own modifier order
+    // (Shift-Cmd-Ctrl-Alt), so the key map is normalized.
+    const deleteLine = cm => { if (!cm.getOption('readOnly')) cm.execCommand('deleteLine'); };
     this.editor = CodeMirror(container, {
       value: '', mode: 'minicpu', lineNumbers: true, lineWrapping: false,
-      gutters: ['cm-breakpoints', 'CodeMirror-linenumbers', 'cm-bytes'],
+      gutters: ['cm-bytes', 'cm-breakpoints', 'CodeMirror-linenumbers'],
       indentUnit: 8, tabSize: 8, indentWithTabs: false, readOnly: 'nocursor', viewportMargin: 30,
-      extraKeys: {
+      extraKeys: CodeMirror.normalizeKeyMap({
         'Ctrl-S': () => onSave(), 'Cmd-S': () => onSave(),
         'Ctrl-/': cm => this.toggleComment(cm), 'Cmd-/': cm => this.toggleComment(cm),
-        'Ctrl-#': cm => this.toggleComment(cm), 'Ctrl-Shift-7': cm => this.toggleComment(cm),
-        'Ctrl-Shift-K': cm => cm.execCommand('deleteLine'), 'Cmd-Shift-K': cm => cm.execCommand('deleteLine'),
+        'Ctrl-#': cm => this.toggleComment(cm), 'Cmd-#': cm => this.toggleComment(cm),
+        'Ctrl-Shift-7': cm => this.toggleComment(cm),
+        'Ctrl-Shift-K': deleteLine, 'Cmd-Shift-K': deleteLine, 'Alt-Shift-K': deleteLine,
+        'Shift-Alt-F': () => onFormat(),
         Tab: cm => (cm.somethingSelected() ? cm.indentSelection('add') : cm.execCommand('insertSoftTab')),
         'Shift-Tab': cm => cm.indentSelection('subtract'),
-      },
+      }),
     });
+    // Some browsers claim Ctrl+Shift+K for themselves before the editor sees it.
+    window.addEventListener('keydown', event => {
+      if (!this.editor.hasFocus() || !(event.ctrlKey || event.metaKey) || !event.shiftKey || event.altKey ||
+          (event.code !== 'KeyK' && event.key?.toLowerCase() !== 'k')) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      deleteLine(this.editor);
+    }, true);
     this.editor.on('change', () => { if (!this.suppress) onChange(); });
     this.editor.on('gutterClick', (cm, line, gutter) => {
       if (gutter === 'cm-bytes') return;
@@ -90,6 +104,22 @@ export class SourceEditor {
     const cursor = this.editor.getCursor(), last = this.editor.lastLine();
     this.editor.replaceRange(text, { line: 0, ch: 0 }, { line: last, ch: this.editor.getLine(last).length }, '+cpu');
     this.editor.setCursor(cursor);
+  }
+
+  /** Formats the whole source in place, line by line (keeps breakpoints and undo). */
+  format() {
+    const cm = this.editor;
+    if (cm.getOption('readOnly')) return false;
+    const before = cm.getValue().split('\n'), after = formatSource(cm.getValue()).split('\n');
+    let changed = 0;
+    cm.operation(() => {
+      before.forEach((text, line) => {
+        if (after[line] === text) return;
+        cm.replaceRange(after[line], { line, ch: 0 }, { line, ch: text.length }, '+format');
+        changed++;
+      });
+    });
+    return changed;
   }
 
   toggleComment(cm) {

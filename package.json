@@ -6,7 +6,8 @@
   "description": "Browser-first 8-bit assembler/CPU sandbox with disk-backed student programs",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "docs": "node scripts/instruction-table.mjs"
   },
   "engines": { "node": ">=18" }
 }

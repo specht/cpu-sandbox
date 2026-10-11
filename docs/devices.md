@@ -39,7 +39,7 @@ The CPU has no interrupts: a program **polls** its devices, reading them
 again and again in a loop.
 
 - The joystick reports the keys that are held *right now*. A key tapped
-  between two reads is never seen — try it with `19-breakout.asm`.
+  between two reads is never seen — try it with `20-breakout.asm`.
 - The keyboard keeps typed characters in a queue until they are read.
 - The timer counts **machine time** (cycles ÷ clock). A game that waits for
   the next timer tick runs at the same speed at any clock — as long as the CPU

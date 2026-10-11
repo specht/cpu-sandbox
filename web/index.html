@@ -7,6 +7,7 @@
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/vendor/codemirror.css">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/light.css">
 </head>
 <body>
 <div class="shell">
@@ -14,7 +15,8 @@
     <div class="brand"><strong>CPU SANDBOX</strong></div>
     <div class="topright">
       <button type="button" id="reference-open" aria-haspopup="dialog" aria-controls="reference-dialog">
-        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-book"/></svg> Instruction set</button>
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-book"/></svg> Documentation</button>
+      <button type="button" id="theme-toggle" class="icon-button theme-toggle" title="Switch to the light theme" aria-label="Switch to the light theme"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-sun"/></svg></button>
       <span id="connection" class="connection" role="status">Connecting…</span>
     </div>
   </header>
@@ -42,7 +44,8 @@
         <ol id="source-problem-list" class="source-problem-list"></ol>
       </section>
       <div class="source-footer">
-        <span class="source-shortcuts">Ctrl+S Save · Ctrl+/ Comment · click a line number to set a breakpoint</span>
+        <button type="button" id="source-format" disabled title="Format the current draft (Shift+Alt+F)">Format</button>
+        <span class="source-shortcuts">Ctrl+S Save · Ctrl+Shift+K Delete line · Ctrl+# Comment · click a line number for a breakpoint</span>
         <span id="source-status" class="source-status" role="status" hidden></span>
       </div>
     </section>
@@ -74,7 +77,7 @@
               <span id="screen-grip" class="screen-grip" title="Drag to resize the screen" aria-hidden="true"></span>
             </div>
           </div>
-          <div class="frame-footer"><span id="screen-info" class="mono"></span><span id="screen-note" class="frame-note">Drag to move through RAM · drag the corner to resize</span></div>
+          <div class="frame-footer"><span id="screen-info" class="mono"></span><span id="screen-note" class="frame-note">Drag up or down to move through RAM · drag the corner to resize</span></div>
         </section>
 
         <section class="frame memory-frame" aria-label="RAM">
@@ -121,8 +124,8 @@
 
   <dialog id="reference-dialog" class="app-dialog reference-dialog" aria-labelledby="reference-title">
     <div class="dialog-header">
-      <h2 id="reference-title">Instruction set</h2>
-      <nav class="tabs" role="tablist" aria-label="CPU level" id="reference-tabs"></nav>
+      <h2 id="reference-title">Documentation</h2>
+      <nav class="tabs" role="tablist" aria-label="Topic" id="reference-tabs"></nav>
       <button type="button" id="reference-close" class="icon-button dialog-close" aria-label="Close">
         <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-x"/></svg></button>
     </div>
@@ -153,6 +156,7 @@
   </dialog>
 </div>
 <script src="/vendor/codemirror.js"></script>
+<script src="/js/theme.js"></script>
 <script type="module" src="/js/app.js"></script>
 </body>
 </html>

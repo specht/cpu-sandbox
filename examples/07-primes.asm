@@ -40,8 +40,7 @@ check_prime_done:
         CMP D, 0x00
         JNZ not_prime
         MOV A, B
-        LDI C, BASE
-        ADD A, C
+        ADD A, BASE
         LDI C, PIXEL
         STA [A], C
 not_prime:

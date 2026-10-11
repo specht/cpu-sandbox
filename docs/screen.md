@@ -16,8 +16,8 @@ The bar above the screen holds:
 
 On the screen itself:
 
-- **Drag the picture** to move the window through RAM: up and down by rows,
-  left and right by bytes. The mouse wheel scrolls by rows.
+- **Drag the picture up or down** to move the window through RAM by whole
+  rows. The mouse wheel does the same.
 - **Drag the corner grip** to change width and height.
 - **Click a pixel** to select its byte in the RAM view.
 - **Hover** to see the coordinates, the address and the value of a pixel.

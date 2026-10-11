@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import { assemble } from '../src/assembler.js';
 import { MiniCPU } from '../src/cpu.js';
 import { validateDisplay, pixelValue } from '../src/display.js';
+import { formatSource } from '../src/format.js';
 
 const dir = new URL('../examples/', import.meta.url);
 const files = fs.readdirSync(dir).filter(f => f.endsWith('.asm')).sort();
@@ -28,7 +29,9 @@ test('every example assembles without warnings and fits its screen into RAM', ()
     const asm = load(name);
     assert.deepEqual(asm.warnings, [], name);
     if (asm.display) validateDisplay(asm.display, asm.memory.length);
-    assert.match(fs.readFileSync(new URL(name, dir), 'utf8'), /^; [A-Z]/, `${name} starts with a title comment`);
+    const source = fs.readFileSync(new URL(name, dir), 'utf8');
+    assert.match(source, /^; [A-Z]/, `${name} starts with a title comment`);
+    assert.equal(formatSource(source), source, `${name} is formatted`);
   }
 });
 
@@ -60,10 +63,21 @@ test('pixel formats: one even ramp of bytes', () => {
 test('fire (MiniCPU 8) animates forever without touching its code', () => {
   const r = run('11-fire.asm', 60000);
   assert.equal(r.cpu.halted, false);
-  codeUnchanged(r, r.asm.labels.get('random'));
+  codeUnchanged(r);
   const heat = screen(r);
   assert.ok(heat.some(v => v > 150) && heat.some(v => v === 0), 'hot and cold pixels');
   assert.ok(r.asm.loadedBytes <= r.asm.display.start, 'code fits below the screen');
+});
+
+test('inferno (MiniCPU 8X) burns hot at the bottom and fades out at the top', () => {
+  const r = run('18-inferno.asm', 400000);
+  assert.equal(r.asm.architecture, 'cpu8x');
+  codeUnchanged(r);
+  const heat = screen(r), row = y => heat.slice(y * 64, y * 64 + 64);
+  const mean = values => values.reduce((a, b) => a + b, 0) / values.length;
+  assert.ok(mean(row(47)) > 200, 'white-hot above the embers');
+  assert.ok(mean(row(0)) < 40, 'dark at the top');
+  assert.ok(new Set(row(30)).size > 4, 'flickering flames in between');
 });
 
 test('recursion (8S) fills a table with Fibonacci numbers', () => {
@@ -116,7 +130,7 @@ test('Mandelbrot (8X) renders the set in many colors', () => {
 });
 
 test('input (MiniCPU 8): the joystick moves the dot, typed keys reach the number display', () => {
-  const asm = load('18-input.asm');
+  const asm = load('19-input.asm');
   const cpu = new MiniCPU(asm.memory, asm.architecture, { clockHz: 1e5, historySize: 1 });
   const runFor = seconds => { const end = cpu.time + seconds; while (cpu.time < end) cpu.step(); };
   const dot = () => Array.from(cpu.memory.slice(0x80)).indexOf(255);
@@ -132,7 +146,7 @@ test('input (MiniCPU 8): the joystick moves the dot, typed keys reach the number
 });
 
 test('Breakout (8X): a scripted player clears bricks; without a player the game ends', () => {
-  const asm = load('19-breakout.asm'), L = asm.labels;
+  const asm = load('20-breakout.asm'), L = asm.labels;
   const play = (seconds, player) => {
     const cpu = new MiniCPU(asm.memory, asm.architecture, { clockHz: 1e6, historySize: 1 }), m = cpu.memory;
     while (cpu.time < seconds) {
@@ -143,16 +157,16 @@ test('Breakout (8X): a scripted player clears bricks; without a player the game 
   };
   const launch = cpu => ((cpu.instructions >> 14) & 1 ? 16 : 0);
   const follow = (m, cpu) => {
-    const ball = m[L.get('ballx')], middle = m[L.get('paddle')] + 2;
+    const ball = m[L.get('ballx')], middle = m[L.get('paddle')] + 3;
     return (ball < middle ? 1 : ball > middle + 1 ? 2 : 0) | (m[L.get('serving')] ? launch(cpu) : 0);
   };
   const good = play(30, follow);
   assert.ok(good.score >= 20, `score ${good.score}`);
-  assert.equal(good.lives, 3);
+  assert.equal(good.lives, 5);
   assert.equal(good.score + good.bricks, 48);
   assert.equal(good.cpu.io.outputs.get(0x11), good.score);
   assert.ok(good.cpu.io.outputs.has(0x10), 'it beeps');
-  const idle = play(60, (m, cpu) => 1 | launch(cpu)); // paddle parked on the left
+  const idle = play(150, (m, cpu) => 1 | launch(cpu)); // paddle parked on the left
   assert.equal(idle.lives, 0);
   assert.ok(idle.cpu.pc >= L.get('game_over') && idle.cpu.pc < L.get('move_paddle'), 'waiting on the game over screen');
 });

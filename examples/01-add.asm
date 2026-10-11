@@ -4,5 +4,5 @@
 
         LDI A, 5
         LDI B, 3
-        ADD A, B        ; A = 8
+        ADD A, B                ; A = 8
         HLT

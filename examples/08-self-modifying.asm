@@ -4,6 +4,6 @@
 ; byte (address target + 2) before the LDI runs. Watch the margin.
 
         LDI A, 42
-        STA target + 2, A
+        STA [target + 2], A
 target: LDI B, 0                ; B ends up as 42, not 0
         HLT

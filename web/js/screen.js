@@ -181,9 +181,9 @@ export class Screen {
       if (drag.kind === 'move') {
         if (Math.abs(dx) + Math.abs(dy) > 0.6) drag.moved = true;
         if (!drag.moved) return;
-        const bits = MODES[this.config.mode].bits, rowBytes = Math.ceil(this.config.width * bits / 8);
-        const delta = -Math.round(dy) * rowBytes - Math.round(Math.round(dx) * bits / 8);
-        this.change({ start: drag.start + delta });
+        // Only up and down, by whole rows: sideways the picture would shear.
+        const rowBytes = Math.ceil(this.config.width * MODES[this.config.mode].bits / 8);
+        this.change({ start: drag.start - Math.round(dy) * rowBytes });
       } else {
         this.change({ width: Math.round(drag.width + dx), height: Math.round(drag.height + dy) });
       }

@@ -24,6 +24,27 @@ function fileInFolder(folder, filename) {
   if (fs.existsSync(file) && (!fs.lstatSync(file).isFile() || fs.lstatSync(file).isSymbolicLink())) throw new ApiError(403, 'Non-regular files and symbolic links are not allowed');
   return file;
 }
+// Local settings of this installation (the theme) live in .settings.yaml next to
+// the app, outside Git and outside the class repository. Only simple
+// "key: value" lines are read; other lines are kept as they are.
+const THEMES = new Set(['dark', 'light']);
+export function readSettings(file) {
+  const settings = { theme: 'dark' };
+  if (!fs.existsSync(file)) return settings;
+  for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+    const m = line.match(/^\s*theme\s*:\s*["']?(\w+)["']?\s*(?:#.*)?$/);
+    if (m && THEMES.has(m[1])) settings.theme = m[1];
+  }
+  return settings;
+}
+export function writeSettings(file, changes) {
+  const lines = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').replace(/\n$/, '').split('\n') : ['# Local settings of this sandbox. Not part of Git.'];
+  for (const [key, value] of Object.entries(changes)) {
+    const at = lines.findIndex(line => new RegExp(`^\\s*${key}\\s*:`).test(line));
+    if (at < 0) lines.push(`${key}: ${value}`); else lines[at] = `${key}: ${value}`;
+  }
+  fs.writeFileSync(file, `${lines.join('\n')}\n`);
+}
 class ApiError extends Error { constructor(status, message) { super(message); this.status = status; } }
 async function bodyJson(req) {
   const chunks = []; let n = 0;
@@ -35,7 +56,7 @@ async function bodyJson(req) {
   try { return JSON.parse(Buffer.concat(chunks).toString('utf8')); }
   catch { throw new ApiError(400, 'Invalid JSON'); }
 }
-export function createServer({ programsDir = path.join(base, 'programs'), examplesDir = path.join(base, 'examples') } = {}) {
+export function createServer({ programsDir = path.join(base, 'programs'), examplesDir = path.join(base, 'examples'), settingsFile = path.join(base, '.settings.yaml') } = {}) {
   const programRoot = path.resolve(programsDir);
   const exampleRoot = path.resolve(examplesDir);
   function location(group, filename, write = false) {
@@ -124,7 +145,19 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
         catch (e) { if (e.code === 'EEXIST') throw new ApiError(409, `${input.group}/${input.file} already exists`); throw e; }
         return json(res, 201, { group: input.group, file: input.file, revision: digest(Buffer.from(source)) });
       }
+      if (route === '/api/settings' && req.method === 'GET') return json(res, 200, readSettings(settingsFile));
+      if (route === '/api/settings' && req.method === 'PUT') {
+        const input = await bodyJson(req);
+        if (!THEMES.has(input.theme)) throw new ApiError(400, 'theme must be dark or light');
+        writeSettings(settingsFile, { theme: input.theme });
+        return json(res, 200, readSettings(settingsFile));
+      }
       const asset = req.method === 'GET' && staticFile(route);
+      if (asset && asset[0].endsWith('index.html')) {
+        // The theme is part of the page, so it never flashes dark first.
+        const page = fs.readFileSync(asset[0], 'utf8').replace('<html lang="en">', `<html lang="en" data-theme="${readSettings(settingsFile).theme}">`);
+        return send(res, 200, page, asset[1]);
+      }
       if (asset) return send(res, 200, fs.readFileSync(asset[0]), asset[1]);
       throw new ApiError(404, 'Not found');
     } catch (e) {

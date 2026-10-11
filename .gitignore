@@ -2,3 +2,5 @@
 /programs/
 /node_modules/
 .DS_Store
+# Local settings (the theme); they belong to this computer, not to Git.
+.settings.yaml

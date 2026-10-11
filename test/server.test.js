@@ -13,7 +13,7 @@ async function fixture(t) {
   fs.writeFileSync(path.join(programs,'anna','sum.asm'),'LDI A, 1\nHLT\n');
   fs.writeFileSync(path.join(examples,'demo.asm'),'HLT\n');
   fs.writeFileSync(path.join(programs,'ben','note.txt'),'not shown');
-  const server=createServer({ programsDir:programs, examplesDir:examples });
+  const server=createServer({ programsDir:programs, examplesDir:examples, settingsFile:path.join(root,'.settings.yaml') });
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   t.after(async()=>{await new Promise(resolve=>server.close(resolve));fs.rmSync(root,{recursive:true,force:true});});
   const base=`http://127.0.0.1:${server.address().port}`;
@@ -95,4 +95,18 @@ test('the page, its modules, the shared CPU code and vendored assets are served'
   for(const uri of ['/server.mjs','/src/../server.mjs','/vendor/LICENSE','/test/cpu.test.js']) {
     assert.equal((await fetch(base+uri)).status,404,uri);
   }
+});
+
+test('the theme is a local setting in .settings.yaml and is written into the page',async t=>{
+  const {request,write,root,base}=await fixture(t), file=path.join(root,'.settings.yaml');
+  assert.deepEqual((await request('/api/settings')).payload,{theme:'dark'});
+  assert.match(await (await fetch(base+'/')).text(),/<html lang="en" data-theme="dark">/);
+  assert.equal((await write('PUT','/api/settings',{theme:'light'})).response.status,200);
+  assert.match(fs.readFileSync(file,'utf8'),/^theme: light$/m);
+  assert.match(await (await fetch(base+'/')).text(),/data-theme="light"/);
+  fs.writeFileSync(file,'# mine\ntheme: light\nother: 1\n');
+  await write('PUT','/api/settings',{theme:'dark'});
+  assert.equal(fs.readFileSync(file,'utf8'),'# mine\ntheme: dark\nother: 1\n','other lines stay');
+  assert.equal((await write('PUT','/api/settings',{theme:'pink'})).response.status,400);
+  assert.match(fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname),'..','.gitignore'),'utf8'),/^\.settings\.yaml$/m);
 });

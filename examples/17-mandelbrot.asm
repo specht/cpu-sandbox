@@ -21,14 +21,11 @@ screen  .equ 0x0400             ; 80 × 60 pixels, 2400 bytes
         LDI B, 0                ; C:B = n² as a 16-bit number
         LDI C, 0
         LDI D, 1                ; D = 2n + 1, the next odd number
-        LDX squares
+        LDI X, squares
 fill:   PUSH B
         PUSH C
-        LDI A, 16               ; + 16 rounds the division by 32
-        ADD B, A
-        JNC no_carry
-        INC C
-no_carry:
+        ADD B, 16               ; + 16 rounds the division by 32;
+        ADC C, 0                ; ADC adds the carry to the high byte
         LDI A, 255
         CMP C, 32               ; n² ≥ 8192 would need more than 8 bits
         JNC store
@@ -45,39 +42,34 @@ no_carry:
 store:  POP C
         POP B
         STA [X], A
-        INCX
-        ADD B, D                ; (n+1)² = n² + 2n + 1, with carry into C
-        JNC next_odd
-        INC C
-next_odd:
+        INC X
+        ADD B, D                ; (n+1)² = n² + 2n + 1
+        ADC C, 0
         INC D
         INC D
-        MOV A, XL
-        CMP A, 129
+        CMP X, squares + 129
         JNZ fill
 
 ; ---- 2. (−n)² = n²: copy entries 1..127 backwards to 255..129 -------------
-        LDX squares + 1
-        LDY squares + 255
+        LDI X, squares + 1
+        LDI Y, squares + 255
 mirror: LDA A, [X]
         STA [Y], A
-        INCX
-        DECY
-        MOV A, XL
-        CMP A, 128
+        INC X
+        DEC Y
+        CMP X, squares + 128
         JNZ mirror
 
 ; ---- 3. draw: two pixels per screen byte ----------------------------------
-        LDX squares
-        LDY screen
+        LDI X, squares
+        LDI Y, screen
         LDI A, 0
-        STA py, A
-row:    LDA A, py
-        LDI B, 30               ; ci = (py − 30) / 32
-        SUB A, B
-        STA ci, A
+        STA [py], A
+row:    LDA A, [py]
+        SUB A, 30               ; ci = (py − 30) / 32
+        STA [ci], A
         LDI A, 0
-        STA px, A
+        STA [px], A
 pair:   CALL pixel              ; left pixel → high nibble
         SHL A
         SHL A
@@ -88,34 +80,33 @@ pair:   CALL pixel              ; left pixel → high nibble
         POP B
         OR A, B
         STA [Y], A
-        INCY
-        LDA A, px
+        INC Y
+        LDA A, [px]
         CMP A, 80
         JNZ pair
-        LDA A, py
+        LDA A, [py]
         INC A
-        STA py, A
+        STA [py], A
         CMP A, 60
         JNZ row
         HLT
 
 ; ---- A = color of pixel (px, py), then px = px + 1 ------------------------
-pixel:  LDA A, px
-        LDI B, 62               ; cr = (px − 62) / 32
-        SUB A, B
-        STA cr, A
-        LDA A, px
+pixel:  LDA A, [px]
+        SUB A, 62               ; cr = (px − 62) / 32
+        STA [cr], A
+        LDA A, [px]
         INC A
-        STA px, A
+        STA [px], A
         LDI A, 0
-        STA zr, A
-        STA zi, A
-        STA count, A
+        STA [zr], A
+        STA [zi], A
+        STA [count], A
 iterate:
-        LDA A, zr               ; B = zr²
+        LDA A, [zr]             ; B = zr²
         MOV XL, A
         LDA B, [X]
-        LDA A, zi               ; C = zi²
+        LDA A, [zi]             ; C = zi²
         MOV XL, A
         LDA C, [X]
         MOV D, B                ; escaped if zr² + zi² ≥ 4
@@ -124,14 +115,14 @@ iterate:
         CMP D, 128
         JNC escaped
         SUB B, C                ; B = new zr = zr² − zi² + cr
-        LDA D, cr
+        LDA D, [cr]
         ADD B, D
-        LDA A, zr               ; C = (zr − zi)²
-        LDA D, zi
+        LDA A, [zr]             ; C = (zr − zi)²
+        LDA D, [zi]
         SUB A, D
         MOV XL, A
         LDA C, [X]
-        LDA A, zr               ; A = (zr + zi)²
+        LDA A, [zr]             ; A = (zr + zi)²
         ADD A, D
         MOV XL, A
         LDA A, [X]
@@ -141,21 +132,20 @@ iterate:
         JMP halved
 negative:
         SHR A
-        LDI D, 0x80             ; shift the sign bit back in
-        OR A, D
-halved: LDA D, ci               ; zi = 2·zr·zi + ci
+        OR A, 0x80              ; shift the sign bit back in
+halved: LDA D, [ci]             ; zi = 2·zr·zi + ci
         ADD A, D
-        STA zi, A
-        STA zr, B
-        LDA A, count
+        STA [zi], A
+        STA [zr], B
+        LDA A, [count]
         INC A
-        STA count, A
+        STA [count], A
         CMP A, 15
         JNZ iterate
         LDI A, 0                ; never escaped: black
         RET
 escaped:
-        LDA A, count            ; escaped after count steps: colors 1..15
+        LDA A, [count]          ; escaped after count steps: colors 1..15
         INC A
         RET
 

@@ -16,11 +16,11 @@
 screen  .equ 0xC0               ; 8 rows × 4 bytes
 
 frame:  CALL next_column        ; C = the new column, bit 0 = top row
-        STA column, C
+        STA [column], C
         LDI A, screen + 31      ; start with the last byte of the bottom row
-row:    LDA C, column
+row:    LDA C, [column]
         SHL C                   ; take the bit for this row (bottom row first)
-        STA column, C
+        STA [column], C
         LDI B, 0
         JNC dark
         LDI B, 1
@@ -48,27 +48,27 @@ keep:   OR D, B
 
 ; C = next column of the message: five glyph columns, then one empty column.
 next_column:
-        LDA A, column_index
+        LDA A, [column_index]
         CMP A, 5
         JZ gap
         INC A
-        STA column_index, A
+        STA [column_index], A
         DEC A
-        LDA B, letter           ; B = address of the current letter's pointer
+        LDA B, [letter]         ; B = address of the current letter's pointer
         LDA B, [B]              ; B = address of the glyph
         ADD B, A
         LDA C, [B]
         RET
 gap:    LDI A, 0
-        STA column_index, A
-        LDA B, letter
+        STA [column_index], A
+        LDA B, [letter]
         INC B                   ; next letter …
         LDA C, [B]
         CMP C, 0
         JNZ same_text
         LDI B, message          ; … or start over at the end of the message
 same_text:
-        STA letter, B
+        STA [letter], B
         LDI C, 0
         RET
 
@@ -77,12 +77,12 @@ column_index: .db 0
 letter:       .db message
 message:      .db _M, _I, _N, _I, _C, _P, _U, __, _8, _S, __, __, 0
 
-_M:      .db 0x7F, 0x02, 0x0C, 0x02, 0x7F
-_I:      .db 0x00, 0x41, 0x7F, 0x41, 0x00
-_N:      .db 0x7F, 0x02, 0x04, 0x08, 0x7F
-_C:      .db 0x3E, 0x41, 0x41, 0x41, 0x22
-_P:      .db 0x7F, 0x09, 0x09, 0x09, 0x06
-_U:      .db 0x3F, 0x40, 0x40, 0x40, 0x3F
-_8:      .db 0x36, 0x49, 0x49, 0x49, 0x36
-_S:      .db 0x46, 0x49, 0x49, 0x49, 0x31
+_M:     .db 0x7F, 0x02, 0x0C, 0x02, 0x7F
+_I:     .db 0x00, 0x41, 0x7F, 0x41, 0x00
+_N:     .db 0x7F, 0x02, 0x04, 0x08, 0x7F
+_C:     .db 0x3E, 0x41, 0x41, 0x41, 0x22
+_P:     .db 0x7F, 0x09, 0x09, 0x09, 0x06
+_U:     .db 0x3F, 0x40, 0x40, 0x40, 0x3F
+_8:     .db 0x36, 0x49, 0x49, 0x49, 0x36
+_S:     .db 0x46, 0x49, 0x49, 0x49, 0x31
 __:     .db 0, 0, 0, 0, 0
