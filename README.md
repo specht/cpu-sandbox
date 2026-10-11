@@ -211,3 +211,34 @@ and path-traversal/symlink rejection.
 
 `--programs /path/to/class-repo`, `--port 8765`, and `--host 127.0.0.1` are
 available to `./run`. Use `--host` other than loopback only on a *trusted* network.
+
+## Local fonts and icons
+
+The interface uses **Open Sans** for controls and headings, **0xProto Nerd Font**
+for the editor, memory, and machine listings, and a bundled
+`web/vendor/tabler-icons.svg` sprite for buttons. It makes **no CDN requests**
+and does not search sibling projects or the host's installed fonts.
+
+Font binary files must be placed in the app itself before packaging/deploying:
+
+- `web/vendor/fonts/OpenSans.ttf` (Open Sans, SIL Open Font License 1.1)
+- `web/vendor/fonts/0xProtoNerdFont.ttf` (0xProto Nerd Font, SIL Open Font License 1.1)
+
+Include the respective upstream license texts when distributing these fonts.
+The font stylesheet falls back to system fonts until both local TTF assets
+have been added. Tabler icon artwork is MIT-licensed (https://tabler.io/icons).
+
+
+### Color demo: Rainbow Interference
+
+Load `16-rainbow-interference.asm` and press **Play**. Increase the speed to
+watch a shifting 16-color pattern appear, while the RAM inspector shows the
+same 128 bytes that encode its **256 square pixels**. Each byte contains two
+4-bit indices into the `sweetie_16` palette. No dedicated framebuffer or
+extra CPU RAM is involved. Pause and change the display controller between
+4-bit indexed, monochrome, and grayscale to explore the same bytes.
+
+The example continually overwrites only addresses `0x80..0xFF`, leaving its
+own executable instructions untouched. This is also a good starting point for
+asking how to draw larger/colorful images within a 256-byte shared address
+space before considering an extended architecture.

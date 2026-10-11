@@ -120,3 +120,21 @@ test('32x16 monochrome animation stays within 256-byte unified RAM', () => {
   assert.equal(cpu.memory[0xC4],0xAA);
   assert.ok(!cpu.halted);
 });
+
+test('colorful 4-bit interference demo animates without changing program bytes', () => {
+  const asm = example('16-rainbow-interference.asm');
+  assert.ok(asm.loadedBytes < 0x80, 'program must fit before the bitmap at 0x80');
+  assert.equal(asm.display.mode, 'indexed4');
+  assert.equal(asm.display.width * asm.display.height, 256);
+  assert.equal(validateDisplay(asm.display).bytesSpanned, 128);
+  const cpu = new MiniCPU(asm.memory);
+  const code = Array.from(cpu.memory.slice(0, 0x80));
+  for (let i=0;i<1500;i++) cpu.step();
+  assert.ok(!cpu.halted, 'endless animation should be stoppable with Pause');
+  const frame1 = Array.from(cpu.memory.slice(0x80));
+  const colors = renderDisplay(cpu.memory, asm.display, PALETTES).map(p => p.color);
+  assert.ok(new Set(colors).size >= 12, 'rainbow graphic should use many colors');
+  for (let i=0;i<1500;i++) cpu.step();
+  assert.notDeepEqual(Array.from(cpu.memory.slice(0x80)), frame1, 'animation evolves over time');
+  assert.deepEqual(Array.from(cpu.memory.slice(0, 0x80)), code, 'graphics must not overwrite executable code');
+});

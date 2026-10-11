@@ -55,6 +55,9 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
     ['/cpu.js', ['src/cpu.js', 'text/javascript; charset=utf-8']],
     ['/display.js', ['src/display.js', 'text/javascript; charset=utf-8']],
     ['/palettes.js', ['src/palettes.js', 'text/javascript; charset=utf-8']],
+    ['/vendor/tabler-icons.svg', ['web/vendor/tabler-icons.svg', 'image/svg+xml']],
+    ['/vendor/fonts/OpenSans.ttf', ['web/vendor/fonts/OpenSans.ttf', 'font/ttf']],
+    ['/vendor/fonts/0xProtoNerdFont.ttf', ['web/vendor/fonts/0xProtoNerdFont.ttf', 'font/ttf']],
   ]);
   return http.createServer(async (req, res) => {
     try {
@@ -106,7 +109,9 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
       }
       if (req.method === 'GET' && files.has(route)) {
         const [relative, type] = files.get(route);
-        return send(res, 200, fs.readFileSync(path.join(base, relative)), type);
+        const filePath = path.join(base, relative);
+        if (!fs.existsSync(filePath)) throw new ApiError(404, 'Bundled asset not installed');
+        return send(res, 200, fs.readFileSync(filePath), type);
       }
       throw new ApiError(404, 'Not found');
     } catch (e) {

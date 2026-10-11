@@ -36,6 +36,9 @@ function highlightSource() {
   const active = cpu && assembled?.sourceMap.get(cpu.pc);
   $('highlight').innerHTML = all.source.value.split('\n').map((line, i) => `<span class="hl-line${active === i+1 ? ' current' : ''}">${syntaxLine(line) || ' '}</span>`).join('');
   const layer = $('highlight-layer');
+  // The gutter grows when line numbers gain digits. A hardcoded 42px overlay
+  // offset would then shift highlighting away from the native textarea caret.
+  layer.style.left = `${$('line-numbers').getBoundingClientRect().width}px`;
   layer.scrollTop = all.source.scrollTop; layer.scrollLeft = all.source.scrollLeft;
 }
 function assembleSoon() {
@@ -291,10 +294,17 @@ function jumpToLine(line) {
   const top = Math.max(0, (line - 4) * 22);
   all.source.scrollTop = top; updateNumbers();
 }
+function setPlayButton(playing) {
+  const button = $('play');
+  button.querySelector('use').setAttribute('href',
+    `/vendor/tabler-icons.svg#ti-player-${playing ? 'pause' : 'play'}`);
+  $('play-label').textContent = playing ? 'Pause' : 'Play';
+  button.setAttribute('aria-label', playing ? 'Pause execution' : 'Play execution');
+}
 function stopPlayback() {
   if (playback) { playback.cancelled = true; clearInterval(playback.interval); clearTimeout(playback.timeout); }
   playback = null;
-  $('play').textContent = '▶ Play';
+  setPlayButton(false);
 }
 function stepOnce() {
   if (!cpu || cpu.halted) return false;
@@ -323,7 +333,7 @@ function goPlay() {
   if (playback) { stopPlayback(); renderCpu(); return; }
   if (!cpu || cpu.halted) return;
   const play = { cancelled: false }; playback = play;
-  $('play').textContent = 'Ⅱ Pause';
+  setPlayButton(true);
   play.interval = setInterval(() => {
     if (play.cancelled || !cpu || cpu.halted) { stopPlayback(); renderCpu(); return; }
     const speed = Number($('speed').value);
