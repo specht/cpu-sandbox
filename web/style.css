@@ -266,8 +266,8 @@ input[type=checkbox]{accent-color:#89baff}
 .source-editor .CodeMirror-linenumber{cursor:pointer}
 .breakpoint{display:inline-block;width:9px;height:9px;margin:5px 0 0 3px;border-radius:50%;background:#ff6b6b;box-shadow:0 0 0 2px #ff6b6b33}
 .asm-bytes{display:flex;gap:7px;padding:0 6px;font:11px/inherit var(--mono);color:#5f7898;white-space:nowrap}
-.asm-address{color:#6c839f}
-.asm-bytes-values{color:#7f97b6}
+.asm-address{color:#4a5f7a;font-size:10px}
+.asm-bytes-values{color:#a9c0de}
 .asm-bytes.modified .asm-bytes-values{color:var(--gold)}
 .source-editor.stale .asm-bytes{opacity:.35}
 .source-editor .cm-variable{color:#e8f0ff}
