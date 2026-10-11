@@ -3,6 +3,8 @@ import { ARCHITECTURES } from '/src/architectures.js';
 import { assemble, AssemblyError } from '/src/assembler.js';
 import { MiniCPU, CpuFault, hex } from '/src/cpu.js';
 import { DEFAULT_DISPLAY, validateDisplay } from '/src/display.js';
+import { Devices } from '/src/devices.js';
+import { DevicePanel } from './devices.js';
 import { $, el, icon, grouped, formatHz, formatDuration, loadPreferences, savePreferences } from './util.js';
 import { Catalog, ProgramPicker, request } from './catalog.js';
 import { SourceEditor } from './editor.js';
@@ -48,6 +50,10 @@ const screen = new Screen({
 });
 const memory = new MemoryView({ grid: $('memory'), page: $('memory-page') }, {
   onSelect: () => { renderMachine(); },
+});
+const devices = new Devices({ seed: Date.now() & 0xFFFF });
+const devicePanel = new DevicePanel({ strip: $('devices'), canvas: $('screen'), note: $('screen-note') }, devices, {
+  cpu: () => state.cpu,
 });
 const reference = new Reference({ dialog: $('reference-dialog'), tabs: $('reference-tabs'), body: $('reference-body'), close: $('reference-close') });
 
@@ -286,7 +292,8 @@ function updateBreakpoints() {
 
 function restartMachine() {
   stop();
-  state.cpu = state.assembly ? new MiniCPU(state.assembly.memory, state.assembly.architecture) : null;
+  devices.reset();
+  state.cpu = state.assembly ? new MiniCPU(state.assembly.memory, state.assembly.architecture, { devices, clockHz: clockHz() }) : null;
   state.message = null;
   state.budget = 0;
   renderMachine();
@@ -301,6 +308,7 @@ function start() {
   state.lastFrame = performance.now();
   state.skipBreakpoint = true;
   state.message = null;
+  if (state.assembly.ports.some(port => port <= 1)) $('screen').focus(); // the keys go to the program
   requestAnimationFrame(frame);
   renderControls();
 }
@@ -374,8 +382,14 @@ function renderControls() {
   $('step-back').disabled = !live || !cpu.canUndo;
   $('step-next').disabled = !canRun();
   $('run').disabled = !canRun() && !state.running;
+  // Only touch the button when its state changes: replacing its children
+  // while the mouse is down would swallow the click.
   const run = $('run');
-  run.replaceChildren(icon(state.running ? 'player-pause' : 'player-play'), el('span', {}, state.running ? 'Pause' : 'Run'));
+  if (run.dataset.running !== String(state.running)) {
+    run.dataset.running = String(state.running);
+    run.querySelector('use').setAttribute('href', `/vendor/tabler-icons.svg#ti-player-${state.running ? 'pause' : 'play'}`);
+    run.querySelector('span').textContent = state.running ? 'Pause' : 'Run';
+  }
 }
 
 const REGISTER_ORDER = ['PC', 'A', 'B', 'C', 'D', 'SP', 'X', 'Y', 'ZF', 'CF'];
@@ -403,13 +417,15 @@ function renderRegisters() {
       el('span', { class: 'register-name' }, name), el('span', { class: 'register-value' }, value),
       detail ? el('span', { class: 'register-decimal' }, detail) : null));
   }
-  $('registers').replaceChildren(...chips);
+  const key = chips.map(chip => chip.outerHTML).join('');
+  if (key !== renderRegisters.key) { renderRegisters.key = key; $('registers').replaceChildren(...chips); }
 }
 
 function renderMachine() {
   const cpu = state.cpu, assembly = state.assembly, arch = state.arch;
   renderControls();
   renderRegisters();
+  devicePanel.render(state.assembly?.ports ?? []);
   const ram = cpu?.memory ?? new Uint8Array(arch.memorySize);
   screen.render(ram);
 
@@ -459,6 +475,7 @@ function renderSelected(ram) {
 function setClock(index) {
   $('clock').value = String(index);
   $('clock-output').textContent = formatHz(CLOCKS[index]);
+  if (state.cpu) state.cpu.clockHz = CLOCKS[index];
   savePreferences({ clock: CLOCKS[index] });
   renderMachine();
 }
@@ -474,10 +491,15 @@ $('source-revert').addEventListener('click', revert);
 $('source-copy').addEventListener('click', openCopyDialog);
 $('reference-open').addEventListener('click', () => reference.open(state.arch.id));
 
+// A click on the backdrop closes a dialog, as in the Data Structure Sandbox.
+for (const dialog of document.querySelectorAll('dialog.app-dialog')) {
+  dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+}
+
 document.addEventListener('keydown', event => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); save(); return; }
   const target = event.target;
-  if (target.closest?.('.CodeMirror, input, select, textarea, dialog') || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (target.closest?.('.CodeMirror, input, select, textarea, dialog, canvas') || event.ctrlKey || event.metaKey || event.altKey) return;
   if (event.key === ' ') { event.preventDefault(); if (state.running) stop(); else start(); }
   else if (event.key === 'ArrowRight') { event.preventDefault(); stepForward(); }
   else if (event.key === 'ArrowLeft') { event.preventDefault(); stepBack(); }

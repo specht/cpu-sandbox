@@ -1,4 +1,5 @@
 import { architecture } from './architectures.js';
+import { Devices } from './devices.js';
 import { OPCODES as OP, BY_CODE, INSTRUCTIONS, REGISTER_NAMES, availableOn, cyclesOf } from './opcodes.js';
 
 export class CpuFault extends Error {
@@ -14,8 +15,10 @@ const NAME = REGISTER_NAMES;
  * execution can be undone step by step without copying the whole RAM.
  */
 export class MiniCPU {
-  constructor(memory = new Uint8Array(256), profile = 'cpu8', { historySize = 50000 } = {}) {
+  constructor(memory = new Uint8Array(256), profile = 'cpu8', { historySize = 50000, devices = new Devices(), clockHz = 1e6 } = {}) {
     this.arch = architecture(profile);
+    this.io = devices;
+    this.clockHz = clockHz; // only used for the machine time (timer port)
     this.historySize = historySize;
     // Clock cycles per opcode: [taken, not taken] (they only differ for Jcc).
     this.timing = new Uint8Array(512);
@@ -36,6 +39,7 @@ export class MiniCPU {
     this.pc = 0; this.zf = false; this.cf = false; this.halted = false;
     this.cycles = 0;       // clock cycles
     this.instructions = 0; // executed instructions
+    this.time = 0;         // machine time in seconds: cycles / clock
     this.sp = this.arch.stack ? this.arch.memorySize : null;
     this.x = this.arch.index ? 0 : null;
     this.y = this.arch.index ? 0 : null;
@@ -54,7 +58,7 @@ export class MiniCPU {
     const start = this.pc;
     const record = this.current = {
       pc: start, a: r[0], b: r[1], c: r[2], d: r[3], zf: this.zf, cf: this.cf,
-      sp: this.sp, x: this.x, y: this.y, writes: null, cycles: 0,
+      sp: this.sp, x: this.x, y: this.y, writes: null, cycles: 0, time: this.time, out: null,
     };
     let opcode = 0, skipped = 0;
     try {
@@ -115,6 +119,18 @@ export class MiniCPU {
         }
         case OP.LDA_SP: { const d = this.reg(); r[d] = mem[this.checked(this.sp + this.fetch())]; break; }
         case OP.STA_SP: { const n = this.fetch(), s = this.reg(); this.write(this.sp + n, r[s]); break; }
+        case OP.IN: {
+          const d = this.reg(), port = this.fetch(), value = this.io.read(port, this);
+          if (value === undefined) this.fail(`Nothing is plugged into port 0x${hex(port)}`);
+          r[d] = value;
+          break;
+        }
+        case OP.OUT: {
+          const port = this.fetch(), s = this.reg(), before = this.io.outputs.get(port);
+          if (!this.io.write(port, r[s])) this.fail(`Nothing is plugged into port 0x${hex(port)}`);
+          record.out = [port, before];
+          break;
+        }
         case OP.SUB_SP: { const n = this.fetch(); if (this.sp - n < 0) this.fail('Stack overflow'); this.sp -= n; break; }
         case OP.ADD_SP: { const n = this.fetch(); if (this.sp + n > mem.length) this.fail('Stack underflow: more freed than was reserved'); this.sp += n; break; }
         case OP.RET: {
@@ -139,6 +155,7 @@ export class MiniCPU {
     }
     record.cycles = this.timing[opcode * 2 + skipped];
     this.cycles += record.cycles;
+    this.time += record.cycles / this.clockHz;
     this.instructions++;
     this.remember(record);
     return record;
@@ -206,6 +223,8 @@ export class MiniCPU {
     this.halted = false;
     this.fault = null;
     this.cycles -= record.cycles;
+    this.time = record.time;
+    if (record.out) this.io.restore(record.out[0], record.out[1]);
     this.instructions--;
     this.lastRecord = this.history.length ? this.history[this.history.length - 1] : null;
     return true;
@@ -266,6 +285,8 @@ export function disassemble(mem, addr, arch) {
     case 'a': operands = address(); break;
     case 'w': operands = `0x${hex(next() | (next() << 8), 4)}`; break;
     case 'i': operands = `SP, ${next()}`; break;
+    case 'rp': { const n = regName(next()); operands = `${n}, 0x${hex(next())}`; break; }
+    case 'pr': { const port = next(); operands = `0x${hex(port)}, ${regName(next())}`; break; }
     case 'rs': { const n = regName(next()); operands = `${n}, [SP+${next()}]`; break; }
     case 'sr': { const off = next(); operands = `[SP+${off}], ${regName(next())}`; break; }
     default: break;

@@ -2,6 +2,7 @@ import { architecture, architectureFromDirective, ARCHITECTURES } from './archit
 import { INSTRUCTIONS, OPCODES as OP, availableOn } from './opcodes.js';
 import { validateDisplay, MODES } from './display.js';
 import { PALETTES } from './palettes.js';
+import { DEVICES, deviceAt } from './devices.js';
 
 /** MiniCPU two-pass assembler. No eval and no dependencies. */
 
@@ -226,6 +227,16 @@ function encode(node, arch) {
       return simple(op, 'a');
     case 'LDX': case 'LDY':
       return simple(op, 'w');
+    case 'IN': {
+      count(2);
+      const info = need('IN'), d = register(args[0], line, arch);
+      return { info, size: 3, port: args[1], emit: (put, symbols) => { put(info.code); put(d); put(ranged(args[1], symbols, line, 255, 'Port')); } };
+    }
+    case 'OUT': {
+      count(2);
+      const info = need('OUT'), s = register(args[1], line, arch);
+      return { info, size: 3, port: args[0], emit: (put, symbols) => { put(info.code); put(ranged(args[0], symbols, line, 255, 'Port')); put(s); } };
+    }
     case 'MOV': {
       count(2);
       const info = need('MOV');
@@ -346,7 +357,7 @@ export function assemble(text, { architecture: fallback = 'cpu8' } = {}) {
 
   // Pass 2: bytes.
   const memory = new Uint8Array(arch.memorySize), occupied = new Uint8Array(arch.memorySize);
-  const listing = [], sourceMap = new Map(), lineAddresses = new Map();
+  const listing = [], sourceMap = new Map(), lineAddresses = new Map(), ports = new Set();
   for (const node of nodes) {
     if (node.type !== 'instruction' && node.type !== 'db') continue;
     let at = node.address;
@@ -357,7 +368,15 @@ export function assemble(text, { architecture: fallback = 'cpu8' } = {}) {
     };
     if (node.type === 'db') {
       for (const a of node.args) for (const v of a.startsWith('"') ? decodeString(a, node.line) : [byteValue(a, symbols, node.line)]) put(v);
-    } else node.encoding.emit(put, symbols);
+    } else {
+      node.encoding.emit(put, symbols);
+      if (node.encoding.port !== undefined) {
+        const port = expression(node.encoding.port, symbols, node.line), device = deviceAt(port);
+        if (!device) fail(node.line, `Nothing is plugged into port 0x${port.toString(16).toUpperCase().padStart(2, "0")} (ports: ${DEVICES.map(d => `0x${d.port.toString(16).toUpperCase().padStart(2, '0')} ${d.name}`).join(', ')})`);
+        if ((node.op === 'IN') !== (device.direction === 'in')) fail(node.line, `The ${device.name} at port 0x${port.toString(16).toUpperCase().padStart(2, '0')} only supports ${device.direction === 'in' ? 'IN' : 'OUT'}`);
+        ports.add(port);
+      }
+    }
     listing.push({ address: node.address, size: at - node.address, line: node.line, source: node.raw.trim(), bytes: Array.from(memory.slice(node.address, at)) });
     lineAddresses.set(node.line, node.address);
   }
@@ -392,6 +411,6 @@ export function assemble(text, { architecture: fallback = 'cpu8' } = {}) {
 
   return {
     architecture: arch.id, cpuLine, memory, occupied, display, listing, sourceMap, lineAddresses,
-    labels: symbols, warnings, loadedBytes: occupied.reduce((a, b) => a + b, 0),
+    labels: symbols, warnings, ports: [...ports].sort((a, b) => a - b), loadedBytes: occupied.reduce((a, b) => a + b, 0),
   };
 }

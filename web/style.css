@@ -186,6 +186,20 @@ input[type=checkbox]{accent-color:#89baff}
 .dialog-note{flex:1;margin:0;font-size:11px;color:var(--muted)}
 .dialog-actions{display:flex;gap:8px}
 .dialog-primary-action{background:#3776c7;border-color:#609be6}
+/* ------------------------------------------------------------- devices */
+.devices{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 12px;border-bottom:1px solid #1f2f46;background:#0e1828}
+.device{display:inline-flex;align-items:center;gap:6px;padding:2px 4px 2px 8px;min-height:30px;border-radius:6px;background:#162438;border:1px solid #2e4566}
+.device-name{display:inline-flex;align-items:baseline;gap:5px;font-size:11.5px;color:#9cb2cf;font-weight:600}
+.device-port{font:10px var(--mono);color:#6d84a2}
+.device-value{min-width:2.5ch;padding-right:4px;font:600 13px var(--mono);color:#f5c98a;white-space:pre}
+.device-value.sounding{color:#fff;text-shadow:0 0 8px var(--gold)}
+.key-cap{min-width:26px;height:24px;padding:0 6px;font:600 11px var(--mono);border-radius:4px;background:#0f1a2a;border-color:#3e577a;color:#9cb2cf}
+.key-cap[aria-pressed=true]{background:var(--gold);border-color:#ffd99a;color:#1a1408}
+.device-mute{width:24px;height:24px;border-color:transparent;background:transparent;color:#9cb2cf}
+.device-hint{font-size:11px;margin-left:auto}
+.screen-box.captured canvas{box-shadow:0 0 0 2px var(--gold),0 10px 30px #0008}
+.screen-box canvas:focus-visible{outline:none}
+
 /* ------------------------------------------------------------- CPU */
 .toolbar-note{display:inline-flex;align-items:center;gap:12px;font-size:11.5px;min-width:0;flex-wrap:wrap}
 .toolbar-note .link-button{font-size:11.5px}
@@ -266,6 +280,7 @@ input[type=checkbox]{accent-color:#89baff}
 .picker-group{padding:7px 8px 3px;font-size:10.5px;font-weight:700;color:#7e9cbf;text-transform:uppercase;letter-spacing:.08em}
 .level-tag{flex:none;padding:0 5px;border-radius:4px;font:700 10px/16px var(--mono);border:1px solid}
 .picker-option .level-tag{margin-left:auto}
+.picker-option.selected::after{margin-left:8px}
 .level-8{color:#9fb3cf;border-color:#3e577a}
 .level-8s{color:var(--green);border-color:#387458}
 .level-8x{color:var(--gold);border-color:#7b6232}

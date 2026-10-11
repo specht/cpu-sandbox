@@ -3,6 +3,7 @@
 import { ARCHITECTURES } from '/src/architectures.js';
 import { INSTRUCTIONS, availableOn, sizeOf, cycleLabel } from '/src/opcodes.js';
 import { MODES } from '/src/display.js';
+import { DEVICES } from '/src/devices.js';
 import { hex } from '/src/cpu.js';
 import { el } from './util.js';
 
@@ -15,6 +16,7 @@ const LEVELS = {
       ['Flags', 'ZF is set when a result is zero, CF on a carry (ADD, INC, SHL) or a borrow (SUB, DEC, CMP: “less than”).'],
       ['Addresses', 'One byte. LDA, STA and jumps carry the address right after the opcode.'],
       ['Start', 'The CPU starts at address 0x00 and runs until HLT.'],
+      ['Devices', 'IN and OUT talk to devices at numbered I/O ports: joystick, keyboard, timer, random numbers, speaker and a number display (see Devices).'],
     ],
     limits: 'Without a stack, a piece of code cannot be reused from several places: there is no way to remember where to go back to.',
   },
@@ -78,6 +80,20 @@ function levelPage(arch) {
       'Registers are encoded as A=0, B=1, C=2, D=3; two registers share one byte (first << 4 | second).'));
 }
 
+function devicesPage() {
+  return el('div', { class: 'reference-page' },
+    el('p', { class: 'reference-lead' }, 'Devices sit at numbered ports, not in RAM. IN reads a port, OUT writes one.'),
+    el('p', {}, el('code', {}, 'IN A, 0x02'), ' reads the timer into A, ', el('code', {}, 'OUT 0x11, A'),
+      ' shows A on the number display. Both work on every CPU level and take 4 cycles. A program polls its input devices: it reads them again and again in a loop.'),
+    el('table', { class: 'reference-table' },
+      el('thead', {}, el('tr', {}, el('th', { class: 'num' }, 'Port'), el('th', {}, 'Device'), el('th', {}, ''), el('th', {}, 'What the byte means'))),
+      el('tbody', {}, DEVICES.map(d => el('tr', {},
+        el('td', { class: 'num' }, el('code', {}, `0x${hex(d.port)}`)), el('td', {}, d.name),
+        el('td', {}, el('code', {}, d.direction === 'in' ? 'IN' : 'OUT')), el('td', {}, d.summary))))),
+    el('p', {}, 'Click the screen to send keys to the program: the arrow keys (or W A S D) and Space go to the joystick, every typed character also to the keyboard. Esc gives the keys back. The device bar above the screen shows each device the program uses; its joystick buttons can be clicked, too.'),
+    el('p', { class: 'muted' }, 'The timer counts machine time (cycles ÷ clock), so a game paced by the timer keeps its speed at any clock — as long as the CPU is fast enough to do its work between two ticks.'));
+}
+
 function assemblerPage() {
   const row = (code, text) => el('tr', {}, el('td', {}, el('code', {}, code)), el('td', {}, text));
   return el('div', { class: 'reference-page' },
@@ -104,11 +120,11 @@ function assemblerPage() {
 export class Reference {
   constructor(ui) {
     this.ui = ui;
-    this.pages = { ...Object.fromEntries(Object.values(ARCHITECTURES).map(arch => [arch.id, () => levelPage(arch)])), assembler: assemblerPage };
-    const labels = { cpu8: '8', cpu8s: '8S', cpu8x: '8X', assembler: 'Assembler' };
+    this.pages = { ...Object.fromEntries(Object.values(ARCHITECTURES).map(arch => [arch.id, () => levelPage(arch)])), devices: devicesPage, assembler: assemblerPage };
+    const labels = { cpu8: '8', cpu8s: '8S', cpu8x: '8X', devices: 'Devices', assembler: 'Assembler' };
     this.tabs = Object.keys(this.pages).map(key => el('button', {
       type: 'button', role: 'tab', 'aria-selected': 'false', dataset: { page: key }, onclick: () => this.show(key),
-    }, key === 'assembler' ? labels[key] : `MiniCPU ${labels[key]}`));
+    }, key.startsWith('cpu') ? `MiniCPU ${labels[key]}` : labels[key]));
     ui.tabs.replaceChildren(...this.tabs);
     ui.close.addEventListener('click', () => ui.dialog.close());
   }

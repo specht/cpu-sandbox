@@ -114,3 +114,45 @@ test('Mandelbrot (8X) renders the set in many colors', () => {
   assert.notEqual(pixels[0], 0, 'the corner is outside');
   assert.ok(r.cpu.cycles < 8_000_000, 'fast enough to watch at 1 MHz');
 });
+
+test('input (MiniCPU 8): the joystick moves the dot, typed keys reach the number display', () => {
+  const asm = load('18-input.asm');
+  const cpu = new MiniCPU(asm.memory, asm.architecture, { clockHz: 1e5, historySize: 1 });
+  const runFor = seconds => { const end = cpu.time + seconds; while (cpu.time < end) cpu.step(); };
+  const dot = () => Array.from(cpu.memory.slice(0x80)).indexOf(255);
+  runFor(0.2);
+  const before = dot();
+  cpu.io.joystick = 2; runFor(0.5); cpu.io.joystick = 0;
+  assert.equal(dot() - before, 5, '10 moves per second to the right');
+  cpu.io.joystick = 8; runFor(0.15); cpu.io.joystick = 0;
+  const down = dot() - before - 5;
+  assert.ok(down > 0 && down % 16 === 0, 'rows down');
+  cpu.io.type('A'); runFor(0.05);
+  assert.equal(cpu.io.outputs.get(0x11), 65);
+});
+
+test('Breakout (8X): a scripted player clears bricks; without a player the game ends', () => {
+  const asm = load('19-breakout.asm'), L = asm.labels;
+  const play = (seconds, player) => {
+    const cpu = new MiniCPU(asm.memory, asm.architecture, { clockHz: 1e6, historySize: 1 }), m = cpu.memory;
+    while (cpu.time < seconds) {
+      if ((cpu.instructions & 255) === 0) cpu.io.joystick = player(m, cpu);
+      cpu.step();
+    }
+    return { cpu, score: m[L.get('score')], lives: m[L.get('lives')], bricks: m[L.get('bricks')] };
+  };
+  const launch = cpu => ((cpu.instructions >> 14) & 1 ? 16 : 0);
+  const follow = (m, cpu) => {
+    const ball = m[L.get('ballx')], middle = m[L.get('paddle')] + 2;
+    return (ball < middle ? 1 : ball > middle + 1 ? 2 : 0) | (m[L.get('serving')] ? launch(cpu) : 0);
+  };
+  const good = play(30, follow);
+  assert.ok(good.score >= 20, `score ${good.score}`);
+  assert.equal(good.lives, 3);
+  assert.equal(good.score + good.bricks, 48);
+  assert.equal(good.cpu.io.outputs.get(0x11), good.score);
+  assert.ok(good.cpu.io.outputs.has(0x10), 'it beeps');
+  const idle = play(60, (m, cpu) => 1 | launch(cpu)); // paddle parked on the left
+  assert.equal(idle.lives, 0);
+  assert.ok(idle.cpu.pc >= L.get('game_over') && idle.cpu.pc < L.get('move_paddle'), 'waiting on the game over screen');
+});

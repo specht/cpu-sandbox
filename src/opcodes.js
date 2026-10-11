@@ -18,6 +18,8 @@
  *   rs     register byte, offset above SP
  *   sr     offset above SP, register byte
  *   i      8-bit immediate
+ *   rp     register byte, port
+ *   pr     port, register byte
  * An address is one byte on MiniCPU 8/8S and two bytes (little-endian) on 8X.
  */
 const I = (code, name, form, since, family, syntax, summary, flags = '') =>
@@ -73,6 +75,9 @@ export const INSTRUCTIONS = Object.freeze([
   I(0x62, 'JNZ', 'a', 'cpu8', 'Jumps', 'JNZ label', 'Jump if ZF = 0.'),
   I(0x63, 'JC', 'a', 'cpu8', 'Jumps', 'JC label', 'Jump if CF = 1 (carry / borrow / less than).'),
   I(0x64, 'JNC', 'a', 'cpu8', 'Jumps', 'JNC label', 'Jump if CF = 0.'),
+
+  I(0x70, 'IN', 'rp', 'cpu8', 'Input/output', 'IN A, 0x02', 'Read a byte from the device at port 2.'),
+  I(0x71, 'OUT', 'pr', 'cpu8', 'Input/output', 'OUT 0x11, A', 'Send a register to the device at port 0x11.'),
 ]);
 
 export const OPCODES = Object.freeze(Object.fromEntries(INSTRUCTIONS.map(i => [i.name, i.code])));
@@ -85,10 +90,10 @@ export const availableOn = (instruction, archId) => LEVEL[instruction.since] <= 
 /** Number of bytes an instruction occupies on the given architecture. */
 export function sizeOf(instruction, arch) {
   const addr = arch.addressBits / 8;
-  return { none: 1, r: 2, ri: 3, rr: 2, ra: 2 + addr, ar: 2 + addr, a: 1 + addr, w: 3, rs: 3, sr: 3, i: 2 }[instruction.form];
+  return { none: 1, r: 2, ri: 3, rr: 2, ra: 2 + addr, ar: 2 + addr, a: 1 + addr, w: 3, rs: 3, sr: 3, i: 2, rp: 3, pr: 3 }[instruction.form];
 }
 
-const DATA_ACCESS = new Set(['LDA', 'LDA_R', 'LDA_X', 'LDA_Y', 'LDA_SP', 'STA', 'STA_R', 'STA_X', 'STA_Y', 'STA_SP', 'PUSH', 'POP']);
+const DATA_ACCESS = new Set(['LDA', 'LDA_R', 'LDA_X', 'LDA_Y', 'LDA_SP', 'STA', 'STA_R', 'STA_X', 'STA_Y', 'STA_SP', 'PUSH', 'POP', 'IN', 'OUT']);
 const POINTER_MATH = new Set(['INCX', 'DECX', 'INCY', 'DECY', 'SUB_SP', 'ADD_SP']);
 const CONDITIONAL = new Set(['JZ', 'JNZ', 'JC', 'JNC']);
 
@@ -96,7 +101,7 @@ const CONDITIONAL = new Set(['JZ', 'JNZ', 'JC', 'JNC']);
  * Clock cycles of one instruction. The model is that of a simple 8-bit CPU
  * whose speed is limited by its memory bus:
  *   1 cycle for every instruction byte fetched,
- *   1 cycle for every data byte read or written (RAM, stack, return address),
+ *   1 cycle for every data byte read or written (RAM, stack, return address, port),
  *   1 cycle to load a new value into PC (JMP, a taken Jcc, CALL, RET),
  *   1 cycle for pointer arithmetic (INCX … DECY, ADD SP / SUB SP).
  * Wider addresses on MiniCPU 8X therefore cost real time.

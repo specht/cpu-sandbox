@@ -16,7 +16,7 @@ const fails = (source, pattern, line = 1) => assert.throws(() => assemble(source
 
 test('the opcode table is unique, grouped by family, and only grows with the CPU level', () => {
   assert.equal(new Set(INSTRUCTIONS.map(i => i.code)).size, INSTRUCTIONS.length);
-  const family = { Control: 0, 'Data movement': 1, Arithmetic: 2, Logic: 3, Comparison: 4, Stack: 5, Jumps: 6 };
+  const family = { Control: 0, 'Data movement': 1, Arithmetic: 2, Logic: 3, Comparison: 4, Stack: 5, Jumps: 6, 'Input/output': 7 };
   for (const i of INSTRUCTIONS) assert.equal(i.code >> 4, family[i.family], i.name);
   assert.deepEqual(INSTRUCTIONS.map(i => i.code), INSTRUCTIONS.map(i => i.code).sort((a, b) => a - b));
 });
@@ -122,6 +122,26 @@ test('8S: [SP+n] reads and writes the stack without popping it', () => {
   assert.throws(() => run('.cpu 8s\nADD SP, 1'), /underflow/);
 });
 
+test('IN and OUT talk to devices at ports on every level, and can be undone', () => {
+  const asm = assemble('IN A, 0x03\nIN B, 0x02\nOUT 0x11, A\nIN C, 0x00\nIN D, 0x01\nHLT');
+  assert.deepEqual(asm.ports, [0x00, 0x01, 0x02, 0x03, 0x11]);
+  assert.deepEqual(Array.from(asm.memory.slice(0, 3)), [OP.IN, 0, 3]);
+  const cpu = new MiniCPU(asm.memory, 'cpu8', { clockHz: 60 });
+  cpu.io.joystick = 0b10010;
+  cpu.io.type('Hi');
+  while (!cpu.halted) cpu.step();
+  assert.equal(cpu.registers[1], 4, 'timer: 4 cycles at 60 Hz = 4 ticks');
+  assert.equal(cpu.io.outputs.get(0x11), cpu.registers[0]);
+  assert.equal(cpu.registers[2], 0b10010);
+  assert.equal(cpu.registers[3], 72);
+  assert.equal(cpu.cycles, 4 * 5 + 1);
+  cpu.back(); cpu.back(); cpu.back(); cpu.back();
+  assert.equal(cpu.io.outputs.has(0x11), false, 'stepping back removes the output again');
+  fails('IN A, 0x42', /Nothing is plugged into port 0x42/);
+  fails('OUT 0x00, A', /only supports IN/);
+  fails('IN A, 0x10', /only supports OUT/);
+});
+
 test('cycle model: bytes fetched + data accesses + PC loads + pointer math', () => {
   const [cpu8, cpu8x] = [ARCHITECTURES.cpu8, ARCHITECTURES.cpu8x];
   const info = name => INSTRUCTIONS.find(i => i.name === name);
@@ -176,7 +196,7 @@ test('faults leave the state unchanged and stop the CPU until undone', () => {
 });
 
 test('the disassembler reproduces every listing line', () => {
-  const asm = assemble('.cpu 8x\nLDI A, 5\nLDA B, [C]\nSTA [X], D\nMOV XL, A\nLDA A, 0x0812\nCMP A, B\nJNZ 0x0100\nLDX 0x0800\nINCY\nSUB SP, 4\nLDA A, [SP+3]\nSTA [SP+0], B\nRET');
+  const asm = assemble('.cpu 8x\nLDI A, 5\nLDA B, [C]\nSTA [X], D\nMOV XL, A\nLDA A, 0x0812\nCMP A, B\nJNZ 0x0100\nLDX 0x0800\nINCY\nSUB SP, 4\nIN B, 2\nOUT 0x10, C\nLDA A, [SP+3]\nSTA [SP+0], B\nRET');
   const texts = asm.listing.map(e => disassemble(asm.memory, e.address, ARCHITECTURES.cpu8x).text);
-  assert.deepEqual(texts, ['LDI A, 5', 'LDA B, [C]', 'STA [X], D', 'MOV XL, A', 'LDA A, 0x0812', 'CMP A, B', 'JNZ 0x0100', 'LDX 0x0800', 'INCY', 'SUB SP, 4', 'LDA A, [SP+3]', 'STA [SP+0], B', 'RET']);
+  assert.deepEqual(texts, ['LDI A, 5', 'LDA B, [C]', 'STA [X], D', 'MOV XL, A', 'LDA A, 0x0812', 'CMP A, B', 'JNZ 0x0100', 'LDX 0x0800', 'INCY', 'SUB SP, 4', 'IN B, 0x02', 'OUT 0x10, C', 'LDA A, [SP+3]', 'STA [SP+0], B', 'RET']);
 });

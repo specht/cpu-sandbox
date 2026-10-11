@@ -71,10 +71,15 @@ The screen is a view of RAM: drag the picture to move through memory, drag its
 corner to resize it, and pick the pixel format and palette above it. This
 never changes RAM. See [docs/screen.md](docs/screen.md).
 
+Devices sit at I/O ports, read with `IN` and written with `OUT`: a joystick, a
+keyboard, a timer, random numbers, a speaker and a number display. The devices
+a program uses appear above the screen; **click the screen** to send your keys
+to the program (Esc gives them back). See [docs/devices.md](docs/devices.md).
+
 | Keys | |
 | --- | --- |
 | Ctrl+S | save |
-| Space | run / pause (outside the editor) |
+| Space | run / pause (outside the editor and the screen) |
 | ← → | step back / forward |
 | Home | restart |
 | Ctrl+/ | comment lines |
@@ -92,6 +97,8 @@ never changes RAM. See [docs/screen.md](docs/screen.md).
 | `14-scroller` | 8S | demo: LED sign |
 | `15-pointers`, `16-lines` | 8X | X/Y, Bresenham lines |
 | `17-mandelbrot` | 8X | demo: fixed-point fractal with a table of squares |
+| `18-input` | 8 | devices: joystick, keyboard, timer, number display |
+| `19-breakout` | 8X | a game: paddle, ball, colored bricks, sound |
 
 A suggested order with questions and exercises: [docs/teaching.md](docs/teaching.md).
 

@@ -27,6 +27,9 @@ The CPU menu in the browser edits that line.
   clear CF. `LDI`, `LDA`, `STA`, `MOV` and jumps leave the flags alone.
 - **Addressing.** `LDI A, 5` loads a constant, `LDA A, 0x70` reads a fixed
   address, `LDA A, [B]` reads the address that is in B.
+- **Devices.** `IN A, port` and `OUT port, A` talk to the joystick, keyboard,
+  timer, random generator, speaker and number display at numbered I/O ports,
+  on all three levels. See [devices.md](devices.md).
 
 What it cannot do: there is no way to remember where to come back to, so a
 piece of code cannot be used from several places.
@@ -91,7 +94,7 @@ time at that clock. Each instruction takes a number of cycles determined by a
 simple model of an 8-bit CPU whose speed is limited by its memory bus:
 
 - 1 cycle for every instruction byte fetched,
-- 1 cycle for every data byte read or written (RAM, stack, return address),
+- 1 cycle for every data byte read or written (RAM, stack, return address, port),
 - 1 cycle to load a new value into PC (`JMP`, a taken `Jcc`, `CALL`, `RET`),
 - 1 cycle for pointer arithmetic (`INCX` … `DECY`, `ADD SP` / `SUB SP`).
 
@@ -103,7 +106,7 @@ the cycles used and how long that takes at the chosen clock.
 
 Opcodes are grouped by family, so the first hex digit tells what kind of
 instruction a byte is: `0x` control, `1x` data movement, `2x` arithmetic,
-`3x` logic, `4x` comparison, `5x` stack, `6x` jumps. Higher levels add
+`3x` logic, `4x` comparison, `5x` stack, `6x` jumps, `7x` input/output. Higher levels add
 opcodes but never renumber existing ones.
 
 - A register byte is A = 0, B = 1, C = 2, D = 3 (and XL = 4, XH = 5, YL = 6,
@@ -158,3 +161,5 @@ opcodes but never renumber existing ones.
 | `62` | `JNZ label` | Jump if ZF = 0. |  | 8 | 2 · 3 | 2 / 3 · 3 / 4 |
 | `63` | `JC label` | Jump if CF = 1 (carry / borrow / less than). |  | 8 | 2 · 3 | 2 / 3 · 3 / 4 |
 | `64` | `JNC label` | Jump if CF = 0. |  | 8 | 2 · 3 | 2 / 3 · 3 / 4 |
+| `70` | `IN A, 0x02` | Read a byte from the device at port 2. |  | 8 | 3 · 3 | 4 · 4 |
+| `71` | `OUT 0x11, A` | Send a register to the device at port 0x11. |  | 8 | 3 · 3 | 4 · 4 |

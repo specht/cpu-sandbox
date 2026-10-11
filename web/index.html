@@ -54,6 +54,7 @@
       </div>
 
       <div id="registers" class="registers" aria-label="Registers and flags"></div>
+      <div id="devices" class="devices" aria-label="Devices at the I/O ports" hidden></div>
 
       <div class="machine">
         <section class="frame screen-frame" aria-label="Screen">
@@ -69,7 +70,7 @@
           </div>
           <div id="screen-area" class="screen-area">
             <div id="screen-box" class="screen-box">
-              <canvas id="screen" aria-label="Screen: RAM shown as pixels"></canvas>
+              <canvas id="screen" tabindex="0" aria-label="Screen: RAM shown as pixels. Focus it to send keys to the joystick and keyboard."></canvas>
               <span id="screen-grip" class="screen-grip" title="Drag to resize the screen" aria-hidden="true"></span>
             </div>
           </div>

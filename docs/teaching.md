@@ -54,6 +54,17 @@ the level next to the file name.
     at 1 MHz (about six seconds) and at 16 MHz. Try another section of the set
     by changing the offsets in `row` and `pixel`.
 
+## Devices: input and output
+
+18. **`18-input`** (MiniCPU 8): the program polls three devices in a loop. Why
+    does the dot move exactly ten times per second, at any clock? What happens
+    at 1 kHz? Which key codes do Enter and Backspace give?
+19. **`19-breakout`** (MiniCPU 8X): a complete game. Find where it waits for
+    the timer, reads the joystick and asks the screen what the ball is about
+    to hit. Lower the clock until the game slows down — how many cycles does
+    one step need? Then tap Space very briefly: why is the tap sometimes
+    missed?
+
 ## Exercises
 
 - Sum 1 + 2 + … + n. What happens when the result passes 255? Use CF to
@@ -65,6 +76,13 @@ the level next to the file name.
 - Compute n! recursively and find the largest n whose result fits in a byte.
 - Add two 16-bit numbers stored as low/high bytes (carry!).
 - Make the fire burn sideways, or give the scroller a second line of text.
+- A reaction game: wait a random time (port 3), light the screen and count
+  timer ticks until Space is pressed. Show the result on the number display.
+- Pong: one paddle on the joystick, the other one steered by the computer
+  (it follows the ball, but only every other step), the ball from Breakout,
+  and a score for each side.
+- Breakout: make the bricks two pixels tall, give bricks in higher rows more
+  points, or speed the ball up after every ten bricks.
 
 ## Worth discussing
 
