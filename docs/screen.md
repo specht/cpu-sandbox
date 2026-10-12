@@ -116,15 +116,33 @@ stepping, the screen shows RAM as it is right now.
 
 ## Predefined palettes
 
-| Palette | Colors | |
-| --- | ---: | --- |
-| `1bit_monitor_glow` | 2 | ![1bit_monitor_glow](palettes/1bit_monitor_glow.svg) |
-| `cga_palette_1_high` | 4 | ![cga_palette_1_high](palettes/cga_palette_1_high.svg) |
-| `color_graphics_adapter` | 16 | ![color_graphics_adapter](palettes/color_graphics_adapter.svg) |
-| `pico_8` | 16 | ![pico_8](palettes/pico_8.svg) |
-| `sweetie_16` | 16 | ![sweetie_16](palettes/sweetie_16.svg) |
-| `vga` | 256 | ![vga](palettes/vga.svg) |
-| `fire_256` | 256 | ![fire_256](palettes/fire_256.svg) |
+`1bit_monitor_glow` · 2 colors
+
+![1bit_monitor_glow](palettes/1bit_monitor_glow.svg)
+
+`cga_palette_1_high` · 4 colors
+
+![cga_palette_1_high](palettes/cga_palette_1_high.svg)
+
+`color_graphics_adapter` · 16 colors
+
+![color_graphics_adapter](palettes/color_graphics_adapter.svg)
+
+`pico_8` · 16 colors
+
+![pico_8](palettes/pico_8.svg)
+
+`sweetie_16` · 16 colors
+
+![sweetie_16](palettes/sweetie_16.svg)
+
+`vga` · 256 colors
+
+![vga](palettes/vga.svg)
+
+`fire_256` · 256 colors
+
+![fire_256](palettes/fire_256.svg)
 
 The first palette of each size is the default: `1bit_monitor_glow`,
 `cga_palette_1_high`, `color_graphics_adapter` and `vga`. All but `fire_256`

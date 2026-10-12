@@ -100,7 +100,7 @@ function cPage() {
       row('#define N 10   #define SQ(x) ((x)*(x))', 'Constants and macros.'),
       row('#pragma cpu 8x', 'The CPU level (default 8X). The CPU menu edits this line.'),
       row('#pragma display 0x0800, 64, 48, mono', 'Suggests the screen, like .display.'),
-      row('in(TIMER)   out(NUMBER, x)', 'Read and write device ports. JOYSTICK, KEYBOARD, TIMER, RANDOM, VSYNC, SPEAKER, NUMBER, SCREEN_PAGE, PALETTE, COLOR and JOY_LEFT … JOY_FIRE are predefined.'),
+      row('in(TIMER)   out(NUMBER, x)', 'Read and write device ports. JOYSTICK, KEYBOARD, TIMER, RANDOM, VSYNC, KEYS, SPEAKER, NUMBER, SCREEN_PAGE, PALETTE, COLOR, NOTE_LENGTH, JOY_LEFT … JOY_FIRE and KEY_SHIFT are predefined.'),
       row('asm("INC A\\n" "INC B");', 'Inserts assembly instructions, one per line (\\n); labels and ; comments work as in assembly.'),
     )),
     el('h3', {}, 'Different from C'),
@@ -143,7 +143,8 @@ function devicesPage() {
       el('tbody', {}, DEVICES.map(d => el('tr', {},
         el('td', { class: 'num' }, el('code', {}, `0x${hex(d.port)}`)), el('td', {}, d.name),
         el('td', {}, el('code', {}, d.direction === 'in' ? 'IN' : 'OUT')), el('td', {}, d.summary))))),
-    el('p', {}, 'Click the screen to send keys to the program: the arrow keys (or W A S D) and Space go to the joystick, every typed character also to the keyboard. Esc gives the keys back. The device bar above the screen shows each device the program uses; its joystick buttons can be clicked, too.'),
+    el('p', {}, 'Click the screen to send keys to the program: the arrow keys (or W A S D) and Space go to the joystick, every typed character also to the keyboard, and every key\'s place on the keyboard to keys held. Esc gives the keys back. The device bar above the screen shows each device the program uses; its joystick buttons can be clicked, too. The number display has a big readout of its own above the screen.'),
+    el('p', {}, 'Keys held gives row × 16 + column: row 1 is the digits, 2 starts with Q, 3 with A, 4 with Y (Z on English keyboards); +128 with Shift. The speaker plays each note at the machine time of its OUT, for the length set at port 0x15.'),
     el('p', { class: 'muted' }, 'The timer counts machine time (cycles ÷ clock), so a game paced by the timer or by vsync keeps its speed at any clock — as long as the CPU is fast enough to do its work between two frames. The screen ports (vsync, screen page, palette) are explained under Screen.'));
 }
 
@@ -168,10 +169,9 @@ function assemblerPage() {
 
 const paletteName = key => key.replaceAll('_', ' ');
 
-/** All colors of a palette as squares, the same size in every palette; 256 colors in rows of 32. */
+/** All colors of a palette as squares of the same size in every palette, in rows of up to 32. */
 function swatches(colors) {
-  const many = colors.length > 16, columns = Math.min(colors.length, many ? 32 : 16);
-  return el('div', { class: 'palette-swatches', style: `grid-template-columns:repeat(${columns}, ${many ? 9 : 18}px)` },
+  return el('div', { class: 'palette-swatches', style: `grid-template-columns:repeat(${Math.min(colors.length, 32)}, 16px)` },
     colors.map((color, i) => el('span', { style: `background:${color}`, title: `${i} = ${color}` })));
 }
 

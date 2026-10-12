@@ -79,6 +79,9 @@
               <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-restore"/></svg></button>
           </div>
           <div id="screen-area" class="screen-area">
+            <div id="number-display" class="number-display" hidden title="Number display: the last value written to port 0x11">
+              <span class="number-label">Number<small>port 11</small></span><b id="number-value"></b>
+            </div>
             <div id="screen-box" class="screen-box">
               <canvas id="screen" tabindex="0" aria-label="Screen: RAM shown as pixels. Focus it to send keys to the joystick and keyboard."></canvas>
               <span id="screen-grip" class="screen-grip" title="Drag to resize the screen" aria-hidden="true"></span>

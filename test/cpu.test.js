@@ -292,3 +292,19 @@ test('reading the vsync port waits for the next frame, and stepping back returns
   assert.equal(cpu.cycles, 100);
   assert.ok(Math.abs(cpu.time - 1 / 60) < 1e-12);
 });
+
+test('the keys-held device reports where the last held key sits, with Shift as bit 7', async () => {
+  const { Devices, KEY_POSITIONS } = await import('../src/devices.js');
+  assert.equal(KEY_POSITIONS.KeyQ, 0x20);
+  assert.equal(KEY_POSITIONS.KeyA, 0x30);
+  assert.equal(KEY_POSITIONS.KeyZ, 0x40, 'Y on a German keyboard, Z on an English one: the same place');
+  assert.equal(KEY_POSITIONS.BracketRight, 0x2B);
+  const devices = new Devices();
+  assert.equal(devices.read(0x05), 0);
+  devices.press(0x20); devices.press(0x31);
+  assert.equal(devices.read(0x05), 0x31);
+  devices.shift = true;
+  assert.equal(devices.read(0x05), 0xB1);
+  devices.release(0x31);
+  assert.equal(devices.read(0x05), 0xA0, 'back to the key still held');
+});

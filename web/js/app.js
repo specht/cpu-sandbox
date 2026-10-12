@@ -60,7 +60,7 @@ const memory = new MemoryView({ grid: $('memory'), page: $('memory-page'), zoom:
   onHover: () => renderSelected(state.cpu?.memory ?? new Uint8Array(state.arch.memorySize)),
 });
 const devices = new Devices({ seed: Date.now() & 0xFFFF });
-const devicePanel = new DevicePanel({ strip: $('devices'), canvas: $('screen'), note: $('screen-note') }, devices, {
+const devicePanel = new DevicePanel({ strip: $('devices'), canvas: $('screen'), note: $('screen-note'), area: $('screen-area'), number: $('number-display'), numberValue: $('number-value') }, devices, {
   cpu: () => state.cpu,
 });
 const reference = new Reference({ dialog: $('reference-dialog'), tabs: $('reference-tabs'), body: $('reference-body'), close: $('reference-close') });
@@ -402,7 +402,7 @@ function start() {
   state.achievedHz = null;
   state.frame = frameAt(state.cpu.time);
   if (state.cpu) state.cpu.clockHz = clockHz();
-  if (state.assembly.ports.some(port => port <= 1)) $('screen').focus(); // the keys go to the program
+  if (state.assembly.ports.some(port => port <= PORT.KEYBOARD || port === PORT.KEYS)) $('screen').focus(); // the keys go to the program
   requestAnimationFrame(frame);
   renderControls();
 }

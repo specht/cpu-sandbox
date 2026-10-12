@@ -259,3 +259,22 @@ test('plasma, life and stars (C) draw what they promise', () => {
   const dots = stars.cpu.memory.slice(0x4000, 0x4000 + 128 * 96).filter(v => v >= 10 && v <= 31).length;
   assert.ok(dots > 60 && dots <= 320, `stars on the screen: ${dots}`);
 });
+
+test('arpeggio organ (C): a key plays its chord from the next arpeggio on, exactly in time', async () => {
+  const { Devices, KEY_POSITIONS } = await import('../src/devices.js');
+  const program = build(fs.readFileSync(new URL('28-arpeggio-organ.c', dir), 'utf8'), 'c');
+  const devices = new Devices();
+  const notes = [];
+  const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 8e6, devices });
+  devices.onOutput((port, value) => { if (port === 0x10) notes.push([cpu.time, value]); });
+  const press = (code, shift, from, to) => { if (cpu.time >= from && cpu.time < to) { devices.held = [KEY_POSITIONS[code]]; devices.shift = shift; return true; } return false; };
+  while (cpu.time < 3) {
+    cpu.step();
+    if (!press('KeyE', true, 0.5, 0.6) && !press('KeyU', false, 1.0, 1.1)) { devices.held = []; devices.shift = false; }
+  }
+  assert.deepEqual(notes.slice(0, 8).map(n => n[1]), [64, 71, 76, 79, 83, 79, 76, 71], 'E minor in the top row: E B E G B G E B');
+  assert.deepEqual(notes.slice(8, 13).map(n => n[1]), [71, 78, 83, 87, 90], 'then H (B) major, after the arpeggio');
+  const gaps = notes.slice(1, 16).map((n, i) => Math.round((n[0] - notes[i][0]) * 60));
+  assert.ok(gaps.every(g => g === 9), `100 BPM: a sixteenth every 9 frames (${gaps})`);
+  assert.equal(devices.outputs.get(0x11), 100, 'the number display shows the tempo');
+});

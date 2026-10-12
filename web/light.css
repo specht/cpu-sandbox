@@ -114,6 +114,12 @@
 :root[data-theme="light"] .mini-field input{background:#e2ebf7}
 :root[data-theme="light"] .times{color:#5e7492}
 :root[data-theme="light"] .screen-area{background:repeating-conic-gradient(#e8eff9 0% 25%,#e4ebf5 0% 50%) 0 0/16px 16px}
+:root[data-theme="light"] .number-display{background:#f7faff;border:1px solid #dbc8ac;box-shadow:inset 0 0 14px rgba(40,56,84,0.245)}
+:root[data-theme="light"] .number-label{color:#8e6b34}
+:root[data-theme="light"] .number-label small{color:#a99371}
+:root[data-theme="light"] .number-display b{color:#4f3305;text-shadow:0 0 10px rgba(90,54,1,0.6)}
+:root[data-theme="light"] .number-display b .ghost{color:#e5dcd0}
+:root[data-theme="light"] .number-display.changed b{text-shadow:0 0 16px rgba(72,48,5,0.95)}
 :root[data-theme="light"] .screen-box canvas{box-shadow:0 0 0 1px rgba(40,56,84,0.35),0 10px 30px rgba(40,56,84,0.187)}
 :root[data-theme="light"] .screen-grip{background:linear-gradient(135deg,transparent 45%,#154275 45%,#154275 55%,transparent 55%,transparent 70%,#154275 70%,#154275 80%,transparent 80%)}
 :root[data-theme="light"] .screen-grip:hover{background-color:#b4ccee}

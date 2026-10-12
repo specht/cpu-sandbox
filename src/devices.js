@@ -10,13 +10,26 @@ export const DEVICES = Object.freeze([
   Object.freeze({ port: 0x02, name: 'Timer', direction: 'in', summary: 'Counts 60 times per second of machine time, 0–255, then starts over.' }),
   Object.freeze({ port: 0x03, name: 'Random', direction: 'in', summary: 'A new random number 0–255 on every read.' }),
   Object.freeze({ port: 0x04, name: 'Vsync', direction: 'in', summary: 'Waits until the screen takes its next picture (60 times per second), then returns the timer value. Changes made right after it appear together in the next picture.' }),
+  Object.freeze({ port: 0x05, name: 'Keys held', direction: 'in', summary: 'Where the last key pressed and still held sits on the keyboard: row × 16 + column (rows 1–4 from the digits down, columns from 1, Q, A and Y/Z on), +128 with Shift; 0 if none. The same on every keyboard layout.' }),
   Object.freeze({ port: 0x10, name: 'Speaker', direction: 'out', summary: 'Plays a short beep; the value is the pitch as a MIDI note (60 = middle C).' }),
   Object.freeze({ port: 0x11, name: 'Number display', direction: 'out', summary: 'Shows the value as a decimal number.' }),
   Object.freeze({ port: 0x12, name: 'Screen page', direction: 'out', summary: 'Moves the screen to address value × 256. Draw the next picture into a hidden page, then show it at once (page flipping).' }),
   Object.freeze({ port: 0x13, name: 'Palette index', direction: 'out', summary: 'Chooses the palette color that port 0x14 changes next (0–255).' }),
   Object.freeze({ port: 0x14, name: 'Palette color', direction: 'out', summary: 'Red, then green, then blue (0–255 each) of the chosen color; after blue, the next color is chosen.' }),
+  Object.freeze({ port: 0x15, name: 'Note length', direction: 'out', summary: 'How long the following speaker notes sound, in 1/60 s (default 6).' }),
 ]);
-export const PORT = Object.freeze({ JOYSTICK: 0x00, KEYBOARD: 0x01, TIMER: 0x02, RANDOM: 0x03, VSYNC: 0x04, SPEAKER: 0x10, NUMBER: 0x11, SCREEN: 0x12, PALETTE: 0x13, COLOR: 0x14 });
+export const PORT = Object.freeze({ JOYSTICK: 0x00, KEYBOARD: 0x01, TIMER: 0x02, RANDOM: 0x03, VSYNC: 0x04, KEYS: 0x05, SPEAKER: 0x10, NUMBER: 0x11, SCREEN: 0x12, PALETTE: 0x13, COLOR: 0x14, NOTE_LENGTH: 0x15 });
+export const DEFAULT_NOTE_LENGTH = 6;
+
+// Key positions for the keys-held device, by KeyboardEvent.code (the place on
+// the keyboard, not the character printed on it): rows 1–4, columns from 0.
+const KEY_ROWS = [
+  ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0', 'Minus', 'Equal'],
+  ['KeyQ', 'KeyW', 'KeyE', 'KeyR', 'KeyT', 'KeyY', 'KeyU', 'KeyI', 'KeyO', 'KeyP', 'BracketLeft', 'BracketRight'],
+  ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK', 'KeyL', 'Semicolon', 'Quote', 'Backslash'],
+  ['KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB', 'KeyN', 'KeyM', 'Comma', 'Period', 'Slash'],
+];
+export const KEY_POSITIONS = Object.freeze(Object.fromEntries(KEY_ROWS.flatMap((row, r) => row.map((code, c) => [code, (r + 1) * 16 + c]))));
 export const FRAMES_PER_SECOND = 60;
 /** The number of the frame (screen picture) at a machine time; tolerant of rounding at the boundaries. */
 export const frameAt = time => Math.floor(time * FRAMES_PER_SECOND + 1e-6);
@@ -26,6 +39,8 @@ export const deviceAt = port => DEVICES.find(d => d.port === port) ?? null;
 export class Devices {
   constructor({ seed = 1 } = {}) {
     this.joystick = 0;
+    this.held = [];        // key positions held down, the last pressed at the end
+    this.shift = false;
     this.typed = [];
     this.random = seed & 0xFFFF || 1;
     this.lastRandom = 0;
@@ -60,6 +75,9 @@ export class Devices {
   /** Called with (port, value) after every OUT. */
   onOutput(listener) { this.listeners.add(listener); }
 
+  press(position) { this.release(position); this.held.push(position); }
+  release(position) { this.held = this.held.filter(p => p !== position); }
+
   type(text) { for (const ch of text) this.typed.push(ch.codePointAt(0) & 0xFF); }
 
   /** Value of an input port, or undefined if nothing is plugged in there. */
@@ -68,6 +86,7 @@ export class Devices {
       case PORT.JOYSTICK: return this.joystick;
       case PORT.KEYBOARD: return this.typed.length ? this.typed.shift() : 0;
       case PORT.TIMER: return frameAt(cpu.time) & 0xFF;
+      case PORT.KEYS: return this.held.length ? this.held.at(-1) | (this.shift ? 0x80 : 0) : 0;
       case PORT.VSYNC: return (frameAt(cpu.time) + 1) & 0xFF;   // the CPU waits for that frame
       case PORT.RANDOM: {
         // 16-bit xorshift: deterministic for tests, random enough for games.
@@ -90,7 +109,7 @@ export class Devices {
       this.palette[this.colorIndex * 3 + this.colorPart] = value;
       this.changedColors.add(this.colorIndex);
       if (++this.colorPart === 3) { this.colorPart = 0; this.colorIndex = (this.colorIndex + 1) & 0xFF; }
-    } else if (port !== PORT.SPEAKER && port !== PORT.NUMBER && port !== PORT.SCREEN) return false;
+    } else if (port !== PORT.SPEAKER && port !== PORT.NUMBER && port !== PORT.SCREEN && port !== PORT.NOTE_LENGTH) return false;
     this.outputs.set(port, value);
     for (const listener of this.listeners) listener(port, value);
     return true;

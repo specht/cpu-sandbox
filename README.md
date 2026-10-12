@@ -84,7 +84,8 @@ never changes RAM. Programs can set their own colors in the palette chip and
 wait for the screen's next picture (vsync). See [docs/screen.md](docs/screen.md).
 
 Devices sit at I/O ports, read with `IN` and written with `OUT`: a joystick, a
-keyboard, a timer, vsync, random numbers, a speaker, a number display, a screen
+keyboard, the keys held (by their place on the keyboard), a timer, vsync,
+random numbers, a speaker with note lengths, a number display, a screen
 page register for flicker-free animation (page flipping) and the palette chip. The devices
 a program uses appear above the screen; **click the screen** to send your keys
 to the program (Esc gives them back). See [docs/devices.md](docs/devices.md).
@@ -126,6 +127,7 @@ stays on this computer and never reaches a student repository.
 | `25-life.c` | 8X | C: Conway's Game of Life with glowing cells |
 | `26-stars.c` | 8X | C: flying through a starfield, speed on the joystick |
 | `27-color-cycling.c` | 8X | C: a picture drawn once, animated only through the palette chip and vsync |
+| `28-arpeggio-organ.c` | 8X | C: three octaves of chords on the keyboard, arpeggios in exact rhythm, adjustable tempo |
 
 A suggested order with questions and exercises: [docs/teaching.md](docs/teaching.md).
 

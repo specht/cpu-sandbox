@@ -95,6 +95,11 @@ the level next to the file name.
     Watch the RAM view while it runs. How many `OUT`s does one frame need, and
     how many cycles would redrawing the screen cost instead? Make the rings
     flow inwards; cycle only half of the colors.
+28. **`28-arpeggio-organ.c`**: an instrument. Play "New Born" (Em H Em H Em
+    C G H). Why does a chord only change at the start of an arpeggio, and
+    where in the program does that happen? Why is the note played *before*
+    the picture is updated? Change the arpeggio pattern, or make the
+    digit row play single notes.
 
 ## Exercises
 
