@@ -264,6 +264,7 @@ button.link{height:auto;padding:0;border:0;background:none;color:#8fb4e8;font:in
   border:1px solid #2e4566;font:12.5px var(--mono);white-space:nowrap}
 .register-name{color:#e3ecf8;font-weight:700;font-size:12px;min-width:1ch}
 .register-value{color:#f5c98a;font-weight:600}
+.register:not(.flag){cursor:pointer}
 .register-decimal{color:#8da3c1;font-size:11px;width:3ch;text-align:right}
 .register-decimal.wide{width:5ch}
 .register-char{color:#8fd6a8;font-size:12px;width:1ch;text-align:center}

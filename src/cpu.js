@@ -329,6 +329,25 @@ export class MiniCPU {
     return out;
   }
 
+  /**
+   * The most recent step: the instruction (as text) and the state before it,
+   * or null. RAM is as it is now; an instruction that sets flags does not write RAM.
+   */
+  lastStep() {
+    if (!this.count) return null;
+    const at = ((this.head - 1 + this.historySize) % this.historySize) * ROW, rows = this.rows;
+    const pc = rows[at];
+    return {
+      pc,
+      text: disassemble(this.memory, pc, this.arch).text,
+      before: {
+        registers: [rows[at + 1], rows[at + 2], rows[at + 3], rows[at + 4]],
+        zf: (rows[at + 5] & 1) !== 0, cf: (rows[at + 5] & 2) !== 0,
+        x: rows[at + 7] < 0 ? null : rows[at + 7], y: rows[at + 8] < 0 ? null : rows[at + 8],
+      },
+    };
+  }
+
   /** Registers changed by the most recent step: names like 'A', 'X', 'SP', 'ZF'. */
   changedByLastStep() {
     const changed = new Set();

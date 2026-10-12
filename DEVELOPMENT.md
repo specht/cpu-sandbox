@@ -65,8 +65,10 @@ assembler directives and an ASCII table.
   line; bytes the program has overwritten turn amber. Assembly happens while
   you type, problems are listed under the editor. Click a line number to set a
   breakpoint.
-- **Right:** registers and flags (changes are highlighted), the screen, and
-  RAM. The next instruction is blue in RAM and highlighted in the editor.
+- **Right:** registers and flags (changes are highlighted; a click switches
+  the registers between hex and binary; hovering a flag explains why the last
+  instruction set or cleared it), the screen, and RAM. Clicking a byte of the
+  program in RAM puts the cursor on its line. The next instruction is blue in RAM and highlighted in the editor.
   Pointing at a byte says what it is: an instruction and its line, a variable
   (`int score`, `letters[2]`, high byte), a string, a helper routine, or —
   while a C program is paused — a local variable, an argument or a return

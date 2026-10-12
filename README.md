@@ -92,6 +92,10 @@ du eine Aufgabe wählen (siehe Schritt 6). Das Programm entsteht in
   beginnt von vorn. Der **Clock**-Regler stellt die Taktfrequenz ein, von
   1 Hz (zum Zusehen) bis 64 MHz.
 - Ein Klick auf eine **Zeilennummer** setzt einen Haltepunkt.
+- Ein Klick auf ein **Register** zeigt alle Register binär statt
+  hexadezimal. Fährst du über ein Register, siehst du den Wert auch mit
+  Vorzeichen; über **ZF** und **CF** erklärt die App, warum der letzte Befehl
+  das Flag gesetzt oder gelöscht hat.
 - Rechts siehst du die **Register**, die **Geräte** (Joystick, Zahlenanzeige,
   Lautsprecher, …), den **Bildschirm** und den **Speicher (RAM)**. Fährst du
   mit der Maus über ein Byte, erklärt die App, was es ist. Ein Klick auf ein

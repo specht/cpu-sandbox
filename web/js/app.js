@@ -12,6 +12,7 @@ import { Screen } from './screen.js';
 import { MemoryView } from './memory.js';
 import { Reference } from './reference.js';
 import { memoryMap, stackItems, describe } from '/src/memorymap.js';
+import { explainFlags } from '/src/flags.js';
 import { TaskPanel } from './tasks.js';
 import { TASKS, taskById } from '/src/tasks.js';
 
@@ -540,9 +541,21 @@ function renderControls() {
 const REGISTER_GROUPS = [['A', 'B', 'C', 'D'], ['X', 'Y'], ['PC', 'SP'], ['ZF', 'CF']];
 const printable = v => (v >= 0x21 && v < 0x7F ? String.fromCharCode(v) : '');
 
+// Registers in hex or binary: a click on a register switches all of them.
+const formatValue = (v, bits) => (state.binary ? v.toString(2).padStart(bits, '0').replace(/(\d{4})(?=\d)/g, '$1\u2009') : hex(v, bits / 4));
+const signed = (v, bits) => (v >= 2 ** (bits - 1) ? v - 2 ** bits : v);
+$('registers').addEventListener('click', event => {
+  if (!event.target.closest('.register:not(.flag)')) return;
+  state.binary = !state.binary;
+  savePreferences({ binary: state.binary });
+  renderRegisters();
+});
+
 function renderRegisters() {
   const cpu = state.cpu, arch = state.arch, digits = arch.addressBits / 4;
   const changed = cpu && !state.running ? cpu.changedByLastStep() : new Set();
+  const why = cpu && !state.running ? explainFlags(cpu) : null;
+  const click = state.binary ? 'Click: show in hex' : 'Click: show in binary';
   const groups = [];
   for (const group of REGISTER_GROUPS) {
     const chips = [];
@@ -555,16 +568,17 @@ function renderRegisters() {
       else if (name === 'SP') { title = 'Stack pointer: the stack is RAM from SP to the end'; if (cpu) value = hex(cpu.sp, digits); }
       else if (name === 'X' || name === 'Y') {
         const v = cpu ? cpu[name.toLowerCase()] : 0;
-        title = `${name}: 16-bit pointer register. ${name}H = ${hex(v >> 8)}, ${name}L = ${hex(v & 255)}`;
-        if (cpu) { value = hex(v, 4); extra.push(el('span', { class: 'register-decimal wide' }, String(v))); }
+        title = `${name}: 16-bit pointer register = 0x${hex(v, 4)} = ${v} (signed: ${signed(v, 16)}) = 0b${v.toString(2).padStart(16, '0')}. ${name}H = ${hex(v >> 8)}, ${name}L = ${hex(v & 255)}. ${click}`;
+        if (cpu) { value = formatValue(v, 16); extra.push(el('span', { class: 'register-decimal wide' }, String(v))); }
       } else if (name === 'ZF' || name === 'CF') {
         title = name === 'ZF' ? 'Zero flag: the last result was zero' : 'Carry flag: carry or borrow of the last result';
+        if (why) title += `\n${why[name][0].toUpperCase()}${why[name].slice(1)}`;
         if (cpu) value = cpu[name.toLowerCase()] ? '1' : '0';
       } else {
         const v = cpu ? cpu.registers['ABCD'.indexOf(name)] : 0;
-        title = `${name} = 0x${hex(v)} = ${v} = 0b${v.toString(2).padStart(8, '0')}${printable(v) ? ` = '${printable(v)}'` : ''}`;
+        title = `${name} = 0x${hex(v)} = ${v} (signed: ${signed(v, 8)}) = 0b${v.toString(2).padStart(8, '0')}${printable(v) ? ` = '${printable(v)}'` : ''}. ${click}`;
         if (cpu) {
-          value = hex(v);
+          value = formatValue(v, 8);
           extra.push(el('span', { class: 'register-decimal' }, String(v)), el('span', { class: 'register-char' }, printable(v)));
         }
       }
@@ -722,6 +736,7 @@ window.addEventListener('beforeunload', event => {
 // ------------------------------------------------------------ start
 
 if (preferences.view === 'asm') state.view = 'asm';
+state.binary = !!preferences.binary;
 const savedClock = CLOCKS.indexOf(preferences.clock);
 setClock(savedClock >= 0 ? savedClock : CLOCKS.indexOf(1e4));
 setArchitecture(ARCHITECTURES.cpu8);
