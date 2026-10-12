@@ -106,6 +106,14 @@ the level next to the file name.
     the CPU most often, and why? Why is the floor cheaper per pixel than the
     walls? Change the map, the textures or the fog.
 
+## Cycles: inside one instruction
+
+Switch on **Cycles** next to the step buttons and step with →: every press
+is one clock cycle. Fetch the opcode, decode it, fetch the operands, read or
+write RAM, jump. Good questions for any example: Why does `LDA A, [0x80]`
+take one cycle more than `LDI A, 0x80`? What does `CALL` write, and where?
+Why does a taken `JZ` cost one cycle more than one that is not taken?
+
 ## Tasks with automatic checks
 
 Eleven tasks, from adding two numbers to sorting, check themselves: **+**

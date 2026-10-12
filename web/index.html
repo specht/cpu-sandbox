@@ -76,6 +76,7 @@
 
       <div id="registers" class="registers" aria-label="Registers and flags"></div>
       <div id="devices" class="devices" aria-label="Devices at the I/O ports" hidden></div>
+      <div id="cycles" class="cycles" aria-label="The cycles of one instruction" aria-live="polite" hidden></div>
 
       <div class="machine">
         <section class="frame screen-frame" aria-label="Screen">
@@ -140,6 +141,8 @@
               <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-player-play"/></svg><span>Run</span></button>
             <button type="button" id="step-next" title="Execute one instruction (→)" aria-label="Execute one instruction">
               <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-chevron-right"/></svg></button>
+            <button type="button" id="cycle-mode" class="toggle-chip" aria-pressed="false" title="Cycles: step through one clock cycle at a time and watch the buses: fetch, read, write, jump">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-timeline"/></svg> Cycles</button>
           </div>
           <div class="speed-field"><label for="clock">Clock</label>
             <input type="range" id="clock" min="0" max="23" step="1">

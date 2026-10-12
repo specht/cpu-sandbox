@@ -92,6 +92,10 @@ du eine Aufgabe wählen (siehe Schritt 6). Das Programm entsteht in
   beginnt von vorn. Der **Clock**-Regler stellt die Taktfrequenz ein, von
   1 Hz (zum Zusehen) bis 64 MHz.
 - Ein Klick auf eine **Zeilennummer** setzt einen Haltepunkt.
+- **Cycles** neben den Schritt-Knöpfen zeigt, was in einem Befehl Takt für
+  Takt passiert: Mit → holt die CPU das erste Byte (Fetch), erkennt den
+  Befehl (Decode), holt die weiteren Bytes, liest oder schreibt den Speicher
+  und springt. Ein kleines Bild zeigt dabei Adressbus und Datenbus.
 - Ein Klick auf ein **Register** zeigt alle Register binär statt
   hexadezimal. Fährst du über ein Register, siehst du den Wert auch mit
   Vorzeichen; über **ZF** und **CF** erklärt die App, warum der letzte Befehl

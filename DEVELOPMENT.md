@@ -75,8 +75,13 @@ assembler directives and an ASCII table.
   address on the stack. With 64 KiB, **64** and **256** bytes per row show
   all of RAM as colored dots (code, data, screen, stack; brighter = larger
   value), and bytes the program is writing glow; click a dot to zoom in.
-- **Bottom:** restart, step back, run/pause, step, and the **clock** from 1 Hz
-  to 64 MHz. Every instruction costs a realistic number of cycles, so a
+- **Bottom:** restart, step back, run/pause, step, **Cycles** and the
+  **clock** from 1 Hz to 64 MHz. With Cycles on, → steps one clock cycle: a
+  strip of the instruction's cycles (fetch, read, write, input, output, jump,
+  ALU), the address and data bus, and a sentence per cycle; PC counts along
+  with each fetch and the instruction completes on its last cycle. The cycles
+  come from `src/trace.js`, which runs the instruction on a copy of the
+  machine and records every bus access — exactly the cycles the clock counts. Every instruction costs a realistic number of cycles, so a
   program takes as long as it would on real hardware at that clock. If the
   browser cannot keep up, the status line says how fast it really runs.
 

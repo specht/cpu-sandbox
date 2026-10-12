@@ -13,6 +13,8 @@ import { MemoryView } from './memory.js';
 import { Reference } from './reference.js';
 import { memoryMap, stackItems, describe } from '/src/memorymap.js';
 import { explainFlags } from '/src/flags.js';
+import { traceInstruction } from '/src/trace.js';
+import { CyclePanel } from './cycles.js';
 import { TaskPanel } from './tasks.js';
 import { TASKS, taskById } from '/src/tasks.js';
 
@@ -289,6 +291,7 @@ function scheduleAssembly() {
 
 function assembleNow({ restart }) {
   clearTimeout(assemblyTimer);
+  resetCycles();
   const text = editor.value;
   tasks.update(text);
   let assembly;
@@ -413,6 +416,7 @@ function updateBreakpoints() {
 
 function restartMachine() {
   stop();
+  resetCycles();
   devices.reset(chosenPalette());
   state.cpu = state.assembly ? new MiniCPU(state.assembly.memory, state.assembly.architecture, { devices, clockHz: clockHz() }) : null;
   // A test case of the task, loaded with "Try it": its input goes into RAM and the keyboard.
@@ -439,6 +443,7 @@ function start() {
   state.message = null;
   state.measured = { cycles: 0, seconds: 0 };
   state.achievedHz = null;
+  resetCycles();
   state.frame = frameAt(state.cpu.time);
   if (state.cpu) state.cpu.clockHz = clockHz();
   if (state.assembly.ports.some(port => port <= PORT.KEYBOARD || port === PORT.KEYS)) $('screen').focus(); // the keys go to the program
@@ -508,17 +513,74 @@ function stepForward() {
   if (!canRun()) return;
   stop();
   state.message = null;
+  if (micro.on) { cycleForward(); return; }
   execute();
   renderMachine();
 }
 
 function stepBack() {
-  if (!state.cpu?.canUndo) return;
   stop();
-  state.cpu.back();
   state.message = null;
+  if (micro.on && micro.trace && micro.index >= 0 && !micro.executed) { micro.index--; renderMachine(); return; }
+  if (!state.cpu?.canUndo) return;
+  state.cpu.back();
+  if (micro.on) {
+    // Back into the instruction just undone: its last cycle before completion.
+    micro.trace = traceInstruction(state.cpu);
+    micro.index = micro.trace ? micro.trace.cycles.length - 2 : -1;
+    micro.executed = false;
+    micro.done = null;
+  }
   renderMachine();
 }
+
+// ------------------------------------------------------------ cycles
+
+/**
+ * Cycle mode: → shows the next clock cycle of the instruction at PC. The
+ * instruction itself runs when its last cycle is shown, so the registers
+ * change then, as in a real CPU; until then PC counts along with each fetch.
+ */
+const micro = { on: false, trace: null, index: -1, executed: false, done: null };
+const cyclePanel = new CyclePanel($('cycles'));
+
+/** While the cycles of an instruction are shown, PC as far as they have fetched. */
+function cyclePc() {
+  if (!micro.on || !micro.trace || micro.executed || micro.index < 0) return null;
+  const seen = micro.trace.cycles.slice(0, micro.index + 1).reverse();
+  return seen.find(c => c.kind === 'jump' || c.kind === 'fetch')?.pc ?? null;
+}
+
+function resetCycles() {
+  micro.trace = null;
+  micro.index = -1;
+  micro.executed = false;
+  micro.done = null;
+}
+
+function cycleForward() {
+  if (!micro.trace || micro.executed) {
+    if (micro.executed) micro.done = { text: micro.trace.text, total: micro.trace.cycles.length };
+    micro.trace = traceInstruction(state.cpu);
+    micro.index = -1;
+    micro.executed = false;
+    if (!micro.trace) { renderMachine(); return; }
+  }
+  micro.index++;
+  if (micro.index >= micro.trace.cycles.length - 1) {
+    micro.index = micro.trace.cycles.length - 1;
+    micro.executed = true;
+    execute();
+  }
+  renderMachine();
+}
+
+$('cycle-mode').addEventListener('click', () => {
+  micro.on = !micro.on;
+  resetCycles();
+  savePreferences({ cycles: micro.on });
+  renderMachine();
+});
 
 // ------------------------------------------------------------ rendering
 
@@ -527,6 +589,9 @@ function renderControls() {
   $('restart').disabled = !state.assembly;
   $('step-back').disabled = !live || !cpu.canUndo;
   $('step-next').disabled = !canRun();
+  $('cycle-mode').setAttribute('aria-pressed', String(micro.on));
+  const stepTitle = micro.on ? 'Next clock cycle (→)' : 'Execute one instruction (→)';
+  if ($('step-next').title !== stepTitle) { $('step-next').title = stepTitle; $('step-next').setAttribute('aria-label', stepTitle.replace(/ \(.*/, '')); }
   $('run').disabled = !canRun() && !state.running;
   // Only touch the button when its state changes: replacing its children
   // while the mouse is down would swallow the click.
@@ -564,7 +629,7 @@ function renderRegisters() {
       if ((name === 'X' || name === 'Y') && !arch.index) continue;
       let value = '—', title = '';
       const extra = [];
-      if (name === 'PC') { title = 'Program counter: address of the next instruction'; if (cpu) value = hex(cpu.pc, digits); }
+      if (name === 'PC') { title = 'Program counter: address of the next instruction'; if (cpu) value = hex(cyclePc() ?? cpu.pc, digits); }
       else if (name === 'SP') { title = 'Stack pointer: the stack is RAM from SP to the end'; if (cpu) value = hex(cpu.sp, digits); }
       else if (name === 'X' || name === 'Y') {
         const v = cpu ? cpu[name.toLowerCase()] : 0;
@@ -604,9 +669,18 @@ function renderMachine() {
   const written = new Set(cpu && !state.running ? cpu.lastWrites() : []);
   const scr = screen.valid;
   state.frames = cpu && assembly && !state.running ? stackItems(assembly, cpu) : [];
+  // Cycle mode: the panel, and in RAM the byte on the address bus.
+  const showCycles = micro.on && !state.running && !!cpu;
+  $('cycles').hidden = !showCycles;
+  if (showCycles) {
+    if (!micro.trace) { micro.trace = traceInstruction(cpu); micro.index = -1; micro.executed = false; }
+    cyclePanel.render(micro, arch);
+  }
+  const busCycle = showCycles && micro.trace && !micro.executed ? micro.trace.cycles[micro.index] : null;
+  const bus = busCycle && busCycle.address !== undefined ? busCycle.address : null;
   memory.render({
     memory: ram, map: assembly ? state.map : null, frames: state.frames,
-    pc: cpu ? cpu.pc : -1, pcSize: cpu ? cpu.disassemble().size : 0,
+    pc: bus ?? (cpu ? cpu.pc : -1), pcSize: bus !== null ? 1 : cpu ? cpu.disassemble().size : 0,
     writes: written, screen: scr ? [scr.start, scr.endExclusive] : null,
     stack: cpu && arch.stack ? [cpu.sp, arch.memorySize] : null,
   });
@@ -737,6 +811,7 @@ window.addEventListener('beforeunload', event => {
 
 if (preferences.view === 'asm') state.view = 'asm';
 state.binary = !!preferences.binary;
+micro.on = !!preferences.cycles;
 const savedClock = CLOCKS.indexOf(preferences.clock);
 setClock(savedClock >= 0 ? savedClock : CLOCKS.indexOf(1e4));
 setArchitecture(ARCHITECTURES.cpu8);
