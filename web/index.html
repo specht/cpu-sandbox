@@ -82,12 +82,14 @@
           <div class="frame-bar screen-bar">
             <select id="screen-format" aria-label="Pixel format"></select>
             <select id="screen-palette" aria-label="Palette"></select>
-            <label class="mini-field" title="Address of the first pixel">at <input id="screen-start" class="mono" spellcheck="false" autocomplete="off" aria-label="Start address"></label>
-            <label class="mini-field" title="Width in pixels"><input id="screen-width" type="number" min="1" max="256" aria-label="Width"></label>
-            <span class="times">×</span>
-            <label class="mini-field" title="Height in pixels"><input id="screen-height" type="number" min="1" max="256" aria-label="Height"></label>
-            <button type="button" id="screen-reset" class="icon-button" title="Back to the program's .display setting" aria-label="Reset screen settings">
-              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-restore"/></svg></button>
+            <div class="screen-geometry">
+              <label class="mini-field" title="Address of the first pixel">at <input id="screen-start" class="mono" spellcheck="false" autocomplete="off" aria-label="Start address"></label>
+              <label class="mini-field" title="Width in pixels"><input id="screen-width" type="number" min="1" max="256" aria-label="Width"></label>
+              <span class="times">×</span>
+              <label class="mini-field" title="Height in pixels"><input id="screen-height" type="number" min="1" max="256" aria-label="Height"></label>
+              <button type="button" id="screen-reset" class="icon-button" title="Back to the program's .display setting" aria-label="Reset screen settings">
+                <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-restore"/></svg></button>
+            </div>
           </div>
           <div id="screen-area" class="screen-area">
             <div id="number-display" class="number-display" hidden title="Number display: the last value written to port 0x11">

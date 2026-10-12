@@ -318,7 +318,12 @@ button.link{height:auto;padding:0;border:0;background:none;color:#8fb4e8;font:in
 .mini-field input{width:58px;padding:4px 6px;border:1px solid var(--border-strong);border-radius:5px;background:#0c1726;font:12px var(--mono)}
 .mini-field input[type=number]{width:50px}
 .times{color:#6d84a2;font-size:11px}
-.screen-bar .icon-button{width:28px;height:28px;margin-left:auto}
+.screen-bar .icon-button{width:28px;height:28px;margin-left:auto;flex:none}
+/* Address, size and reset stay together: in a narrow panel they move to a
+   second line as a group. Without spinners, three digits fit. */
+.screen-geometry{display:flex;align-items:center;gap:6px;flex:1 0 auto}
+.screen-bar .mini-field input[type=number]{width:42px;-moz-appearance:textfield;appearance:textfield;text-align:right}
+.screen-bar .mini-field input[type=number]::-webkit-inner-spin-button,.screen-bar .mini-field input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 
 .screen-area{flex:1;min-height:0;display:grid;place-items:center;padding:12px;overflow:hidden;
   background:repeating-conic-gradient(#0c1420 0% 25%,#0e1724 0% 50%) 0 0/16px 16px}
