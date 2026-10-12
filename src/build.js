@@ -47,9 +47,20 @@ export function build(text, language = 'asm') {
   if (free < STACK_RESERVE && assembly.architecture !== 'cpu8') {
     warnings.push({ line: 0, message: `Only ${free} bytes are left for the stack at the end of RAM: calls and local variables may overwrite the variables` });
   }
+  // Which function each instruction belongs to and how much it has pushed: the stack view walks the frames with it.
+  const frames = new Map();
+  for (const entry of assembly.listing) {
+    const frame = compiled.frames[entry.line - 1];
+    if (frame) frames.set(entry.address, frame);
+  }
+  const symbols = compiled.symbols.map(s => ({ ...s, address: assembly.labels.get(s.label) }));
+
   return {
     ...assembly,
     language: 'c',
+    frames,
+    functions: compiled.functions,
+    symbols,
     asm: compiled.asm,
     asmAssembly: assembly,
     sourceMap,

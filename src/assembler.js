@@ -410,7 +410,7 @@ export function assemble(text, { architecture: fallback = 'cpu8' } = {}) {
         ports.add(port);
       }
     }
-    listing.push({ address: node.address, size: at - node.address, line: node.line, source: node.raw.trim(), bytes: Array.from(memory.slice(node.address, at)) });
+    listing.push({ address: node.address, size: at - node.address, line: node.line, source: node.raw.trim(), bytes: Array.from(memory.slice(node.address, at)), kind: node.type === 'db' ? 'data' : 'code' });
     lineAddresses.set(node.line, node.address);
   }
 
@@ -444,6 +444,7 @@ export function assemble(text, { architecture: fallback = 'cpu8' } = {}) {
 
   return {
     architecture: arch.id, cpuLine, memory, occupied, display, listing, sourceMap, lineAddresses,
-    labels: symbols, warnings, ports: [...ports].sort((a, b) => a - b), loadedBytes: occupied.reduce((a, b) => a + b, 0),
+    labels: symbols, warnings,
+    addressLabels: new Map(nodes.filter(n => n.label).map(n => [n.label, { address: n.address, line: n.line }])), ports: [...ports].sort((a, b) => a - b), loadedBytes: occupied.reduce((a, b) => a + b, 0),
   };
 }

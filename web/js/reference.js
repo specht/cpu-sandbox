@@ -31,9 +31,9 @@ const LEVELS = {
     note: 'Cycles: one per instruction byte, one per data byte read or written (CALL and RET move the return address), one when PC jumps, one for ADD SP and SUB SP. Register numbers: A=0, B=1, C=2, D=3.',
   },
   cpu8x: {
-    lead: 'MiniCPU 8S with 16 times the memory and two 16-bit pointer registers.',
+    lead: 'MiniCPU 8S with 256 times the memory and two 16-bit registers to reach it.',
     points: [
-      ['RAM', '4096 bytes (4 KiB), addresses 0x0000–0x0FFF. Big enough for tables, larger screens and longer programs.'],
+      ['RAM', '65,536 bytes (64 KiB), addresses 0x0000–0xFFFF: everything a 16-bit address can reach. Room for tables, big screens with two pages, sprites and longer programs.'],
       ['Addresses', 'Two bytes, low byte first. LDA, STA, jumps and CALL become one byte longer and one cycle slower. PC, SP and return addresses are 16 bits.'],
       ['X and Y', 'A–D can only hold 0–255, so 8X adds two 16-bit registers. They work with the instructions you already know: LDI X, 0x0800 · LDA X, [addr] · STA [addr], X · MOV X, Y · ADD X, 32 · ADD X, A · SUB · CMP X, 0x0900 · INC X · DEC X · PUSH X · POP X. As pointers: LDA A, [X] and STA [X], A. On X and Y, ZF and CF look at all 16 bits.'],
       ['XL, XH, YL, YH', 'The low and high byte of X and Y. MOV copies between them and A–D: MOV XH, A.'],
@@ -100,7 +100,7 @@ function cPage() {
       row('#pragma cpu 8x', 'The CPU level (default 8X). The CPU menu edits this line.'),
       row('#pragma display 0x0800, 64, 48, mono', 'Suggests the screen, like .display.'),
       row('in(TIMER)   out(NUMBER, x)', 'Read and write device ports. TIMER, JOYSTICK, KEYBOARD, RANDOM, SPEAKER, NUMBER, SCREEN_PAGE and JOY_LEFT … JOY_FIRE are predefined.'),
-      row('asm("INC A");', 'Inserts assembly instructions.'),
+      row('asm("INC A\\n" "INC B");', 'Inserts assembly instructions, one per line (\\n); labels and ; comments work as in assembly.'),
     )),
     el('h3', {}, 'Different from C'),
     el('ul', {},

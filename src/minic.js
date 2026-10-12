@@ -866,10 +866,13 @@ class Generator {
     this.temps = 0;        // MiniCPU 8: static slots instead of PUSH/POP
     this.tempDepth = 0;
     this.warnings = [];
+    this.symbols = [];     // what lives where, for the RAM view
+    this.functionInfo = {};
   }
 
   // ------------------------------------------------------------ output
-  emit(text) { this.out.push([`        ${text}`, this.line]); }
+  /** An instruction; remembers the function and how much it has pushed (for the stack view). */
+  emit(text) { this.out.push([`        ${text}`, this.line, this.current && this.stack ? { fn: this.current.name, depth: this.depth } : null]); }
   label(name) { this.out.push([`${name}:`, this.line]); }
   raw(text, line = this.line) { this.out.push([text, line]); }
   newLabel(kind) { return `${kind}_${++this.labels}`; }
@@ -1636,7 +1639,12 @@ class Generator {
       case 'expr': this.at(s); this.gen(s.expr); return;
       case 'asm': {
         this.at(s);
-        for (const line of s.text.split(/\n|;(?=(?:[^"']|"[^"]*"|'[^']*')*$)/)) if (line.trim()) this.emit(line.trim());
+        // One instruction per line ("\n"); labels and ; comments as in assembly.
+        for (const text of s.text.split('\n')) {
+          const line = text.trim();
+          if (!line) continue;
+          if (/^[A-Za-z_]\w*:/.test(line) || line.startsWith(';')) this.raw(line); else this.emit(line);
+        }
         return;
       }
       case 'if': {
@@ -1730,7 +1738,7 @@ class Generator {
         if (this.stack) { s.sym = { where: 'stack', type: s.type, offset, name: s.name }; offset += size; } else {
           const label = `_${f.name}_${s.name}_${s.line}`;
           s.sym = { where: 'global', type: s.type, label, name: s.name };
-          this.statics.push({ label, size, line: s.line });
+          this.statics.push({ label, size, line: s.line, name: s.name, type: typeName(s.type), function: f.name });
         }
       }
       for (const key of ['items', 'list']) if (s[key]) s[key].forEach(visit);
@@ -1751,6 +1759,7 @@ class Generator {
     this.depth = 0;
     const frame = this.allocate(f);
     const ret = this.arch.addressBits / 8;
+    this.symbols.push({ label: `_${f.name}`, name: f.name, kind: 'function', type: `${typeName(f.ret)} ${f.name}(${f.params.map(p => `${typeName(p.type)} ${p.name}`).join(', ')})`, line: f.line });
     // Parameters sit above the locals and the return address; the last one is closest.
     const scope = new Map();
     let above = 0;
@@ -1763,13 +1772,31 @@ class Generator {
     this.scopes = [scope];
     this.loops = [];
     f.exit = `return_${f.name}`;
+    if (this.stack) {
+      const locals = [];
+      const collect = st => {
+        if (!st) return;
+        if (st.kind === 'decl') locals.push({ name: st.name, offset: st.sym.offset, size: this.size(st.type), type: typeName(st.type), line: st.line });
+        for (const key of ['items', 'list']) if (st[key]) st[key].forEach(collect);
+        for (const key of ['then', 'otherwise', 'body', 'init']) if (st[key]?.kind) collect(st[key]);
+      };
+      collect(f.body);
+      this.functionInfo[f.name] = {
+        frame, ret, locals,
+        params: [...scope.values()].map(p => ({ name: p.name, offset: p.offset, size: this.size(p.type), type: typeName(p.type) })),
+      };
+    }
+    this.depth = -frame;   // before SUB SP runs, the locals are not reserved yet
     if (frame) this.emit(`SUB SP, ${frame}`);
+    this.depth = 0;
     this.statement(f.body);
     if (this.depth !== 0) fail(f.line, 'Internal error: the stack is not balanced');
     this.line = f.body.line;
     this.label(f.exit);
     if (frame) this.emit(`ADD SP, ${frame}`);
+    this.depth = -frame;
     this.emit(this.stack ? 'RET' : 'HLT');
+    this.depth = 0;
   }
 
   // ------------------------------------------------------------ data
@@ -1873,7 +1900,14 @@ class Generator {
     if (runtime.length) {
       this.raw('', 0);
       this.raw('; ---- MiniC runtime: helper routines for the operators above', 0);
-      for (const name of runtime) for (const text of RUNTIME[name].code.split('\n')) if (text) this.raw(text, 0);
+      for (const name of runtime) {
+        const lines = RUNTIME[name].code.split('\n').filter(Boolean);
+        lines.forEach((text, i) => {
+          this.raw(text, 0);
+          const entry = text.match(/^([a-z]+\d*):/);   // entry points have no underscore
+          if (entry) this.symbols.push({ label: entry[1], name: entry[1], kind: 'runtime', type: lines[i - 1]?.startsWith(';') ? lines[i - 1].slice(1).trim() : lines[0].slice(1).trim() });
+        });
+      }
     }
     const globals = [...this.globals.values()];
     if (globals.length || this.statics.length || this.temps) {
@@ -1882,14 +1916,27 @@ class Generator {
     }
     for (const g of globals) {
       this.scopes = [];
-      this.emitData(g.label, this.dataBytes(g.item), g.item.line);
+      const bytes = this.dataBytes(g.item);
+      this.emitData(g.label, bytes, g.item.line);
+      this.symbols.push({ label: g.label, name: g.name, kind: 'global', type: typeName(g.type), size: bytes.length,
+        element: g.type.k === 'arr' ? this.size(g.type.of) : 0, line: g.item.line });
     }
-    for (const s of this.statics) this.emitData(s.label, new Array(s.size).fill(0), s.line);
-    for (let i = 0; i < this.temps; i++) this.emitData(`tmp${i}`, [0], 0);
+    for (const s of this.statics) {
+      this.emitData(s.label, new Array(s.size).fill(0), s.line);
+      this.symbols.push({ label: s.label, name: s.name, kind: 'static', type: s.type, function: s.function, size: s.size, line: s.line });
+    }
+    for (let i = 0; i < this.temps; i++) {
+      this.emitData(`tmp${i}`, [0], 0);
+      this.symbols.push({ label: `tmp${i}`, name: `tmp${i}`, kind: 'temp', size: 1 });
+    }
     if (this.strings.length) {
       this.raw('', 0);
       this.raw('; ---- strings', 0);
-      for (const s of this.strings) this.raw(`${s.label}: .db ${this.stringData(s.bytes)}`, 0);
+      for (const s of this.strings) {
+        this.raw(`${s.label}: .db ${this.stringData(s.bytes)}`, 0);
+        const text = String.fromCharCode(...s.bytes).replace(/[\x00-\x1f]/g, c => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`);
+        this.symbols.push({ label: s.label, name: s.label, kind: 'string', type: `"${text.length > 24 ? `${text.slice(0, 24)}…` : text}"`, size: s.bytes.length + 1 });
+      }
     }
   }
 }
@@ -1916,6 +1963,9 @@ export function compile(source, { architecture: fallback = 'cpu8x' } = {}) {
   return {
     asm: formatSource(out.map(([text]) => text).join('\n')) + '\n',
     lines: out.map(([, line]) => line),
+    frames: out.map(([, , frame]) => frame ?? null),
+    symbols: generator.symbols,
+    functions: generator.functionInfo,
     architecture: arch.id,
     warnings: generator.warnings,
   };

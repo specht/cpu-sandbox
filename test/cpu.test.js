@@ -78,11 +78,11 @@ test('MiniCPU 8X uses two-byte addresses for LDA, STA, jumps and CALL', () => {
   const cpu = new MiniCPU(asm.memory, 'cpu8x');
   for (let i = 0; i < 4; i++) cpu.step();
   assert.equal(cpu.pc, 0x0304);
-  assert.equal(cpu.sp, 4094);
-  assert.deepEqual([cpu.memory[4094], cpu.memory[4095]], [0x03, 0x03], 'return address, low byte first');
+  assert.equal(cpu.sp, 0xFFFE);
+  assert.deepEqual([cpu.memory[0xFFFE], cpu.memory[0xFFFF]], [0x03, 0x03], 'return address, low byte first');
   cpu.step();
   assert.equal(cpu.pc, 0x0303);
-  assert.equal(cpu.sp, 4096);
+  assert.equal(cpu.sp, 0x10000);
 });
 
 test('the same source assembles to longer code on 8X, but computes the same', () => {

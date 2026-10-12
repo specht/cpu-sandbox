@@ -11,8 +11,9 @@ import { SourceEditor } from './editor.js';
 import { Screen } from './screen.js';
 import { MemoryView } from './memory.js';
 import { Reference } from './reference.js';
+import { memoryMap, stackItems, describe } from '/src/memorymap.js';
 
-const CLOCKS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5, 2e5, 5e5, 1e6, 2e6, 4e6, 8e6, 16e6];
+const CLOCKS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5, 2e5, 5e5, 1e6, 2e6, 4e6, 8e6, 16e6, 32e6, 64e6];
 const preferences = loadPreferences();
 
 const state = {
@@ -26,6 +27,8 @@ const state = {
   cpu: null,
   screenOverride: false,
   running: false,
+  measured: { cycles: 0, seconds: 0 },
+  achievedHz: null,     // cycles per second the browser really manages
   budget: 0,
   lastFrame: 0,
   skipBreakpoint: false,
@@ -52,8 +55,9 @@ const screen = new Screen({
   onChange: () => { state.screenOverride = true; $('screen-reset').disabled = false; renderMachine(); },
   onPick: address => { memory.select(address); renderMachine(); },
 });
-const memory = new MemoryView({ grid: $('memory'), page: $('memory-page') }, {
+const memory = new MemoryView({ grid: $('memory'), page: $('memory-page'), zoom: $('memory-zoom') }, {
   onSelect: () => { renderMachine(); },
+  onHover: () => renderSelected(state.cpu?.memory ?? new Uint8Array(state.arch.memorySize)),
 });
 const devices = new Devices({ seed: Date.now() & 0xFFFF });
 const devicePanel = new DevicePanel({ strip: $('devices'), canvas: $('screen'), note: $('screen-note') }, devices, {
@@ -169,37 +173,79 @@ catalog.onStatus(connected => {
   label.className = `connection ${connected ? 'connected' : 'disconnected'}`;
 });
 
-// ------------------------------------------------------------ copy dialog
+// ------------------------------------------------------------ new program / save a copy
 
-function openCopyDialog() {
-  const groups = catalog.studentGroups;
+/** The first lines of a new program, so it assembles (or compiles) and runs at once. */
+function template(language, arch, name) {
+  const title = name.replace(/\.(asm|c)$/i, '').replace(/[-_]+/g, ' ').toUpperCase();
+  if (language === 'c') {
+    return `// ${title}\n//\n// What does this program do?\n\n#pragma cpu ${arch.directive}\n\nvoid main() {\n    out(NUMBER, 42);\n}\n`;
+  }
+  return `; ${title}\n;\n; What does this program do?\n${arch.id === 'cpu8' ? '' : `\n.cpu ${arch.directive}\n`}\n        LDI A, 42\n        HLT\n`;
+}
+
+const dialog = { mode: 'copy', language: 'asm' };
+
+function setNewLanguage(language) {
+  dialog.language = language;
+  for (const tab of $('new-language').querySelectorAll('button')) tab.setAttribute('aria-selected', String(tab.dataset.language === language));
+  $('new-cpu').value = language === 'c' ? 'cpu8x' : 'cpu8';
+  const file = $('copy-file');
+  if (file.value) file.value = file.value.replace(/\.(asm|c)$/i, '') + (language === 'c' ? '.c' : '.asm');
+  file.placeholder = language === 'c' ? 'program.c' : 'program.asm';
+}
+for (const tab of $('new-language').querySelectorAll('button')) tab.addEventListener('click', () => setNewLanguage(tab.dataset.language));
+for (const arch of Object.values(ARCHITECTURES)) $('new-cpu').add(new Option(arch.name, arch.id));
+
+function openProgramDialog(mode) {
+  dialog.mode = mode;
+  const groups = catalog.studentGroups, copy = mode === 'copy';
   $('copy-groups').replaceChildren(...groups.map(g => new Option(g.label, g.id)));
-  const own = !state.program.readonly ? state.program.group : (preferences.copyGroup ?? groups[0]?.id ?? '');
+  const own = state.program && !state.program.readonly ? state.program.group : (preferences.copyGroup ?? groups[0]?.id ?? '');
   $('copy-group').value = own;
-  const base = state.program.file.replace(/^\d+-/, '');
-  $('copy-file').value = state.program.readonly ? base : base.replace(/\.(asm|c)$/i, '-copy.$1');
+  $('copy-title').textContent = copy ? 'Save a copy' : 'New program';
+  $('copy-submit').querySelector('span').textContent = copy ? 'Save copy' : 'Create';
+  $('copy-submit').querySelector('use').setAttribute('href', `/vendor/tabler-icons.svg#ti-${copy ? 'device-floppy' : 'plus'}`);
+  $('copy-note').replaceChildren(copy ? 'The copy is written to ' : 'The program is created in ', el('code', {}, 'programs/'), ' and opened right away.');
+  $('new-fields').hidden = copy;
+  if (copy) {
+    const base = state.program.file.replace(/^\d+-/, '');
+    $('copy-file').value = state.program.readonly ? base : base.replace(/\.(asm|c)$/i, '-copy.$1');
+  } else {
+    $('copy-file').value = '';
+    setNewLanguage(preferences.newLanguage ?? 'asm');
+  }
   $('copy-error').hidden = true;
   $('copy-dialog').showModal();
   $(own ? 'copy-file' : 'copy-group').focus();
 }
+const openCopyDialog = () => openProgramDialog('copy');
 
 $('copy-form').addEventListener('submit', async event => {
   event.preventDefault();
+  const copy = dialog.mode === 'copy';
+  const language = copy ? state.language : dialog.language;
   const group = $('copy-group').value.trim();
   let file = $('copy-file').value.trim();
-  if (!/\.(asm|c)$/i.test(file)) file += state.language === 'c' ? '.c' : '.asm';
+  if (!/\.(asm|c)$/i.test(file)) file += language === 'c' ? '.c' : '.asm';
+  const source = copy ? editor.value : template(languageOf(file), ARCHITECTURES[$('new-cpu').value], file);
   try {
-    await request('/api/programs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group, file, source: editor.value }) });
+    await request('/api/programs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group, file, source }) });
     preferences.copyGroup = group;
-    savePreferences({ copyGroup: group });
+    if (!copy) preferences.newLanguage = languageOf(file);
+    savePreferences({ copyGroup: group, newLanguage: preferences.newLanguage });
     $('copy-dialog').close();
     await catalog.refresh();
     await openProgram({ group, file }, { force: true });
-    setStatus(`Saved as programs/${group}/${file}`);
+    setStatus(`${copy ? 'Saved as' : 'Created'} programs/${group}/${file}`);
   } catch (error) {
     $('copy-error').textContent = error.message;
     $('copy-error').hidden = false;
   }
+});
+$('program-new').addEventListener('click', () => {
+  if (state.dirty && !state.program?.readonly && !confirm('Discard your unsaved changes to this program?')) return;
+  openProgramDialog('new');
 });
 $('copy-close').addEventListener('click', () => $('copy-dialog').close());
 
@@ -228,6 +274,7 @@ function assembleNow({ restart }) {
     return;
   }
   state.assembly = assembly;
+  state.map = memoryMap(assembly);
   $('source-editor').classList.remove('stale');
   showProblems(assembly.warnings.map(w => ({ ...w, severity: 'warning' })));
   setArchitecture(ARCHITECTURES[assembly.architecture]);
@@ -247,7 +294,7 @@ function assembleNow({ restart }) {
 
 function setArchitecture(arch) {
   $('architecture').value = arch.id;
-  const facts = [arch.memorySize === 4096 ? '4 KiB RAM' : '256 bytes RAM', `${arch.addressBits}-bit addresses`];
+  const facts = [arch.memorySize > 256 ? `${arch.memorySize / 1024} KiB RAM` : '256 bytes RAM', `${arch.addressBits}-bit addresses`];
   if (arch.stack) facts.push('stack');
   if (arch.index) facts.push('X, Y');
   $('architecture-summary').textContent = facts.join(' · ');
@@ -344,6 +391,8 @@ function start() {
   state.lastFrame = performance.now();
   state.skipBreakpoint = true;
   state.message = null;
+  state.measured = { cycles: 0, seconds: 0 };
+  state.achievedHz = null;
   if (state.assembly.ports.some(port => port <= 1)) $('screen').focus(); // the keys go to the program
   requestAnimationFrame(frame);
   renderControls();
@@ -363,6 +412,7 @@ function frame(now) {
   const elapsed = Math.min(0.1, (now - state.lastFrame) / 1000);
   state.lastFrame = now;
   state.budget += clockHz() * elapsed;
+  const before = cpu.cycles;
   const deadline = performance.now() + 12;
   let count = 0;
   while (state.budget > 0) {
@@ -372,17 +422,24 @@ function frame(now) {
       break;
     }
     state.skipBreakpoint = false;
-    const record = execute();
-    if (!record) { state.running = false; break; }
-    state.budget -= record.cycles;
+    const cycles = execute();
+    if (!cycles) { state.running = false; break; }
+    state.budget -= cycles;
     if (cpu.halted) { state.running = false; break; }
     if ((++count & 1023) === 0 && performance.now() > deadline) { state.budget = 0; break; } // the browser cannot keep up
+  }
+  // How fast the browser really runs the CPU (shown when it falls behind the clock).
+  state.measured.cycles += cpu.cycles - before;
+  state.measured.seconds += elapsed;
+  if (state.measured.seconds >= 0.5) {
+    state.achievedHz = state.measured.cycles / state.measured.seconds;
+    state.measured = { cycles: 0, seconds: 0 };
   }
   renderMachine();
   if (state.running) requestAnimationFrame(frame);
 }
 
-/** One instruction; reports faults. Returns the step record or null. */
+/** One instruction; reports faults. Returns its cycles, or null. */
 function execute() {
   try {
     return state.cpu.step();
@@ -477,12 +534,11 @@ function renderMachine() {
   followScreenPage();
   screen.render(ram);
 
-  const writes = cpu?.lastRecord?.writes;
-  const written = new Set();
-  if (writes) for (let i = 0; i < writes.length; i += 2) written.add(writes[i]);
+  const written = new Set(cpu && !state.running ? cpu.lastWrites() : []);
   const scr = screen.valid;
+  state.frames = cpu && assembly && !state.running ? stackItems(assembly, cpu) : [];
   memory.render({
-    memory: ram, occupied: assembly?.occupied,
+    memory: ram, map: assembly ? state.map : null, frames: state.frames,
     pc: cpu ? cpu.pc : -1, pcSize: cpu ? cpu.disassemble().size : 0,
     writes: written, screen: scr ? [scr.start, scr.endExclusive] : null,
     stack: cpu && arch.stack ? [cpu.sp, arch.memorySize] : null,
@@ -501,7 +557,7 @@ function renderMachine() {
 
   const digits = arch.addressBits / 4;
   $('cycle-label').textContent = cpu
-    ? `${grouped(cpu.cycles)} cycles · ${grouped(cpu.instructions)} instructions · ${formatDuration(cpu.cycles / clockHz())} at ${formatHz(clockHz())}`
+    ? `${grouped(cpu.cycles)} cycles · ${grouped(cpu.instructions)} instructions · ${formatDuration(cpu.cycles / clockHz())} at ${formatHz(clockHz())}${state.running && state.achievedHz && state.achievedHz < clockHz() * 0.9 ? ` · this browser manages ${formatHz(state.achievedHz)}` : ''}`
     : '0 cycles';
   $('next-instruction').textContent = cpu && !cpu.halted && assembly ? `next: ${cpu.disassemble().text}  @ ${hex(cpu.pc, digits)}` : '';
   const status = $('run-status');
@@ -525,11 +581,22 @@ function followScreenPage() {
   screen.set(screen.clamp({ ...screen.config, start: page * 256 }));
 }
 
+/** The footer of the RAM view explains the byte under the mouse, or else the selected one. */
 function renderSelected(ram) {
-  const address = memory.selected, info = $('memory-info'), digits = state.arch.addressBits / 4;
-  if (address === null || address >= ram.length) { info.textContent = 'Click a byte or a pixel to inspect it.'; return; }
-  const v = ram[address], line = state.assembly?.sourceMap.get(address);
-  info.textContent = `0x${hex(address, digits)} = 0x${hex(v)} = ${v} = 0b${v.toString(2).padStart(8, '0')}${v >= 32 && v < 127 ? ` = '${String.fromCharCode(v)}'` : ''}${line ? ` · line ${line}` : ''}`;
+  const address = memory.hovered ?? memory.selected, info = $('memory-info');
+  if (address === null || address === undefined || address >= ram.length) {
+    info.textContent = state.arch.memorySize > 256 ? 'Point at a byte to see what it is. 64 and 256 show all of RAM.' : 'Point at a byte to see what it is.';
+    return;
+  }
+  const v = ram[address];
+  let text = state.assembly ? describe(state.map, state.assembly, address, v, state.frames ?? [])
+    : `0x${hex(address, state.arch.addressBits / 4)} = 0x${hex(v)} = ${v}`;
+  const scr = screen.valid;
+  if (scr && address >= scr.start && address < scr.endExclusive) {
+    const offset = address - scr.start, row = Math.floor(offset / scr.rowBytes);
+    text += ` · screen row ${row}`;
+  } else if (state.cpu && state.arch.stack && address >= state.cpu.sp && !(state.frames ?? []).some(f => address >= f.start && address < f.start + f.size)) text += ' · stack';
+  if (info.textContent !== text) info.textContent = text;
 }
 
 // ------------------------------------------------------------ controls

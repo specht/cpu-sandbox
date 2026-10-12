@@ -36,7 +36,7 @@ void main() {
 | Values | `42`, `0x2A`, `0b101010`, `'A'`, `"strings"` (with `\n`, `\0`, `\xHH`). |
 | Preprocessor | `#define NAME value`, `#define NAME(a, b) …`, `#undef`, `#pragma cpu`, `#pragma display`. |
 | Devices | `in(port)` returns a `char`, `out(port, value)` writes one. Predefined: `JOYSTICK KEYBOARD TIMER RANDOM SPEAKER NUMBER SCREEN_PAGE`, `JOY_LEFT JOY_RIGHT JOY_UP JOY_DOWN JOY_FIRE`, `NULL true false`. |
-| Assembly | `asm("INC A");` inserts instructions. |
+| Assembly | `asm("INC A");` inserts instructions, one per line: `asm("loop:\n" "DEC A\n" "JNZ loop");` Labels and `;` comments work as in assembly. |
 
 The CPU menu edits the `#pragma cpu` line.
 

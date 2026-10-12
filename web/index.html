@@ -28,6 +28,8 @@
       <div class="section-heading">
         <div class="file-title">
           <div id="program-picker" class="picker"></div>
+          <button type="button" id="program-new" class="icon-button" title="New program" aria-label="New program" aria-haspopup="dialog" aria-controls="copy-dialog">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-plus"/></svg></button>
           <span id="source-chip" class="source-chip" hidden></span>
         </div>
         <div class="source-actions">
@@ -89,15 +91,22 @@
           <div class="frame-bar">
             <strong class="frame-title">RAM</strong>
             <select id="memory-page" class="mono" aria-label="Memory page" hidden></select>
+            <nav id="memory-zoom" class="tabs zoom-tabs" role="tablist" aria-label="Bytes per row" title="Bytes per row: 64 and 256 show all of RAM as colored dots" hidden>
+              <button type="button" role="tab" data-zoom="16" aria-selected="true">16</button>
+              <button type="button" role="tab" data-zoom="64" aria-selected="false">64</button>
+              <button type="button" role="tab" data-zoom="256" aria-selected="false">256</button>
+            </nav>
             <span class="memory-legend" aria-label="Legend">
-              <span><i class="swatch-pc"></i>next instruction</span>
-              <span><i class="swatch-write"></i>just written</span>
+              <span title="Instructions"><i class="swatch-code"></i>code</span>
+              <span title="Variables, tables and strings"><i class="swatch-data"></i>data</span>
               <span><i class="swatch-screen"></i>screen</span>
               <span id="legend-stack"><i class="swatch-stack"></i>stack</span>
+              <span title="The instruction at PC"><i class="swatch-pc"></i>next</span>
+              <span title="Bytes the last step wrote; in the zoomed-out view, bytes that changed recently glow"><i class="swatch-write"></i>written</span>
             </span>
           </div>
           <div id="memory" class="memory" role="grid" aria-label="RAM contents"></div>
-          <div class="frame-footer"><span id="memory-info" class="mono">Click a byte to inspect it.</span></div>
+          <div class="frame-footer"><span id="memory-info" class="mono">Point at a byte to see what it is.</span></div>
         </section>
       </div>
 
@@ -150,12 +159,20 @@
           <datalist id="copy-groups"></datalist></label>
         <label class="stacked">File name
           <input id="copy-file" placeholder="program.asm" required pattern="[A-Za-z0-9][A-Za-z0-9_.\-]{0,80}" autocomplete="off" spellcheck="false"></label>
+        <div id="new-fields" class="new-fields" hidden>
+          <div class="stacked">Language
+            <nav id="new-language" class="tabs" role="tablist" aria-label="Language">
+              <button type="button" role="tab" data-language="asm" aria-selected="true">Assembly</button>
+              <button type="button" role="tab" data-language="c" aria-selected="false">C</button>
+            </nav></div>
+          <label class="stacked">CPU <select id="new-cpu"></select></label>
+        </div>
         <p id="copy-error" class="dialog-status failed" role="alert" hidden></p>
       </div>
       <div class="dialog-footer">
         <p class="dialog-note" id="copy-note">The copy is written to <code>programs/</code> and opened right away.</p>
-        <div class="dialog-actions"><button type="submit" class="dialog-primary-action">
-          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-device-floppy"/></svg> Save copy</button></div>
+        <div class="dialog-actions"><button type="submit" class="dialog-primary-action" id="copy-submit">
+          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-device-floppy"/></svg> <span>Save copy</span></button></div>
       </div>
     </form>
   </dialog>

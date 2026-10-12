@@ -54,7 +54,7 @@ the level next to the file name.
     instead of multiplication, and 9-bit arithmetic with the carry flag. Run it
     at 1 MHz (about six seconds) and at 16 MHz. Try another section of the set
     by changing the offsets in `row` and `pixel`.
-18. **`18-inferno`** (demo): the fire from MiniCPU 8 at 64 × 48 pixels, with
+18. **`18-inferno`** (demo): the fire from MiniCPU 8 at 128 × 96 pixels, with
     the even simpler algorithm from DOOM. Compare it with `11-fire`: what
     does 8X make possible, and what does each pixel cost in cycles? Make the
     wind blow the other way.
@@ -76,9 +76,19 @@ the level next to the file name.
     Assembly tab and find the C lines in it. Where do `i`, `sum` and `n` live?
     What does `square(n)` push, and how does the result come back?
 22. **`22-cube.c`** (MiniCPU 8X, demo): 3D rotation with a sine table in fixed
-    point, perspective, Bresenham lines and page flipping. Count the cycles of
-    `plot` in the assembly. How much faster would the cube turn with
-    `char` coordinates — and why does that not work for `y * 16`?
+    point, perspective, hidden faces, flat shading, filled polygons and page
+    flipping. `fill()` is written in assembly: count its cycles per byte and
+    compare with `clear` loops the compiler generates. Switch the RAM view to
+    256 bytes per row and watch the two pages take turns.
+23. **`23-snake.c`** (game): every device at once. Where does the game read
+    the joystick, and why so often? How does the snake know what is in front
+    of it? Make the walls deadly only on two sides.
+24. **`24-plasma.c`** (demo): three waves from one table of 64 values. Why
+    does `(char)(…)` make the rainbow go round? Change the waves.
+25. **`25-life.c`**: Conway's Game of Life. Count the cycles of one
+    generation; how could the neighbour count be made cheaper?
+26. **`26-stars.c`**: perspective in one line, `x / z`. Watch the stars in the
+    RAM map; why do the `(int)` casts matter?
 
 ## Exercises
 

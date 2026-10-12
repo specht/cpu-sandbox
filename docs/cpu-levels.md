@@ -9,7 +9,7 @@ The CPU menu in the browser edits that line.
 | | MiniCPU 8 | MiniCPU 8S | MiniCPU 8X |
 | --- | --- | --- | --- |
 | Idea | registers, flags, jumps | + a stack | + memory and pointers |
-| RAM | 256 bytes | 256 bytes | 4096 bytes |
+| RAM | 256 bytes | 256 bytes | 65,536 bytes |
 | Addresses | 1 byte | 1 byte | 2 bytes |
 | Registers | A B C D, PC | + SP | + X Y (16 bit), XL XH YL YH |
 | New instructions | — | `PUSH POP CALL RET`, `[SP+n]`, `ADD/SUB SP, n` | none: the known instructions work with X and Y |
@@ -89,8 +89,10 @@ the offsets, which is a good exercise in itself.
 
 ## MiniCPU 8X — memory and pointers
 
-- **4 KiB of RAM** (`0x0000`–`0x0FFF`): room for tables, bigger screens and
-  longer programs.
+- **64 KiB of RAM** (`0x0000`–`0xFFFF`): all that 16-bit addresses can
+  reach, just as 256 bytes are all that 8-bit addresses reach. Room for
+  tables, screens of 128 × 96 pixels with two pages, and longer programs.
+  The stack starts at the very top (SP = `0x10000`).
 - **Every address is two bytes** (low byte first): `LDA A, [0x0812]`,
   `STA [0x0812], A`, jumps and `CALL` are one byte longer and one cycle slower
   than on 8/8S. PC and SP are 16 bits; `CALL` pushes a two-byte return
@@ -120,7 +122,7 @@ the offsets, which is a good exercise in itself.
 
 ## Clock and cycles
 
-The speed slider sets the clock from 1 Hz to 16 MHz, and the CPU runs in real
+The speed slider sets the clock from 1 Hz to 64 MHz, and the CPU runs in real
 time at that clock. Each instruction takes a number of cycles determined by a
 simple model of an 8-bit CPU whose speed is limited by its memory bus:
 

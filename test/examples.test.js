@@ -71,12 +71,12 @@ test('fire (MiniCPU 8) animates forever without touching its code', () => {
 });
 
 test('inferno (MiniCPU 8X) burns hot at the bottom and fades out at the top', () => {
-  const r = run('18-inferno.asm', 400000);
+  const r = run('18-inferno.asm', 1_500_000);
   assert.equal(r.asm.architecture, 'cpu8x');
   codeUnchanged(r);
-  const heat = screen(r), row = y => heat.slice(y * 64, y * 64 + 64);
+  const heat = screen(r), row = y => heat.slice(y * 128, y * 128 + 128);
   const mean = values => values.reduce((a, b) => a + b, 0) / values.length;
-  assert.ok(mean(row(47)) > 200, 'white-hot above the embers');
+  assert.ok(mean(row(95)) > 200, 'white-hot above the embers');
   assert.ok(mean(row(0)) < 40, 'dark at the top');
   assert.ok(new Set(row(30)).size > 4, 'flickering flames in between');
 });
@@ -104,7 +104,7 @@ test('subroutines (8S) and pointers (8X) halt with balanced stacks', () => {
   assert.equal(sub.cpu.sp, 256);
   assert.equal(screen(sub).filter(Boolean).length, 4);
   const ptr = run('15-pointers.asm');
-  assert.equal(ptr.cpu.sp, 4096);
+  assert.equal(ptr.cpu.sp, 0x10000);
   assert.deepEqual(Array.from(ptr.cpu.memory.slice(0x800, 0x840)), Array.from(ptr.asm.memory.slice(0x400, 0x440)));
 });
 
@@ -120,7 +120,7 @@ test('lines (8X) draws a cube outline without self-modifying code', () => {
 test('Mandelbrot (8X) renders the set in many colors', () => {
   const r = run('17-mandelbrot.asm');
   assert.ok(r.cpu.halted);
-  assert.equal(r.cpu.sp, 4096);
+  assert.equal(r.cpu.sp, 0x10000);
   const pixels = screen(r);
   assert.ok(new Set(pixels).size >= 14);
   const inside = pixels.filter(v => v === 0).length;
@@ -197,15 +197,48 @@ test('first steps in C: a gray ramp and the sum of five squares', () => {
   assert.equal(cpu.memory[program.display.start + 10], 40);
 });
 
-test('rotating cube (C): page flipping shows finished pictures of white and magenta edges', () => {
+test('solid cube (C): page flipping shows finished pictures of shaded faces', () => {
   const { program, cpu } = runC('22-cube.c', 3e6);
-  const end = program.listing.at(-1).address + program.listing.at(-1).size;
-  assert.ok(end <= 0x0900, 'code and data stay below the screen pages');
+  const end = Math.max(...program.asmAssembly.listing.map(e => e.address + e.size));
+  assert.ok(end <= 0x4000, 'code and data stay below the screen pages');
   const page = cpu.io.outputs.get(0x12);
-  assert.ok(page === 0x09 || page === 0x0C, 'a page is shown');
-  const shown = cpu.memory.slice(page * 256, page * 256 + 768);
-  const pixels = [...shown].flatMap(b => [b >> 6, (b >> 4) & 3, (b >> 2) & 3, b & 3]);
-  assert.ok(pixels.filter(p => p === 3).length > 40, 'white front edges');
-  assert.ok(pixels.filter(p => p === 1).length > 20, 'magenta back edges');
-  assert.equal(cpu.memory.slice(0x0F00, 0x0F80).some(Boolean), false, 'the stack stays small');
+  assert.ok(page === 0x40 || page === 0x70, 'a page is shown');
+  const shown = cpu.memory.slice(page * 256, page * 256 + 128 * 96);
+  const colors = new Set(shown.filter(Boolean));
+  assert.ok(colors.size >= 2 && colors.size <= 3, `two or three faces are visible (${[...colors]})`);
+  const lit = shown.filter(Boolean).length;
+  assert.ok(lit > 1000 && lit < 6000, 'a cube of a sensible size');
+  assert.equal(shown[0], 0, 'the corners of the screen are cleared');
+  assert.equal(cpu.memory.slice(0xA000, 0xFF00).some(Boolean), false, 'the stack stays small');
+});
+
+test('snake (C): steering towards the apples scores points', () => {
+  const program = build(fs.readFileSync(new URL('23-snake.c', dir), 'utf8'), 'c');
+  const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 1e6 });
+  const at = (x, y) => { const b = cpu.memory[0x2000 + y * 16 + (x >> 1)]; return x & 1 ? b & 15 : b >> 4; };
+  const find = color => { for (let y = 0; y < 24; y++) for (let x = 0; x < 32; x++) if (at(x, y) === color) return [x, y]; return null; };
+  const moves = [[1, -1, 0], [2, 1, 0], [4, 0, -1], [8, 0, 1]];
+  while (cpu.time < 20) {
+    cpu.step();
+    if (cpu.instructions % 2000) continue;
+    const head = find(10), apple = find(8);
+    if (!head || !apple) continue;
+    const wanted = moves.filter(([, dx, dy]) => Math.sign(apple[0] - head[0]) === dx && dx || Math.sign(apple[1] - head[1]) === dy && dy);
+    const safe = [...wanted, ...moves].find(([, dx, dy]) => [0, 8].includes(at(head[0] + dx, head[1] + dy)));
+    cpu.io.joystick = safe ? safe[0] : 0;
+  }
+  assert.ok(cpu.io.outputs.get(0x11) >= 5, `score ${cpu.io.outputs.get(0x11)}`);
+});
+
+test('plasma, life and stars (C) draw what they promise', () => {
+  const plasma = runC('24-plasma.c', 3e6);
+  const page = plasma.cpu.io.outputs.get(0x12) * 256;
+  assert.ok(new Set(plasma.cpu.memory.slice(page, page + 80 * 60)).size > 12, 'many colors');
+  const life = runC('25-life.c', 4e6);
+  assert.ok(life.cpu.io.outputs.get(0x11) >= 2, 'generations pass');
+  const alive = life.cpu.memory.slice(0x4000, 0x4000 + 64 * 48).filter(v => v === 255 || v >= 120).length;
+  assert.ok(alive > 50 && alive < 2000, `living cells: ${alive}`);
+  const stars = runC('26-stars.c', 2e6);
+  const dots = stars.cpu.memory.slice(0x4000, 0x4000 + 128 * 96).filter(v => v >= 24 && v <= 31).length;
+  assert.ok(dots > 60 && dots <= 160, `stars on the screen: ${dots}`);
 });

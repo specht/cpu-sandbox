@@ -9,6 +9,7 @@ export const hex = (v, digits = 2) => Number(v).toString(16).toUpperCase().padSt
 
 const NAME = REGISTER_NAMES;
 const BYTE = 1, HALF = 2, WIDE = 4; // register kinds an operand may be
+const ROW = 12; // journal row: pc, A, B, C, D, flags, SP, X, Y, cycles, out port, old out value
 
 /**
  * The MiniCPU interpreter. Code, data, stack and pixels all live in one RAM.
@@ -49,21 +50,33 @@ export class MiniCPU {
     this.x = this.arch.index ? 0 : null;
     this.y = this.arch.index ? 0 : null;
     this.fault = null;
-    this.history = [];
-    this.historyStart = 0; // ring buffer: oldest entry
-    this.lastRecord = null;
+    // The journal: one row per step in a ring buffer of typed arrays (no
+    // garbage for the collector, so a long history costs no speed), and a
+    // ring of [address, old byte] pairs for the RAM writes.
+    const size = this.historySize;
+    this.rows = new Int32Array(size * ROW);
+    this.times = new Float64Array(size);
+    this.writeStart = new Float64Array(size);
+    this.logSize = Math.max(1024, size * 4);
+    this.log = new Int32Array(this.logSize * 2);
+    this.logTotal = 0;     // pairs written so far
+    this.head = 0;         // next row
+    this.count = 0;        // rows that can be undone
   }
 
-  get canUndo() { return this.history.length > 0; }
+  get canUndo() { return this.count > 0; }
 
-  /** Executes one instruction. Throws CpuFault (state unchanged) on errors. */
+  /** Executes one instruction and returns its cycles. Throws CpuFault (state unchanged) on errors. */
   step() {
     if (this.halted || this.fault) return null;
-    const r = this.registers, start = this.pc;
-    const record = this.current = {
-      pc: start, a: r[0], b: r[1], c: r[2], d: r[3], zf: this.zf, cf: this.cf,
-      sp: this.sp, x: this.x, y: this.y, writes: null, cycles: 0, time: this.time, out: null,
-    };
+    const r = this.registers, start = this.startPc = this.pc;
+    const row = this.head, at = row * ROW, rows = this.rows;
+    rows[at] = start; rows[at + 1] = r[0]; rows[at + 2] = r[1]; rows[at + 3] = r[2]; rows[at + 4] = r[3];
+    rows[at + 5] = (this.zf ? 1 : 0) | (this.cf ? 2 : 0);
+    rows[at + 6] = this.sp ?? -1; rows[at + 7] = this.x ?? -1; rows[at + 8] = this.y ?? -1;
+    rows[at + 10] = -1; rows[at + 11] = -1;
+    this.times[row] = this.time;
+    this.writeStart[row] = this.logTotal;
     let opcode = 0, timing = 0;
     this.wideOp = false;
     try {
@@ -156,28 +169,34 @@ export class MiniCPU {
         case OP.OUT: {
           const port = this.fetch(), s = this.reg(BYTE), before = this.io.outputs.get(port);
           if (!this.io.write(port, r[s])) this.fail(`Nothing is plugged into port 0x${hex(port)}`);
-          record.out = [port, before];
+          rows[at + 10] = port; rows[at + 11] = before === undefined ? -1 : before;
           break;
         }
         default: this.fail(`Unknown opcode 0x${hex(opcode)}`);
       }
     } catch (error) {
-      this.undoRecord(record);
+      this.undoRow(row);
       if (error instanceof CpuFault) this.fault = error;
       throw error;
     }
     if (this.wideOp) timing = 2;
-    record.cycles = this.timing[opcode * 3 + timing];
-    this.cycles += record.cycles;
-    this.time += record.cycles / this.clockHz;
+    const cycles = this.timing[opcode * 3 + timing];
+    rows[at + 9] = cycles;
+    this.cycles += cycles;
+    this.time += cycles / this.clockHz;
     this.instructions++;
-    this.remember(record);
-    return record;
+    // Commit the row; forget the oldest rows whose RAM writes the log has overwritten.
+    const size = this.historySize;
+    this.head = (row + 1) % size;
+    if (this.count < size) this.count++;
+    const limit = this.logTotal - this.logSize;
+    while (this.count && this.writeStart[(this.head - this.count + size) % size] < limit) this.count--;
+    return cycles;
   }
 
   // ------------------------------------------------------------ operands
 
-  fail(message) { throw new CpuFault(this.current.pc, message); }
+  fail(message) { throw new CpuFault(this.startPc, message); }
   checked(addr) { return addr >= 0 && addr < this.memory.length ? addr : this.fail(`Address 0x${hex(addr, 4)} is outside RAM`); }
   fetch() { return this.pc < this.memory.length ? this.memory[this.pc++] : this.fail('The program counter left RAM'); }
   address() { return this.arch.index ? this.fetch() | (this.fetch() << 8) : this.fetch(); }
@@ -245,7 +264,10 @@ export class MiniCPU {
 
   write(addr, value) {
     this.checked(addr);
-    (this.current.writes ??= []).push(addr, this.memory[addr]);
+    const i = (this.logTotal % this.logSize) * 2;
+    this.log[i] = addr;
+    this.log[i + 1] = this.memory[addr];
+    this.logTotal++;
     this.memory[addr] = value;
   }
 
@@ -262,53 +284,57 @@ export class MiniCPU {
 
   // ------------------------------------------------------------ history
 
-  remember(record) {
-    const h = this.history;
-    if (h.length < this.historySize) h.push(record);
-    else { h[this.historyStart] = record; this.historyStart = (this.historyStart + 1) % this.historySize; }
-    this.lastRecord = record;
-  }
-
   /** Undoes the most recent step. Returns false if there is no history left. */
   back() {
-    const h = this.history;
-    if (!h.length) return false;
-    let record;
-    if (this.historyStart === 0) record = h.pop();
-    else {
-      // Unroll the ring buffer once; afterwards it behaves like a plain stack.
-      this.history = h.slice(this.historyStart).concat(h.slice(0, this.historyStart));
-      this.historyStart = 0;
-      record = this.history.pop();
-    }
-    this.undoRecord(record);
+    if (!this.count) return false;
+    const row = (this.head - 1 + this.historySize) % this.historySize, at = row * ROW;
+    this.undoRow(row);
+    this.head = row;
+    this.count--;
     this.halted = false;
     this.fault = null;
-    this.cycles -= record.cycles;
-    this.time = record.time;
-    if (record.out) this.io.restore(record.out[0], record.out[1]);
+    this.cycles -= this.rows[at + 9];
+    this.time = this.times[row];
+    if (this.rows[at + 10] >= 0) this.io.restore(this.rows[at + 10], this.rows[at + 11] < 0 ? undefined : this.rows[at + 11]);
     this.instructions--;
-    this.lastRecord = this.history.length ? this.history[this.history.length - 1] : null;
     return true;
   }
 
-  undoRecord(record) {
-    const w = record.writes;
-    if (w) for (let i = w.length - 2; i >= 0; i -= 2) this.memory[w[i]] = w[i + 1];
-    this.registers[0] = record.a; this.registers[1] = record.b; this.registers[2] = record.c; this.registers[3] = record.d;
-    this.pc = record.pc; this.zf = record.zf; this.cf = record.cf; this.sp = record.sp; this.x = record.x; this.y = record.y;
+  /** Restores the registers of a row and the RAM bytes written since it began. */
+  undoRow(row) {
+    const rows = this.rows, at = row * ROW, start = this.writeStart[row];
+    for (let k = this.logTotal - 1; k >= start; k--) {
+      const i = (k % this.logSize) * 2;
+      this.memory[this.log[i]] = this.log[i + 1];
+    }
+    this.logTotal = start;
+    this.pc = rows[at];
+    this.registers[0] = rows[at + 1]; this.registers[1] = rows[at + 2]; this.registers[2] = rows[at + 3]; this.registers[3] = rows[at + 4];
+    this.zf = (rows[at + 5] & 1) !== 0; this.cf = (rows[at + 5] & 2) !== 0;
+    this.sp = rows[at + 6] < 0 ? null : rows[at + 6];
+    this.x = rows[at + 7] < 0 ? null : rows[at + 7];
+    this.y = rows[at + 8] < 0 ? null : rows[at + 8];
+  }
+
+  /** Addresses the most recent step wrote to. */
+  lastWrites() {
+    if (!this.count) return [];
+    const row = (this.head - 1 + this.historySize) % this.historySize, out = [];
+    for (let k = this.writeStart[row]; k < this.logTotal; k++) out.push(this.log[(k % this.logSize) * 2]);
+    return out;
   }
 
   /** Registers changed by the most recent step: names like 'A', 'X', 'SP', 'ZF'. */
   changedByLastStep() {
-    const rec = this.lastRecord, changed = new Set();
-    if (!rec) return changed;
-    ['a', 'b', 'c', 'd'].forEach((key, i) => { if (rec[key] !== this.registers[i]) changed.add(NAME[i]); });
-    if (rec.zf !== this.zf) changed.add('ZF');
-    if (rec.cf !== this.cf) changed.add('CF');
-    if (rec.sp !== this.sp) changed.add('SP');
-    if (rec.x !== this.x) changed.add('X');
-    if (rec.y !== this.y) changed.add('Y');
+    const changed = new Set();
+    if (!this.count) return changed;
+    const at = ((this.head - 1 + this.historySize) % this.historySize) * ROW, rows = this.rows;
+    for (let i = 0; i < 4; i++) if (rows[at + 1 + i] !== this.registers[i]) changed.add(NAME[i]);
+    if (((rows[at + 5] & 1) !== 0) !== this.zf) changed.add('ZF');
+    if (((rows[at + 5] & 2) !== 0) !== this.cf) changed.add('CF');
+    if (rows[at + 6] !== (this.sp ?? -1)) changed.add('SP');
+    if (rows[at + 7] !== (this.x ?? -1)) changed.add('X');
+    if (rows[at + 8] !== (this.y ?? -1)) changed.add('Y');
     return changed;
   }
 

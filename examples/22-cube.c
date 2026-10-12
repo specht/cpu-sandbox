@@ -1,31 +1,32 @@
-// ROTATING CUBE
+// SOLID CUBE
 //
-// A wireframe cube in 3D, written in C. Every frame turns the eight corners
-// around two axes, projects them onto the screen with perspective (farther
-// away = closer to the middle) and draws the twelve edges with Bresenham's
-// line algorithm: edges at the back in magenta, at the front in white.
+// A shaded cube in 3D, written in C. Every frame turns the corners and the
+// face normals around two axes and projects the corners onto the screen with
+// perspective. A face is drawn only if it faces the viewer, filled row by row,
+// and the more directly it faces the viewer, the brighter its color.
 //
-// Double buffering: there are two screen pages. The program clears and draws
-// the hidden one, then shows it with out(SCREEN_PAGE, …), so you never see a
-// half-drawn cube. Watch the start address of the screen jump back and forth.
+// Double buffering: there are two screen pages of 12 KiB each. The program
+// draws into the hidden page and then shows it with out(SCREEN_PAGE, …), so
+// you never see a half-drawn cube.
 //
-// There is no multiplication instruction and no floating point: sin and cos
-// come from a table in which 64 means 1.0, and the compiler calls small
-// helper routines for * and /. The assembly view shows them at the end.
+// The hottest loop, filling bytes, is written in assembly inside the C
+// function fill(). sin and cos come from a table in which 64 means 1.0.
 // The timer sets the angle, so the cube turns at the same speed at any
-// clock; at 4 MHz it draws about 20 pictures per second, at 16 MHz 80.
+// clock; try 16 MHz.
 
 #pragma cpu 8x
-#pragma display 0x0900, 64, 48, indexed2, cga_palette_1_high
+#pragma display 0x4000, 128, 96, indexed8, vga
 
-#define SIZE 16                 // half the length of an edge
-#define DISTANCE 80             // how far away the cube is
-#define ZOOM 50                 // larger: a bigger picture
-#define BACK 1                  // colors: magenta
-#define FRONT 3                 //         white
+#define WIDTH 128
+#define HEIGHT 96
+#define SIZE 28                 // half the length of an edge
+#define DISTANCE 150            // how far away the cube is
+#define ZOOM 96                 // larger: a bigger picture (it must stay on the screen)
 
-char *pages[2] = {(char*)0x0900, (char*)0x0C00};   // 64 x 48 pixels, 768 bytes each
+char *pages[2] = {(char*)0x4000, (char*)0x7000};    // 128 x 96 pixels each
 char *page;                                         // the page being drawn
+int used_top[2] = {0, 0};       // the rows the last picture on each page covered
+int used_bottom[2] = {HEIGHT - 1, HEIGHT - 1};
 
 int sine[64] = {
     0, 6, 12, 19, 24, 30, 36, 41, 45, 49, 53, 56, 59, 61, 63, 64,
@@ -36,80 +37,106 @@ int sine[64] = {
 int corners[24] = {             // x, y, z of the eight corners
     -SIZE, -SIZE, -SIZE,   SIZE, -SIZE, -SIZE,   SIZE, SIZE, -SIZE,   -SIZE, SIZE, -SIZE,
     -SIZE, -SIZE,  SIZE,   SIZE, -SIZE,  SIZE,   SIZE, SIZE,  SIZE,   -SIZE, SIZE,  SIZE};
-char edges[24] = {0, 1, 1, 2, 2, 3, 3, 0,   4, 5, 5, 6, 6, 7, 7, 4,   0, 4, 1, 5, 2, 6, 3, 7};
+char faces[24] = {0, 1, 2, 3,   5, 4, 7, 6,   4, 0, 3, 7,   1, 5, 6, 2,   4, 5, 1, 0,   3, 2, 6, 7};
+int normals[18] = {0, 0, -64,   0, 0, 64,   -64, 0, 0,   64, 0, 0,   0, -64, 0,   0, 64, 0};
+char hues[6] = {8, 12, 16, 20, 0, 4};   // red, yellow, green, cyan, blue, magenta
 
-int screen_x[8];                // the corners on the screen …
+int screen_x[8];                // the corners on the screen
 int screen_y[8];
-int depth[8];                   // … and how far away they are
+char left[HEIGHT];              // the span of the face being filled, per row
+char right[HEIGHT];
+int top, bottom;
+int sa, ca, sb, cb;             // sin and cos of the two angles
+int tx, ty, tz;                 // the result of turn()
 
-// Four pixels share a byte, the leftmost one in the highest two bits.
-char keep[4] = {0x3F, 0xCF, 0xF3, 0xFC};
-char bits[16] = {0, 0, 0, 0,   0x40, 0x10, 0x04, 0x01,
-                 0x80, 0x20, 0x08, 0x02,   0xC0, 0x30, 0x0C, 0x03};
-
-void plot(int x, int y, char color) {
-    if (x < 0 || x >= 64 || y < 0 || y >= 48) return;  // never write outside the page
-    char *p = page + y * 16 + x / 4;
-    char k = x & 3;
-    *p = (*p & keep[k]) | bits[color * 4 + k];
+// Fills count bytes from p with color. The loop is assembly: four
+// instructions per byte. The arguments are on the stack above the return
+// address: color at [SP+2], count at [SP+3], p at [SP+5].
+void fill(char *p, int count, char color) {
+    asm("LDA A, [SP+2]          ; A = color\n"
+        "LDA Y, [SP+3]          ; Y = count\n"
+        "LDA X, [SP+5]          ; X = p\n"
+        "CMP Y, 0\n"
+        "JZ fill_done\n"
+        "fill_loop:\n"
+        "STA [X], A\n"
+        "INC X\n"
+        "DEC Y\n"
+        "JNZ fill_loop\n"
+        "fill_done:");
 }
 
-void line(int x0, int y0, int x1, int y1, char color) {
-    int dx = x1 - x0, dy = y1 - y0, sx = 1, sy = 1;
-    if (dx < 0) { dx = -dx; sx = -1; }
-    if (dy < 0) { dy = -dy; sy = -1; }
-    int error = dx - dy;
-    for (;;) {
-        plot(x0, y0, color);
-        if (x0 == x1 && y0 == y1) break;
-        int twice = error + error;
-        if (twice > -dy) { error -= dy; x0 += sx; }
-        if (twice < dx) { error += dx; y0 += sy; }
+// Turns (x, y, z) around the y axis and then the x axis.
+void turn(int x, int y, int z) {
+    tx = (x * ca - z * sa) / 64;
+    int z1 = (x * sa + z * ca) / 64;
+    ty = (y * cb - z1 * sb) / 64;
+    tz = (y * sb + z1 * cb) / 64;
+}
+
+// Widens the spans of the rows from (x0, y0) to (x1, y1), with x in 1/256.
+void edge(int x0, int y0, int x1, int y1) {
+    if (y0 > y1) { int t = x0; x0 = x1; x1 = t; t = y0; y0 = y1; y1 = t; }
+    unsigned int x = x0 * 256 + 128;
+    int step = 0;
+    if (y1 > y0) step = (x1 - x0) * 256 / (y1 - y0);
+    for (int y = y0; y <= y1; y++) {
+        char column = x >> 8;
+        if (column < left[y]) left[y] = column;
+        if (column > right[y]) right[y] = column;
+        x += step;
     }
+    if (y0 < top) top = y0;
+    if (y1 > bottom) bottom = y1;
 }
 
-void clear() {
-    char *p = page, *end = page + 768;
-    while (p != end) *p++ = 0;
-}
-
-// Turns all corners by the angle a around the y axis and b around the x axis
-// (64 steps make a full turn) and projects them onto the screen.
-void project(char a, char b) {
-    int sa = sine[a & 63], ca = sine[(a + 16) & 63];
-    int sb = sine[b & 63], cb = sine[(b + 16) & 63];
-    for (char i = 0; i < 8; i++) {
-        int x = corners[3 * i], y = corners[3 * i + 1], z = corners[3 * i + 2];
-        int x1 = (x * ca - z * sa) / 64;
-        int z1 = (x * sa + z * ca) / 64;
-        int y1 = (y * cb - z1 * sb) / 64;
-        int z2 = (y * sb + z1 * cb) / 64;
-        screen_x[i] = 32 + x1 * ZOOM / (z2 + DISTANCE);
-        screen_y[i] = 24 + y1 * ZOOM / (z2 + DISTANCE);
-        depth[i] = z2;
+// Fills face f: first the span of every row, then the rows.
+void draw_face(char f, char color) {
+    char *corner = faces + 4 * f;
+    int all_top = top, all_bottom = bottom;
+    top = HEIGHT; bottom = 0;
+    for (char i = 0; i < 4; i++) {
+        char a = corner[i], b = corner[(i + 1) & 3];
+        int ya = screen_y[a], yb = screen_y[b];
+        for (int y = ya < yb ? ya : yb; y <= (ya < yb ? yb : ya); y++) { left[y] = WIDTH - 1; right[y] = 0; }
     }
-}
-
-// Draws the edges at the back (color BACK) or at the front (FRONT).
-void edges_in(char color) {
-    for (char e = 0; e < 12; e++) {
-        char from = edges[2 * e], to = edges[2 * e + 1];
-        char front = depth[from] + depth[to] < 0;
-        if (front == (color == FRONT))
-            line(screen_x[from], screen_y[from], screen_x[to], screen_y[to], color);
+    for (char i = 0; i < 4; i++) {
+        char a = corner[i], b = corner[(i + 1) & 3];
+        edge(screen_x[a], screen_y[a], screen_x[b], screen_y[b]);
     }
+    for (int y = top; y <= bottom; y++)
+        fill(page + y * WIDTH + left[y], right[y] - left[y] + 1, color);
+    if (all_top < top) top = all_top;
+    if (all_bottom > bottom) bottom = all_bottom;
 }
 
 void main() {
     char hidden = 1;
     for (;;) {
         page = pages[hidden];
-        clear();
+        // Clear only the rows the last picture on this page covered.
+        fill(page + used_top[hidden] * WIDTH, (used_bottom[hidden] - used_top[hidden] + 1) * WIDTH, 0);
+
         char t = in(TIMER);
-        project(t / 2, t / 3);
-        edges_in(BACK);                     // the front edges are drawn last,
-        edges_in(FRONT);                    // so they cover the back ones
-        out(SCREEN_PAGE, (int)page >> 8);   // show the finished picture
+        char a = t / 2, b = t / 4;
+        sa = sine[a & 63]; ca = sine[(a + 16) & 63];
+        sb = sine[b & 63]; cb = sine[(b + 16) & 63];
+        for (char i = 0; i < 8; i++) {
+            turn(corners[3 * i], corners[3 * i + 1], corners[3 * i + 2]);
+            screen_x[i] = WIDTH / 2 + tx * ZOOM / (tz + DISTANCE);
+            screen_y[i] = HEIGHT / 2 + ty * ZOOM / (tz + DISTANCE);
+        }
+        top = HEIGHT; bottom = 0;
+        for (char f = 0; f < 6; f++) {
+            turn(normals[3 * f], normals[3 * f + 1], normals[3 * f + 2]);
+            if (tz >= 0) continue;                  // facing away: hidden
+            int light = -tz;                        // 1 .. 64
+            char shade = light > 56 ? 56 : light > 38 ? 32 : light > 20 ? 104 : 176;
+            draw_face(f, shade + hues[f]);
+        }
+        used_top[hidden] = top;
+        used_bottom[hidden] = bottom;
+        out(SCREEN_PAGE, (int)page >> 8);           // show the finished picture
         hidden = 1 - hidden;
     }
 }

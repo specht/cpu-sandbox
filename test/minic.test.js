@@ -29,7 +29,7 @@ test('functions, recursion, arguments and local variables', () => {
     int sum(int n) { int s = 0; for (int i = 1; i <= n; i++) s += i; return s; }
     void main() { r[0] = fib(12); r[1] = max(-3, -7); r[2] = sum(100); }`);
   assert.deepEqual([read('r', 0), read('r', 1), read('r', 2)], [144, -3, 5050]);
-  assert.equal(cpu.sp, 4096, 'the stack is balanced');
+  assert.equal(cpu.sp, 0x10000, 'the stack is balanced');
 });
 
 test('16-bit arithmetic: signed and unsigned *, /, %, shifts and comparisons', () => {

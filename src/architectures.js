@@ -12,8 +12,8 @@ export const ARCHITECTURES = Object.freeze({
   }),
   cpu8x: Object.freeze({
     id: 'cpu8x', directive: '8x', name: 'MiniCPU 8X',
-    summary: 'adds 4 KiB of RAM, 16-bit addresses and the pointer registers X and Y',
-    memorySize: 4096, addressBits: 16, stack: true, index: true,
+    summary: 'adds 64 KiB of RAM (all that 16-bit addresses reach) and the 16-bit registers X and Y',
+    memorySize: 65536, addressBits: 16, stack: true, index: true,
   }),
 });
 

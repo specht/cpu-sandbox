@@ -13,7 +13,8 @@ Requirements: Node.js 18 or newer. Nothing to install, no build step.
 ```
 
 The bundled examples work right away. They are read-only; **Save copy**
-stores a copy in a student folder.
+stores a copy in a student folder, and the **+** next to the program menu
+creates a new assembly or C program there.
 
 ## Class repository
 
@@ -45,8 +46,8 @@ defaults.
 
 | | MiniCPU 8 | MiniCPU 8S | MiniCPU 8X |
 | --- | --- | --- | --- |
-| Adds | registers A–D, ZF/CF, jumps | a stack: `PUSH POP CALL RET`, arguments and locals at `[SP+n]` | 4 KiB RAM, 16-bit addresses, 16-bit registers X/Y |
-| RAM | 256 bytes | 256 bytes | 4096 bytes |
+| Adds | registers A–D, ZF/CF, jumps | a stack: `PUSH POP CALL RET`, arguments and locals at `[SP+n]` | 64 KiB RAM, 16-bit addresses, 16-bit registers X/Y |
+| RAM | 256 bytes | 256 bytes | 65,536 bytes |
 | Demo | fire | scrolling text | Mandelbrot set, a bigger fire |
 
 A program states its level with `.cpu 8`, `.cpu 8s` or `.cpu 8x` (default 8);
@@ -66,9 +67,16 @@ assembler directives and an ASCII table.
   breakpoint.
 - **Right:** registers and flags (changes are highlighted), the screen, and
   RAM. The next instruction is blue in RAM and highlighted in the editor.
+  Pointing at a byte says what it is: an instruction and its line, a variable
+  (`int score`, `letters[2]`, high byte), a string, a helper routine, or —
+  while a C program is paused — a local variable, an argument or a return
+  address on the stack. With 64 KiB, **64** and **256** bytes per row show
+  all of RAM as colored dots (code, data, screen, stack; brighter = larger
+  value), and bytes the program is writing glow; click a dot to zoom in.
 - **Bottom:** restart, step back, run/pause, step, and the **clock** from 1 Hz
-  to 16 MHz. Every instruction costs a realistic number of cycles, so a
-  program takes as long as it would on real hardware at that clock.
+  to 64 MHz. Every instruction costs a realistic number of cycles, so a
+  program takes as long as it would on real hardware at that clock. If the
+  browser cannot keep up, the status line says how fast it really runs.
 
 The screen is a view of RAM: drag the picture up or down to move through memory, drag its
 corner to resize it, and pick the pixel format and palette above it. This
@@ -107,11 +115,15 @@ stays on this computer and never reaches a student repository.
 | `14-scroller` | 8S | demo: LED sign |
 | `15-pointers`, `16-lines` | 8X | X/Y, Bresenham lines |
 | `17-mandelbrot` | 8X | demo: fixed-point fractal with a table of squares |
-| `18-inferno` | 8X | demo: the DOOM fire at 64 × 48 pixels |
+| `18-inferno` | 8X | demo: the DOOM fire at 128 × 96 pixels |
 | `19-input` | 8 | devices: joystick, keyboard, timer, number display |
 | `20-breakout` | 8X | a game: paddle, ball, colored bricks, sound |
 | `21-first-c.c` | 8S | C: functions, locals on the stack, the generated assembly |
-| `22-cube.c` | 8X | C demo: a rotating 3D cube with page flipping |
+| `22-cube.c` | 8X | C demo: a solid, shaded 3D cube with page flipping and an assembly inner loop |
+| `23-snake.c` | 8X | C game: joystick, timer, random numbers, speaker, number display |
+| `24-plasma.c` | 8X | C demo: the plasma effect in RGB 3-3-2 |
+| `25-life.c` | 8X | C: Conway's Game of Life with glowing cells |
+| `26-stars.c` | 8X | C: flying through a starfield, speed on the joystick |
 
 A suggested order with questions and exercises: [docs/teaching.md](docs/teaching.md).
 
@@ -170,6 +182,7 @@ node scripts/light-theme.mjs web/style.css web/light.css   # after changing colo
 | GET, PUT | `/api/source?group=anna&file=sum.asm` | read / save (HTTP 409 if changed on disk) |
 | POST | `/api/programs` | create `{group, file, source}`; never overwrites |
 
-The interpreter runs a few million instructions per second in the browser,
-well above the 16 MHz clock setting. Each step is journaled, so **step back**
-undoes the last 50,000 instructions exactly.
+The interpreter runs roughly 30–50 million cycles per second in Node and a
+little less in the browser. Each step is journaled in typed arrays (no garbage
+for the collector), so **step back** undoes the last 50,000 instructions
+exactly without slowing the CPU down.
