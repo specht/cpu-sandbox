@@ -314,6 +314,16 @@ test('raycaster (C): textured walls, floor and ceiling; walking never enters a w
   const s16 = address => ((cpu.memory[address] | cpu.memory[address + 1] << 8) << 16) >> 16;
   const sine = program.labels.get('_sine'), at = name => s16(program.labels.get(name));
   for (let i = 1; i < 128; i++) assert.equal(s16(sine + 2 * (256 - i)), -s16(sine + 2 * i), `sine[${256 - i}]`);
+  // One small step to the left: the wall on the left still shows its bricks
+  // (it once turned into stripes, when the side of the wall was misjudged).
+  cpu.io.joystick = 1;
+  while (cpu.memory[program.labels.get('_angle')] === 0) cpu.step();
+  cpu.io.joystick = 0;
+  const tap = cpu.time;
+  while (cpu.time < tap + 0.3) cpu.step();
+  assert.ok(cpu.memory[program.labels.get('_angle')] >= 250, 'a few steps at most');
+  const left = cpu.io.outputs.get(0x12) * 256;
+  for (const y of [22, 26, 30]) assert.ok(new Set(cpu.memory.slice(left + 80 * y, left + 80 * y + 24)).size > 1, `row ${y} of the left wall is textured`);
   // Turning left for half a second: north-east, so dir_y < 0 (y grows southwards).
   cpu.io.joystick = 1;
   const start = cpu.time;

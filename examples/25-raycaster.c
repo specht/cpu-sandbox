@@ -6,7 +6,8 @@
 //
 // For every column of the screen, a ray leaves the player and marches
 // through the map in steps of 1/8 cell until it is inside a wall; five
-// halvings of the step then find the wall's surface to 1/256 of a cell. The
+// bisections between the last point outside and the first point inside then
+// find the wall's surface to 1/256 of a cell. The
 // farther the wall, the shorter its column: height = 64 / distance, the
 // only division per column. Where the ray hit the wall picks the column of
 // the 16 x 16 texture.
@@ -141,17 +142,24 @@ void floor_and_ceiling() {
 // Casts the ray of column x and draws its piece of wall.
 void column(char x) {
     int sx = ray_x >> 9, sy = ray_y >> 9;       // 1/8 cell along the view direction
-    unsigned int rx = px, ry = py;
+    unsigned int rx = px, ry = py;              // inside the wall at the end
     int t = 0;                                  // distance in 1/256 cells
     while (!wall(rx, ry)) { rx += sx; ry += sy; t += 32; }
-    int half = 16;
-    for (char i = 0; i < 5; i++) {              // halve the step five times
-        sx = sx >> 1; sy = sy >> 1;
-        if (wall(rx - sx, ry - sy)) { rx -= sx; ry -= sy; t -= half; }
-        half = half >> 1;
+    // The surface lies between (ox, oy), outside, and (rx, ry), inside: five
+    // times, test the point halfway and keep the half with the surface in it.
+    unsigned int ox = rx - sx, oy = ry - sy;
+    int to = t - 32;
+    for (char i = 0; i < 5; i++) {
+        unsigned int mx = (ox + rx) >> 1, my = (oy + ry) >> 1;
+        int tm = (to + t) >> 1;
+        if (wall(mx, my)) { rx = mx; ry = my; t = tm; }
+        else { ox = mx; oy = my; to = tm; }
     }
     char kind = wall(rx, ry);
-    char side_x = ((rx - sx) >> 8) != (rx >> 8);        // crossed a vertical wall?
+    // Which side was hit: the two points lie in different columns of cells
+    // (a vertical wall) or rows (a horizontal one). At a corner, both: then
+    // the cell beside the outside point tells.
+    char side_x = (ox >> 8) != (rx >> 8) && ((oy >> 8) == (ry >> 8) || wall(rx, oy));
     char u = (char)(side_x ? ry : rx) >> 4;     // where in the cell: the texture column
     if (t < 16) t = 16;
     int h = 16384 / t;                          // 64 pixels at a distance of one cell
