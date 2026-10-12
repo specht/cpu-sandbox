@@ -3,6 +3,7 @@
 // of the next instruction.
 import { MNEMONICS } from '/src/assembler.js';
 import { formatSource } from '/src/format.js';
+import { formatC, lineIndent } from '/src/cformat.js';
 import { hex } from '/src/cpu.js';
 import { el } from './util.js';
 
@@ -94,6 +95,8 @@ export class SourceEditor {
         'Ctrl-Shift-K': deleteLine, 'Cmd-Shift-K': deleteLine, 'Alt-Shift-K': deleteLine,
         'Shift-Alt-F': () => onFormat(),
         Tab: cm => (cm.somethingSelected() ? cm.indentSelection('add') : cm.execCommand('insertSoftTab')),
+        Enter: cm => this.newline(cm),
+        "'}'": cm => this.closeBrace(cm),
         'Shift-Tab': cm => cm.indentSelection('subtract'),
       }),
     });
@@ -151,8 +154,9 @@ export class SourceEditor {
   /** Formats the whole source in place, line by line (keeps breakpoints and undo). */
   format() {
     const cm = this.editor;
-    if (cm.getOption('readOnly') || this.language !== 'asm') return false;
-    const before = cm.getValue().split('\n'), after = formatSource(cm.getValue()).split('\n');
+    if (cm.getOption('readOnly')) return false;
+    const format = this.language === 'c' ? formatC : formatSource;
+    const before = cm.getValue().split('\n'), after = format(cm.getValue()).split('\n');
     let changed = 0;
     cm.operation(() => {
       before.forEach((text, line) => {
@@ -162,6 +166,41 @@ export class SourceEditor {
       });
     });
     return changed;
+  }
+
+  /**
+   * Enter starts the new line indented. C: one level deeper after {, and for
+   * the statement of an if, for, while or else without braces. Assembly: at
+   * the code column after an instruction, else like the line above.
+   */
+  newline(cm) {
+    if (cm.getOption('readOnly') || cm.somethingSelected()) return CodeMirror.Pass;
+    const { line, ch } = cm.getCursor(), text = cm.getLine(line);
+    const head = text.slice(0, ch), tail = text.slice(ch).replace(/^\s+/, '');
+    let indent;
+    if (this.language === 'c') {
+      indent = lineIndent(`${cm.getRange({ line: 0, ch: 0 }, { line, ch: 0 })}${head}`, tail);
+    } else {
+      let above = head;
+      for (let n = line - 1; !above.trim() && n >= 0 && n >= line - 50; n--) above = cm.getLine(n);
+      const code = above.replace(/;.*/, '').trimEnd();
+      // After a label, "label:  LDI …" or an indented instruction: the code column.
+      indent = /^\s*[A-Za-z_.][\w.]*:/.test(code) || /^\s+\S/.test(code) ? 8 : above.match(/^\s*/)[0].length;
+      if (!head.trim()) indent = head.length;
+    }
+    cm.replaceRange(`\n${' '.repeat(indent)}${tail}`, { line, ch }, { line, ch: text.length }, '+input');
+    cm.setCursor({ line: line + 1, ch: indent });
+  }
+
+  /** In C, a } at the start of a line moves back to the level of its {. */
+  closeBrace(cm) {
+    if (this.language !== 'c' || cm.getOption('readOnly') || cm.somethingSelected()) return CodeMirror.Pass;
+    const { line, ch } = cm.getCursor(), text = cm.getLine(line);
+    if (text.slice(0, ch).trim()) return CodeMirror.Pass;
+    const rest = text.slice(ch);
+    const indent = lineIndent(cm.getRange({ line: 0, ch: 0 }, { line, ch: 0 }).replace(/\n$/, ''), `}${rest}`);
+    cm.replaceRange(`${' '.repeat(indent)}}${rest}`, { line, ch: 0 }, { line, ch: text.length }, '+input');
+    cm.setCursor({ line, ch: indent + 1 });
   }
 
   toggleComment(cm) {

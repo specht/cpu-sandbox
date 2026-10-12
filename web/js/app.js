@@ -5,7 +5,7 @@ import { MiniCPU, CpuFault, hex } from '/src/cpu.js';
 import { DEFAULT_DISPLAY, MODES, validateDisplay } from '/src/display.js';
 import { Devices, PORT, frameAt } from '/src/devices.js';
 import { DevicePanel } from './devices.js';
-import { $, el, icon, grouped, formatHz, formatDuration, loadPreferences, savePreferences } from './util.js';
+import { $, el, icon, grouped, formatHz, formatDuration, loadPreferences, savePreferences, askConfirm } from './util.js';
 import { Catalog, ProgramPicker, request } from './catalog.js';
 import { SourceEditor } from './editor.js';
 import { Screen } from './screen.js';
@@ -87,7 +87,7 @@ for (const arch of Object.values(ARCHITECTURES)) $('architecture').add(new Optio
 // ------------------------------------------------------------ programs
 
 async function openProgram(value, { force = false } = {}) {
-  if (!force && state.dirty && !confirm('Discard your unsaved changes to this program?')) { picker.setValue(state.program); return; }
+  if (!force && state.dirty && !(await confirmDiscard(`open ${value.file}`))) { picker.setValue(state.program); return; }
   stop();
   try {
     const data = await request(`/api/source?group=${encodeURIComponent(value.group)}&file=${encodeURIComponent(value.file)}`);
@@ -110,7 +110,6 @@ async function openProgram(value, { force = false } = {}) {
 
 function formatDraft() {
   if (!state.program || state.saving) return;
-  if (state.language === 'c') { setStatus('Formatting is available for assembly programs'); return; }
   const changed = editor.format();
   setStatus(changed ? `Formatted ${changed} line${changed === 1 ? '' : 's'}${state.program.readonly ? '' : ' · save with Ctrl+S'}` : 'Already formatted');
 }
@@ -122,8 +121,8 @@ function updateDirty() {
   $('source-save').hidden = !!program?.readonly;
   $('source-revert').disabled = !state.dirty || state.saving;
   $('source-copy').disabled = !program;
-  $('source-format').disabled = !program || state.saving || state.language === 'c';
-  $('source-format').title = state.language === 'c' ? 'Formatting is available for assembly programs' : 'Format the current draft (Shift+Alt+F)';
+  $('source-format').disabled = !program || state.saving;
+  $('source-format').title = 'Format the current draft (Shift+Alt+F)';
   const chip = $('source-chip');
   chip.replaceChildren();
   chip.hidden = !program || (!state.dirty && !program.readonly);
@@ -158,8 +157,17 @@ async function save() {
   }
 }
 
-function revert() {
-  if (!state.dirty || !confirm('Discard your unsaved changes and restore the saved version?')) return;
+/** Before leaving a program with unsaved changes. */
+function confirmDiscard(action) {
+  return askConfirm({
+    title: 'Discard your changes?',
+    message: `${state.program?.file ?? 'This program'} has unsaved changes. They will be lost if you ${action} now.`,
+    note: state.program?.readonly ? 'Examples cannot be saved: Save copy keeps your version.' : 'Save first (Ctrl+S) to keep them.',
+  });
+}
+
+async function revert() {
+  if (!state.dirty || !(await askConfirm({ title: 'Revert to the saved version?', message: `Your unsaved changes to ${state.program.file} will be lost.`, ok: 'Revert', note: 'Save first (Ctrl+S) to keep them.' }))) return;
   editor.load(state.program.original);
   updateDirty();
   assembleNow({ restart: true });
@@ -285,8 +293,8 @@ $('copy-form').addEventListener('submit', async event => {
     $('copy-error').hidden = false;
   }
 });
-$('program-new').addEventListener('click', () => {
-  if (state.dirty && !state.program?.readonly && !confirm('Discard your unsaved changes to this program?')) return;
+$('program-new').addEventListener('click', async () => {
+  if (state.dirty && !state.program?.readonly && !(await confirmDiscard('create a new program'))) return;
   openProgramDialog('new');
 });
 $('copy-close').addEventListener('click', () => $('copy-dialog').close());

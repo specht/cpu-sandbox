@@ -100,7 +100,7 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
   const better = (x, y) => !y || x.passed > y.passed || (x.passed === y.passed && x.cycles < y.cycles);
   function progress() {
     const students = [];
-    if (!safeDirectory(programRoot)) return { tasks: TASKS.map(t => ({ id: t.id, title: t.title, cpu: t.cpu, language: t.language })), students };
+    if (!safeDirectory(programRoot)) return { tasks: TASKS.map(t => ({ id: t.id, title: t.title, short: t.short, chapter: t.chapter, cpu: t.cpu, language: t.language })), students };
     for (const e of fs.readdirSync(programRoot, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       if (!e.isDirectory() || e.isSymbolicLink() || !isName(e.name)) continue;
       const folder = path.join(programRoot, e.name), cells = {}, all = {};
@@ -126,7 +126,7 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
       }
       students.push({ id: e.name, cells });
     }
-    return { tasks: TASKS.map(t => ({ id: t.id, title: t.title, cpu: t.cpu, language: t.language })), students };
+    return { tasks: TASKS.map(t => ({ id: t.id, title: t.title, short: t.short, chapter: t.chapter, cpu: t.cpu, language: t.language })), students };
   }
   return http.createServer(async (req, res) => {
     try {

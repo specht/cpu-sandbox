@@ -122,21 +122,30 @@ export class TaskPanel {
 
   renderProgress() {
     const { tasks, students } = this.progress, mine = this.host.groupOf();
-    const head = el('tr', {}, el('th', { scope: 'col' }, 'Student'), tasks.map(t => el('th', { scope: 'col' },
+    // Two header rows: the chapters, then the tasks with short titles (the full title on hover).
+    const chapters = [];
+    for (const t of tasks) {
+      if (chapters.at(-1)?.name === t.chapter) chapters.at(-1).span++;
+      else chapters.push({ name: t.chapter, span: 1 });
+    }
+    const groups = el('tr', { class: 'progress-chapters' }, el('th', {}),
+      chapters.map(c => el('th', { colspan: c.span, scope: 'colgroup' }, c.name === 'C' ? 'C on MiniCPU 8X' : c.name)));
+    const head = el('tr', {}, el('th', { scope: 'col', class: 'progress-student' }, 'Student'), tasks.map(t => el('th', { scope: 'col', class: chapters.some(c => c.name === t.chapter && tasks.find(x => x.chapter === t.chapter) === t) ? 'chapter-start' : '' },
       el('button', { type: 'button', class: `progress-task${t.id === this.compare ? ' selected' : ''}`, title: `${t.title}${t.language === 'c' ? ' (a C task)' : ''}: compare the solutions`, onclick: () => { this.compare = t.id; this.renderProgress(); } },
-        t.title, t.language === 'c' ? el('span', { class: 'language-tag' }, 'C') : null))));
+        t.short ?? t.title))));
+    const first = new Set(chapters.map(c => tasks.find(t => t.chapter === c.name).id));
     const rows = students.map(s => el('tr', { class: s.id === mine ? 'mine' : '' }, el('th', { scope: 'row' }, s.id), tasks.map(t => {
-      const c = s.cells[t.id];
-      if (!c) return el('td', { class: 'progress-cell missing' }, '—');
+      const c = s.cells[t.id], edge = first.has(t.id) ? ' chapter-start' : '';
+      if (!c) return el('td', { class: `progress-cell missing${edge}` }, '—');
       const all = !c.error && c.passed === c.total;
       const title = c.error ? `${c.file}: does not build` : `${c.file}: ${c.passed}/${c.total} cases${all ? ` · ${grouped(c.cycles)} cycles · ${c.bytes} bytes` : ''}${c.attempts > 1 ? ` · best of ${c.attempts} programs` : ''}`;
       const other = c.other && !c.other.error && c.other.passed === c.other.total ? c.other : null;
-      return el('td', { class: `progress-cell ${all ? 'passed' : 'started'}`, title },
+      return el('td', { class: `progress-cell ${all ? 'passed' : 'started'}${edge}`, title },
         el('button', { type: 'button', onclick: () => { $('progress-dialog').close(); this.host.openProgram({ group: s.id, file: c.file }); } },
           all ? icon('check') : null, all ? '' : `${c.passed}/${c.total}`,
           all && (c.language === 'c' || other) ? el('span', { class: 'language-tag' }, other ? 'asm + C' : 'C') : null));
     })));
-    $('progress-head').replaceChildren(head);
+    $('progress-head').replaceChildren(groups, head);
     $('progress-body').replaceChildren(...rows);
     this.renderComparison();
   }

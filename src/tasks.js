@@ -12,7 +12,8 @@
  * after the start), in cases and expectations as offsets.
  *
  * A task:
- *   id, title             the marker name and a title
+ *   id, title, short      the marker name, a title and a short title (class progress)
+ *   chapter               the part of the course: Memory, Devices, MiniCPU 8X or C
  *   language              'any' (assembly on MiniCPU 8, or C) or 'c' (C on 8X)
  *   cpu                   the level of a new assembly program (C always starts on 8X)
  *   text                  what to do (shown above the editor)
@@ -94,9 +95,9 @@ function isPrime(n) { if (n < 2) return false; for (let d = 2; d * d <= n; d++) 
 const gcd = (a, b) => (b ? gcd(b, a % b) : a);
 
 export const TASKS = Object.freeze([
-  // ---------------------------------------------------------------- assembly first, C later
+  // ---------------------------------------------------------------- memory: loads, stores, loops, pointers
   task({
-    id: 'add', title: 'Add two numbers',
+    id: 'add', chapter: 'Memory', short: 'Add', title: 'Add two numbers',
     text: 'The bytes at {+0} and {+1} hold two numbers. Write their sum to {+2}, then halt. The sum is always below 256.',
     starter: { asm: '\n        LDA A, [{+0}]\n        ; …\n        HLT\n', c: '\n#define IN ((char*){+0})\n\nvoid main() {\n    IN[2] = 0;      // …\n}\n' },
     cases: [[3, 4], [200, 55], [0, 0], [100, 27], [1, 254]].map(([a, b]) => ({
@@ -104,19 +105,7 @@ export const TASKS = Object.freeze([
     })),
   }),
   task({
-    id: 'countdown', title: 'Countdown',
-    text: 'Show 10, 9, 8, …, 1, 0 on the number display (OUT to port 0x11, in C out(NUMBER, …)), one after the other, then halt.',
-    cases: [{ name: '10 to 0', expect: { numbers: range(11, i => 10 - i) } }],
-  }),
-  task({
-    id: 'maximum', title: 'The largest number',
-    text: 'The eight bytes at {+0}–{+7} are numbers 0–255. Find the largest. In assembly leave it in A; in C show it on the number display. Then halt.',
-    starter: { c: '\n#define DATA ((char*){+0})\n\nvoid main() {\n}\n' },
-    cases: [[3, 9, 2, 7, 1, 8, 5, 4], [255, 0, 0, 0, 0, 0, 0, 0], [1, 2, 3, 4, 5, 6, 7, 200], [7, 7, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 0, 0, 0, 0], [12, 130, 129, 128, 250, 3, 251, 99]]
-      .map(list => ({ name: show(list), memory: at(0, list), expect: { answer: Math.max(...list) } })),
-  }),
-  task({
-    id: 'length', title: 'Length of a text',
+    id: 'length', chapter: 'Memory', short: 'Length', title: 'Length of a text',
     text: 'A text starts at {+0}; a byte 0 marks its end. Count its characters. In assembly leave the count in A; in C show it on the number display. Then halt.',
     starter: { c: '\n#define TEXT ((char*){+0})\n\nvoid main() {\n}\n' },
     cases: ['Hello', '', 'A', 'MiniCPU 8 is small', 'abcdefghijklmnopqrstuvwxyz'].map(s => ({
@@ -124,7 +113,20 @@ export const TASKS = Object.freeze([
     })),
   }),
   task({
-    id: 'multiply', title: 'Multiply',
+    id: 'maximum', chapter: 'Memory', short: 'Maximum', title: 'The largest number',
+    text: 'The eight bytes at {+0}–{+7} are numbers 0–255. Find the largest. In assembly leave it in A; in C show it on the number display. Then halt.',
+    starter: { c: '\n#define DATA ((char*){+0})\n\nvoid main() {\n}\n' },
+    cases: [[3, 9, 2, 7, 1, 8, 5, 4], [255, 0, 0, 0, 0, 0, 0, 0], [1, 2, 3, 4, 5, 6, 7, 200], [7, 7, 7, 7, 7, 7, 7, 7], [0, 0, 0, 0, 0, 0, 0, 0], [12, 130, 129, 128, 250, 3, 251, 99]]
+      .map(list => ({ name: show(list), memory: at(0, list), expect: { answer: Math.max(...list) } })),
+  }),
+  task({
+    id: 'fibonacci', chapter: 'Memory', short: 'Fibonacci', title: 'Fibonacci numbers',
+    text: 'Write the Fibonacci numbers 1, 1, 2, 3, 5, 8, … 233 (13 numbers) to {+0}–{+12}, then halt. Each number is the sum of the two before it.',
+    starter: { c: '\n#define F ((char*){+0})\n\nvoid main() {\n}\n' },
+    cases: [{ name: '1 1 2 3 … 233', memory: at(0, range(13, () => 0x55)), expect: { memory: at(0, [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]) } }],
+  }),
+  task({
+    id: 'multiply', chapter: 'Memory', short: 'Multiply', title: 'Multiply',
     text: 'Multiply the bytes at {+0} and {+1}. Write the 16-bit product to {+2} (low byte) and {+3} (high byte), then halt. There is no multiplication instruction: add, or shift and add. (In C, * does it for you — compare the cycles.)',
     starter: { c: '\n#define IN ((char*){+0})\n#define PRODUCT (*(int*){+2})\n\nvoid main() {\n}\n' },
     limit: 400_000,
@@ -133,7 +135,15 @@ export const TASKS = Object.freeze([
     })),
   }),
   task({
-    id: 'checkerboard', title: 'Checkerboard',
+    id: 'sort', chapter: 'Memory', short: 'Sort', title: 'Sort',
+    text: 'Sort the eight bytes at {+0}–{+7} into ascending order, in place, then halt.',
+    starter: { c: '\n#define DATA ((char*){+0})\n\nvoid main() {\n}\n' },
+    limit: 400_000,
+    cases: [[5, 3, 8, 1, 9, 2, 7, 4], [1, 2, 3, 4, 5, 6, 7, 8], [8, 7, 6, 5, 4, 3, 2, 1], [9, 9, 1, 1, 255, 0, 128, 127], [0, 0, 0, 0, 0, 0, 0, 0]]
+      .map(list => ({ name: show(list), memory: at(0, list), expect: { memory: at(0, [...list].sort((a, b) => a - b)) } })),
+  }),
+  task({
+    id: 'checkerboard', chapter: 'Memory', short: 'Board', title: 'Checkerboard',
     text: 'The screen is 16 × 8 gray pixels at {+0}, one byte per pixel, row after row. Paint a checkerboard: pixel (x, y) is 255 where x + y is even and 0 where it is odd. Then halt.',
     starter: { asm: '.display {+0}, 16, 8, gray8\n\n        HLT\n', c: '#pragma display {+0}, 16, 8, gray8\n\n#define SCREEN ((char*){+0})\n\nvoid main() {\n}\n' },
     cases: [{
@@ -142,29 +152,22 @@ export const TASKS = Object.freeze([
       expect: { memory: at(0, range(128, i => ((i % 16) + (i >> 4)) % 2 ? 0 : 255)) },
     }],
   }),
+  // ---------------------------------------------------------------- devices: IN and OUT
   task({
-    id: 'sort', title: 'Sort',
-    text: 'Sort the eight bytes at {+0}–{+7} into ascending order, in place, then halt.',
-    starter: { c: '\n#define DATA ((char*){+0})\n\nvoid main() {\n}\n' },
-    limit: 400_000,
-    cases: [[5, 3, 8, 1, 9, 2, 7, 4], [1, 2, 3, 4, 5, 6, 7, 8], [8, 7, 6, 5, 4, 3, 2, 1], [9, 9, 1, 1, 255, 0, 128, 127], [0, 0, 0, 0, 0, 0, 0, 0]]
-      .map(list => ({ name: show(list), memory: at(0, list), expect: { memory: at(0, [...list].sort((a, b) => a - b)) } })),
+    id: 'countdown', chapter: 'Devices', short: 'Countdown', title: 'Countdown',
+    text: 'Show 10, 9, 8, …, 1, 0 on the number display (OUT to port 0x11, in C out(NUMBER, …)), one after the other, then halt.',
+    cases: [{ name: '10 to 0', expect: { numbers: range(11, i => 10 - i) } }],
   }),
   task({
-    id: 'digits', title: 'Typed digits',
+    id: 'digits', chapter: 'Devices', short: 'Digits', title: 'Typed digits',
     text: 'Read the keyboard (port 0x01, in C in(KEYBOARD); 0 while nothing was typed). Show every typed digit 0–9 on the number display as its value (the key 7 shows 7), ignore other characters, and halt after Enter (13).',
     cases: [['42\r', [4, 2]], ['a1b2c3\r', [1, 2, 3]], ['\r', []], ['9876543210\r', [9, 8, 7, 6, 5, 4, 3, 2, 1, 0]], ['/:09\r', [0, 9]]].map(([typed, numbers]) => ({
       name: JSON.stringify(typed.replace('\r', '⏎')), typed, expect: { numbers },
     })),
   }),
+  // ---------------------------------------------------------------- 64 KiB: X and Y
   task({
-    id: 'fibonacci', title: 'Fibonacci numbers',
-    text: 'Write the Fibonacci numbers 1, 1, 2, 3, 5, 8, … 233 (13 numbers) to {+0}–{+12}, then halt. Each number is the sum of the two before it.',
-    starter: { c: '\n#define F ((char*){+0})\n\nvoid main() {\n}\n' },
-    cases: [{ name: '1 1 2 3 … 233', memory: at(0, range(13, () => 0x55)), expect: { memory: at(0, [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]) } }],
-  }),
-  task({
-    id: 'average', title: 'Average', cpu: 'cpu8x',
+    id: 'average', chapter: 'MiniCPU 8X', short: 'Average', title: 'Average', cpu: 'cpu8x',
     text: 'At {+0} is a count n (1–100), followed by n bytes at {+1}, {+2}, … Show their average, rounded down, on the number display, then halt. The sum can be larger than 255.',
     starter: { c: '\n#define DATA ((char*){+0})\n\nvoid main() {\n    char n = DATA[0];\n    // …\n}\n' },
     limit: 1_000_000,
@@ -174,7 +177,7 @@ export const TASKS = Object.freeze([
     })),
   }),
   task({
-    id: 'reverse', title: 'Reverse a text', cpu: 'cpu8x',
+    id: 'reverse', chapter: 'MiniCPU 8X', short: 'Reverse', title: 'Reverse a text', cpu: 'cpu8x',
     text: 'A text starts at {+0} and ends with a byte 0. Reverse it in place ("Hello" becomes "olleH"), then halt.',
     starter: { c: '\n#define TEXT ((char*){+0})\n\nvoid main() {\n}\n' },
     limit: 1_000_000,
@@ -182,10 +185,9 @@ export const TASKS = Object.freeze([
       name: `"${s}"`, memory: at(0, [...bytes(s), 0]), expect: { memory: at(0, [...bytes([...s].reverse().join('')), 0]) },
     })),
   }),
-
   // ---------------------------------------------------------------- C: functions, recursion, arrays, graphics
   task({
-    id: 'factorial', title: 'Factorial, recursively', language: 'c', cpu: 'cpu8x',
+    id: 'factorial', chapter: 'C', short: 'n!', title: 'Factorial, recursively', language: 'c', cpu: 'cpu8x',
     text: 'Write a recursive function int factorial(int n): 0! = 1, n! = n · (n − 1)!. At {+0} is n (0–8); write n! as an int to {+2} (low byte first, so *(int*){+2} = …), then halt. 8! = 40320 needs all 16 bits.',
     starter: { c: '\n#define N (*(char*){+0})\n#define RESULT (*(int*){+2})\n\nint factorial(int n) {\n    return 1;   // …\n}\n\nvoid main() {\n    RESULT = factorial(N);\n}\n' },
     cases: [0, 1, 3, 5, 7, 8].map(n => {
@@ -194,7 +196,7 @@ export const TASKS = Object.freeze([
     }),
   }),
   task({
-    id: 'gcd', title: 'Greatest common divisor', language: 'c', cpu: 'cpu8x',
+    id: 'gcd', chapter: 'C', short: 'gcd', title: 'Greatest common divisor', language: 'c', cpu: 'cpu8x',
     text: 'At {+0} and {+2} are two ints a and b (1–30000). Write their greatest common divisor as an int to {+4}, then halt. Euclid: gcd(a, b) = gcd(b, a % b), and gcd(a, 0) = a.',
     starter: { c: '\n#define A (*(int*){+0})\n#define B (*(int*){+2})\n#define RESULT (*(int*){+4})\n\nint gcd(int a, int b) {\n    return a;   // …\n}\n\nvoid main() {\n    RESULT = gcd(A, B);\n}\n' },
     limit: 1_000_000,
@@ -203,14 +205,14 @@ export const TASKS = Object.freeze([
     })),
   }),
   task({
-    id: 'primes', title: 'Prime numbers', language: 'c', cpu: 'cpu8x',
+    id: 'primes', chapter: 'C', short: 'Primes', title: 'Prime numbers', language: 'c', cpu: 'cpu8x',
     text: 'Show every prime number below 100 on the number display, smallest first (2, 3, 5, 7, 11, …, 97), then halt. The sieve of Eratosthenes: an array of 100 marks, cross out every multiple of each prime.',
     starter: { c: '\nchar crossed[100];\n\nvoid main() {\n}\n' },
     limit: 2_000_000,
     cases: [{ name: '2 3 5 … 97', expect: { numbers: range(100, i => i).filter(isPrime) } }],
   }),
   task({
-    id: 'letters', title: 'Count the letters', language: 'c', cpu: 'cpu8x',
+    id: 'letters', chapter: 'C', short: 'Letters', title: 'Count the letters', language: 'c', cpu: 'cpu8x',
     text: 'A text starts at {+0} and ends with a byte 0. Count how often each letter appears, upper and lower case together, and write the 26 counts (a, b, …, z) to {+0x100}–{+0x119}, then halt.',
     starter: { c: '\n#define TEXT ((char*){+0})\n#define COUNT ((char*){+0x100})\n\nvoid main() {\n}\n' },
     limit: 1_000_000,
@@ -220,7 +222,7 @@ export const TASKS = Object.freeze([
     }),
   }),
   task({
-    id: 'line', title: 'Draw a line', language: 'c', cpu: 'cpu8x',
+    id: 'line', chapter: 'C', short: 'Line', title: 'Draw a line', language: 'c', cpu: 'cpu8x',
     text: 'The screen is 32 × 24 gray pixels at {+0x100}, one byte per pixel, all 0. At {+0}–{+3} are x0, y0, x1, y1. Draw the straight line from (x0, y0) to (x1, y1) in white (255): one pixel for every step along the longer axis, each as close to the exact line as possible. Then halt.',
     starter: { c: '#pragma display {+0x100}, 32, 24, gray8\n\n#define IN ((char*){+0})\n#define SCREEN ((char*){+0x100})\n\nvoid plot(int x, int y) {\n    SCREEN[y * 32 + x] = 255;\n}\n\nvoid main() {\n}\n' },
     limit: 1_000_000,
