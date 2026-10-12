@@ -99,7 +99,8 @@ void make_palette() {
 void make_tables() {
     for (int i = 0; i <= 64; i++) {
         sine[i] = quarter[i]; sine[128 - i] = quarter[i];
-        sine[128 + i] = -quarter[i]; sine[(256 - i) & 255] = -quarter[i];
+        sine[128 + i] = -(int)quarter[i];      // (int): -quarter[i] would be a char, 0..255
+        sine[(256 - i) & 255] = -(int)quarter[i];
     }
     for (int y = 0; y < H; y++) row_start[y] = y * W;
     for (int y = H / 2 + 1; y < H; y++) row_distance[y] = 16384 / (2 * y - H + 1);

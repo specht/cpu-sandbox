@@ -1216,6 +1216,11 @@ class Generator {
       case 'un': {
         const size = this.size(t);
         if (e.op === '!') return this.condition(e);
+        // C would turn the char into an int first; here -c stays a char, so
+        // -9 becomes 247. Worth a warning where int has 16 bits.
+        if (e.op === '-' && this.W === 2 && size === 1 && this.constant(e.e) === null) {
+          this.warnings.push({ line: e.line, message: '-x of a char is a char too: -9 becomes 247. For a negative number write -(int)x' });
+        }
         this.gen(e.e);
         this.convert(this.typeOf(e.e), t, e.line);
         if (e.op === '+') return;

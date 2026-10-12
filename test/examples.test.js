@@ -287,6 +287,20 @@ test('raycaster (C): textured walls, floor and ceiling; walking never enters a w
   assert.ok(new Set(shown.slice(0, 80 * 10)).size > 3 && new Set(shown.slice(80 * 40)).size > 3, 'textured ceiling and floor');
   const busy = flips.at(-1) - flips.at(-4);
   assert.ok(busy / 3 < 2_200_000, `at most two frames per picture at 64 MHz (${Math.round(busy / 3)} cycles)`);
+  // The sine table is negative in the second half (-char stays a char: the table needs -(int)).
+  const s16 = address => ((cpu.memory[address] | cpu.memory[address + 1] << 8) << 16) >> 16;
+  const sine = program.labels.get('_sine'), at = name => s16(program.labels.get(name));
+  for (let i = 1; i < 128; i++) assert.equal(s16(sine + 2 * (256 - i)), -s16(sine + 2 * i), `sine[${256 - i}]`);
+  // Turning left for half a second: north-east, so dir_y < 0 (y grows southwards).
+  cpu.io.joystick = 1;
+  const start = cpu.time;
+  while (cpu.time < start + 0.5) cpu.step();
+  cpu.io.joystick = 0;
+  while (cpu.time < start + 0.6) cpu.step();
+  const angle = cpu.memory[program.labels.get('_angle')], radians = angle * Math.PI / 128;
+  assert.ok(angle > 192 && angle < 250, `angle ${angle}`);
+  assert.ok(Math.abs(at('_dir_x') - 64 * Math.cos(radians)) <= 1.5 && Math.abs(at('_dir_y') - 64 * Math.sin(radians)) <= 1.5, `direction at angle ${angle}`);
+  assert.equal(at('_plane_x'), Math.trunc(-at('_dir_y') * 2 / 3));
   // Walk around at random for a while: never inside a wall.
   const moves = [4, 4, 4, 1, 2, 8];
   while (cpu.time < 6) {

@@ -45,7 +45,9 @@ The CPU menu edits the `#pragma cpu` line.
 - **char arithmetic stays 8 bits wide**, like the registers: for two `char`s,
   `200 + 100` is 44. As soon as an `int` takes part, the computation is done
   in `int`; a constant takes the type of the other operand if it fits.
-  Write `(int)a + b` to compute a `char` sum without overflow.
+  Write `(int)a + b` to compute a `char` sum without overflow. The same goes
+  for `-c`: it is a `char` too (`-9` becomes 247), so write `-(int)c` for a
+  negative number. The compiler warns about it.
 - **Arrays live outside of functions**, and `&` works only on global
   variables. Local variables are on the stack and are reached with `[SP+n]`,
   but there is no instruction that copies SP into a register, so their address

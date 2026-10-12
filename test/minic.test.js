@@ -155,3 +155,15 @@ test('a constant in an index joins the address, but char indexes still wrap', ()
   assert.deepEqual([0, 1, 2, 3].map(k => read('r', k)), [99, 0, 302 & 255, 0]);
   assert.match(program.asm, /LDA X, \[_i\]\n\s+ADD X, _table \+ 4 \+ 512\n/, "one addition for table + 4 + 512 + i");
 });
+
+test('-x of a char stays a char, with a warning on 8X', () => {
+  const source = '#pragma cpu 8x\nchar q = 9;\nint a, b;\nvoid main() {\n    a = -q;\n    b = -(int)q;\n}\n';
+  const { warnings } = compile(source);
+  assert.deepEqual(warnings.map(w => w.line), [5]);
+  const program = build(source, 'c');
+  const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1 });
+  while (!cpu.halted) cpu.step();
+  const read = name => cpu.memory[program.labels.get(name)] | cpu.memory[program.labels.get(name) + 1] << 8;
+  assert.equal(read('_a'), 247);
+  assert.equal(read('_b'), 65536 - 9);
+});
