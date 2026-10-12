@@ -100,6 +100,11 @@ the level next to the file name.
     where in the program does that happen? Why is the note played *before*
     the picture is updated? Change the arpeggio pattern, or make the
     digit row play single notes.
+29. **`29-raycaster.c`**: a 3D maze, like Wolfenstein 3D, without floating
+    point. Find the golden door. Watch the frames per second on the number
+    display at different clocks. Pause a few times: in which function is
+    the CPU most often, and why? Why is the floor cheaper per pixel than the
+    walls? Change the map, the textures or the fog.
 
 ## Exercises
 

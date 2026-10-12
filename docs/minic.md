@@ -72,6 +72,14 @@ The CPU menu edits the `#pragma cpu` line.
 - `*`, `/`, `%` and shifts by a variable amount call helper routines (`mul16`,
   `divs16`, `sar16`, …), which are added at the end of the program only when
   it uses them. Multiplication and division by powers of two become shifts.
+  Shifts by a constant of 1–3 bits or of 8 and more are done in place: `>> 8`
+  just takes the high byte, so 8.8 fixed point is cheap. Shifts by 4–7 bits
+  call a helper; `(t * 2) >> 8` is a fast `t >> 7` when `t * 2` does not
+  overflow.
+- `table[1024 + i]` adds 1024 to the address of `table` at assembly time, and
+  the index of a global array is added to its address with one instruction.
+  A `char` index still wraps: `a[c + 1]` with `c = 255` is `a[0]`. Write
+  `a[(int)c + 1]` for `a[256]`.
 - The C program starts with `CALL _main` and halts when `main` returns.
 
 On 8S and 8X the stack grows down from the end of RAM. A program that fills

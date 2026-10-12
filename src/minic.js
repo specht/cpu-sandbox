@@ -1264,12 +1264,38 @@ class Generator {
       const p = pointerLeft ? e.l : e.r, n = pointerLeft ? e.r : e.l;
       const pt = pointerLeft ? l : r;
       const element = this.size(pt.to, e.line);
+      // p + (k + i) is (p + k) + i: the constant joins the address, as in table[1024 + i].
+      // Not for a char index on 8X, whose sum wraps at 256 (a[c + 1] with c = 255 is a[0]).
+      if (e.op === '+' && n.k === 'bin' && (n.op === '+' || n.op === '-') && (this.W === 1 || this.size(decay(this.typeOf(n))) === 2)) {
+        const kl = n.op === '+' ? this.constant(n.l) : null, kr = this.constant(n.r);
+        const rest = kr !== null ? n.l : kl !== null ? n.r : null;
+        if (rest && decay(this.typeOf(rest)).k !== 'ptr') {
+          const k = kr !== null ? (n.op === '-' ? -kr : kr) : kl;
+          const inner = { k: 'bin', op: k < 0 ? '-' : '+', l: p, r: { k: 'num', v: Math.abs(k), line: e.line }, line: e.line };
+          return this.arithmetic({ k: 'bin', op: '+', l: inner, r: rest, line: e.line });
+        }
+      }
       if (e.op === '-' && r.k === 'ptr') {
         this.binary(e.l, e.r, '-', pt, e.line);
         if (element === 2) { this.emit('LDI B, 1'); this.callRuntime('sar16', 'Subtracting int pointers', e.line); }
         return;
       }
       const k = this.constant(n);
+      // A global array: compute the index first, then add the array's address
+      // as a constant — no detour over the stack.
+      const base = this.staticAddress(p);
+      if (base !== null && k === null && this.W === 2 && e.op === '+' && element <= 2) {
+        if (this.size(decay(this.typeOf(n))) === 1) {
+          this.value(n, CHAR);
+          this.emit(`LDI X, ${base}`);
+          for (let i = 0; i < element; i++) this.emit('ADD X, A');
+        } else {
+          this.value(n, INT);
+          if (element === 2) this.emit('ADD X, X');
+          this.emit(`ADD X, ${base}`);
+        }
+        return;
+      }
       this.gen(p);
       if (k !== null) {
         const delta = k * element;
@@ -1318,6 +1344,7 @@ class Generator {
       if (size === 1) { this.emit(`${name} A, ${m}`); return; }
       [['XL', m & 0xFF], ['XH', m >> 8]].forEach(([half, byte]) => {
         if ((name === 'AND' && byte === 0xFF) || (name !== 'AND' && byte === 0)) return;
+        if (name === 'AND' && byte === 0) { this.emit('LDI A, 0'); this.emit(`MOV ${half}, A`); return; }
         this.emit(`MOV A, ${half}`);
         this.emit(`${name} A, ${byte}`);
         this.emit(`MOV ${half}, A`);
@@ -1400,9 +1427,44 @@ class Generator {
         return;
       }
       if (!left && size === 1 && !this.signed(t)) { for (let i = 0; i < k; i++) this.emit('SHR A'); return; }
+      if (!left && size === 2 && k <= 3) {
+        // A few single-bit shifts are cheaper inline than a call.
+        for (let i = 0; i < k; i++) {
+          const low = this.newLabel('carry');
+          this.emit('MOV A, XL'); this.emit('SHR A'); this.emit('MOV XL, A');
+          this.emit('MOV A, XH'); this.emit('SHR A'); this.emit('MOV XH, A');      // CF = the bit that moves into the low byte
+          this.emit(`JNC ${low}`);
+          this.emit('MOV A, XL'); this.emit('OR A, 0x80'); this.emit('MOV XL, A');
+          this.label(low);
+          if (this.signed(t)) {
+            const positive = this.newLabel('positive');
+            this.emit('MOV A, XH'); this.emit('CMP A, 0x40');                      // the old sign bit is now bit 6
+            this.emit(`JC ${positive}`);
+            this.emit('OR A, 0x80'); this.emit('MOV XH, A');
+            this.label(positive);
+          }
+        }
+        return;
+      }
       if (!left && size === 2 && k >= 8 && !this.signed(t)) {
-        this.emit('MOV A, XH'); this.emit('MOV XL, A'); this.emit('LDI A, 0'); this.emit('MOV XH, A');
-        if (k > 8) { this.emit(`LDI B, ${k - 8}`); this.callRuntime('shr16', '>>', e.line); }
+        this.emit('MOV A, XH');
+        for (let i = 8; i < k; i++) this.emit('SHR A');
+        this.emit('MOV XL, A'); this.emit('LDI A, 0'); this.emit('MOV XH, A');
+        return;
+      }
+      if (!left && size === 2 && k >= 8) {
+        // Signed: the high byte moves down, the sign fills the rest.
+        const positive = this.newLabel('positive'), done = this.newLabel('shifted');
+        this.emit('MOV A, XH');
+        this.emit('CMP A, 0x80');
+        this.emit(`JC ${positive}`);
+        for (let i = 8; i < k; i++) { this.emit('SHR A'); this.emit('OR A, 0x80'); }
+        this.emit('MOV XL, A'); this.emit('LDI A, 0xFF'); this.emit('MOV XH, A');
+        this.emit(`JMP ${done}`);
+        this.label(positive);
+        for (let i = 8; i < k; i++) this.emit('SHR A');
+        this.emit('MOV XL, A'); this.emit('LDI A, 0'); this.emit('MOV XH, A');
+        this.label(done);
         return;
       }
       this.emit(`LDI B, ${k}`);

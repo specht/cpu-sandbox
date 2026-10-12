@@ -278,3 +278,27 @@ test('arpeggio organ (C): a key plays its chord from the next arpeggio on, exact
   assert.ok(gaps.every(g => g === 9), `100 BPM: a sixteenth every 9 frames (${gaps})`);
   assert.equal(devices.outputs.get(0x11), 100, 'the number display shows the tempo');
 });
+
+test('raycaster (C): textured walls, floor and ceiling; walking never enters a wall', () => {
+  const program = build(fs.readFileSync(new URL('29-raycaster.c', dir), 'utf8'), 'c');
+  const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 32e6 });
+  const flips = [];
+  cpu.io.onOutput(port => { if (port === 0x12) flips.push(cpu.cycles); });
+  const px = () => cpu.memory[program.labels.get('_px')] | cpu.memory[program.labels.get('_px') + 1] << 8;
+  const py = () => cpu.memory[program.labels.get('_py')] | cpu.memory[program.labels.get('_py') + 1] << 8;
+  const map = program.labels.get('_map');
+  let x = 0;
+  while (cpu.time < 1) cpu.step();
+  const page = cpu.io.outputs.get(0x12) * 256, shown = cpu.memory.slice(page, page + 80 * 50);
+  assert.ok(new Set(shown).size > 20, 'many shades of the textures');
+  assert.ok(new Set(shown.slice(0, 80 * 10)).size > 3 && new Set(shown.slice(80 * 40)).size > 3, 'textured ceiling and floor');
+  const busy = flips.at(-1) - flips.at(-4);
+  assert.ok(busy / 3 < 2_200_000, `at most two frames per picture at 64 MHz (${Math.round(busy / 3)} cycles)`);
+  // Walk around at random for a while: never inside a wall.
+  const moves = [4, 4, 4, 1, 2, 8];
+  while (cpu.time < 6) {
+    cpu.step();
+    if (++x % 20000 === 0) cpu.io.joystick = moves[(x / 20000) % moves.length | 0] | (x % 140000 === 0 ? 16 : 0);
+    if (x % 5000 === 0) assert.equal(cpu.memory[map + (py() >> 8) * 16 + (px() >> 8)], 0, `inside a wall at ${px()}, ${py()}`);
+  }
+});

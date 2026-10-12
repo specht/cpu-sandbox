@@ -128,6 +128,7 @@ stays on this computer and never reaches a student repository.
 | `26-stars.c` | 8X | C: flying through a starfield, speed on the joystick |
 | `27-color-cycling.c` | 8X | C: a picture drawn once, animated only through the palette chip and vsync |
 | `28-arpeggio-organ.c` | 8X | C: three octaves of chords on the keyboard, arpeggios in exact rhythm, adjustable tempo |
+| `29-raycaster.c` | 8X | C: a 3D maze with textured walls, floor and ceiling, fog from the palette, a map |
 
 A suggested order with questions and exercises: [docs/teaching.md](docs/teaching.md).
 

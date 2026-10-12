@@ -119,3 +119,39 @@ test('the build maps addresses to C lines and shows formatted assembly', () => {
   assert.ok(program.listing.some(entry => entry.line === 4 && entry.bytes.length > 0));
   assert.ok(program.asmAssembly.listing.length > program.listing.length);
 });
+
+test('shifts by a constant of 1–3 or 8 and more are inline, signed and unsigned', () => {
+  const values = [0, 1, 255, 256, 1000, 32767, -1, -256, -257, -1000, -32768];
+  const { read, program } = run(`
+    int v[11] = {${values.join(', ')}};
+    int r[66];
+    void main() {
+      for (int i = 0; i < 11; i++) {
+        r[6 * i] = v[i] >> 8; r[6 * i + 1] = v[i] >> 11; r[6 * i + 2] = v[i] >> 3;
+        r[6 * i + 3] = (unsigned int)v[i] >> 8; r[6 * i + 4] = (unsigned int)v[i] >> 13; r[6 * i + 5] = (unsigned int)v[i] >> 1;
+      }
+    }`);
+  values.forEach((v, i) => {
+    const u = v & 0xFFFF;
+    assert.deepEqual([0, 1, 2, 3, 4, 5].map(k => read('r', 6 * i + k)), [v >> 8, v >> 11, v >> 3, u >> 8, u >> 13, u >> 1], `${v}`);
+  });
+  assert.ok(!program.asm.includes('CALL sar16') && !program.asm.includes('CALL shr16'), 'no helper routine');
+});
+
+test('a constant in an index joins the address, but char indexes still wrap', () => {
+  const { read, program } = run(`
+    char table[600];
+    char c = 255;
+    int i = 3;
+    int r[4];
+    void main() {
+      for (int k = 0; k < 600; k++) table[k] = k & 255;
+      table[512 + 7] = 99;
+      r[0] = table[512 + i + 4];
+      r[1] = table[c + 1];          // char arithmetic: 255 + 1 is 0
+      r[2] = table[i - 1 + 300];
+      r[3] = table[(int)c + 1];
+    }`);
+  assert.deepEqual([0, 1, 2, 3].map(k => read('r', k)), [99, 0, 302 & 255, 0]);
+  assert.match(program.asm, /LDA X, \[_i\]\n\s+ADD X, _table \+ 4 \+ 512\n/, "one addition for table + 4 + 512 + i");
+});
