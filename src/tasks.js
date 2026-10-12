@@ -242,6 +242,12 @@ export function taskOf(source) {
   return null;
 }
 
+/** A case's input as absolute addresses for a CPU level: [[address, bytes], …]. */
+export function caseInput(testCase, level) {
+  const base = baseOf(level);
+  return Object.entries(testCase.memory ?? {}).map(([offset, values]) => [base + Number(offset), values]);
+}
+
 /** Runs one case on a fresh machine. Returns { pass, message, cycles }. */
 export function runCase(program, t, testCase) {
   const base = baseOf(program.architecture);
@@ -253,8 +259,8 @@ export function runCase(program, t, testCase) {
   memory.set(program.memory);
   const used = (program.asmAssembly ?? program).listing;
   const digits = memory.length > 256 ? 4 : 2;
-  for (const [offset, values] of Object.entries(testCase.memory ?? {})) {
-    const start = base + Number(offset), end = start + values.length;
+  for (const [start, values] of caseInput(testCase, program.architecture)) {
+    const end = start + values.length;
     if (end > memory.length) return { pass: false, message: `This task needs RAM up to 0x${hex(end - 1, 4)}: use a bigger CPU level`, cycles: 0 };
     const clash = used.find(e => e.address < end && e.address + e.size > start && e.size);
     if (clash) return { pass: false, message: `The program uses 0x${hex(clash.address, digits)}, where the task puts its input (0x${hex(start, digits)}–0x${hex(end - 1, digits)})`, cycles: 0 };

@@ -16,7 +16,7 @@ import { explainFlags } from '/src/flags.js';
 import { traceInstruction } from '/src/trace.js';
 import { CyclePanel } from './cycles.js';
 import { TaskPanel } from './tasks.js';
-import { TASKS, taskById } from '/src/tasks.js';
+import { TASKS, taskById, caseInput } from '/src/tasks.js';
 
 const CLOCKS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5, 2e5, 5e5, 1e6, 2e6, 4e6, 8e6, 16e6, 32e6, 64e6];
 const preferences = loadPreferences();
@@ -432,8 +432,9 @@ function restartMachine() {
   // A test case of the task, loaded with "Try it": its input goes into RAM and the keyboard.
   const testCase = state.testCase;
   if (state.cpu && testCase) {
-    for (const [address, values] of Object.entries(testCase.memory ?? {})) {
-      if (Number(address) + values.length <= state.cpu.memory.length) state.cpu.memory.set(values, Number(address));
+    // The same addresses as the check: from 0x80 on MiniCPU 8 and 8S, from 0x8000 on 8X.
+    for (const [address, values] of caseInput(testCase, state.assembly.architecture)) {
+      if (address + values.length <= state.cpu.memory.length) state.cpu.memory.set(values, address);
     }
     if (testCase.typed) devices.type(testCase.typed);
   }

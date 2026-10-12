@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TASKS, taskOf, checkSource, place, levelOf } from '../src/tasks.js';
+import { TASKS, taskOf, checkSource, place, levelOf, caseInput } from '../src/tasks.js';
 import { build } from '../src/build.js';
 
 // A reference solution for every task: each must pass all of its cases.
@@ -244,6 +244,21 @@ test('the task texts name the addresses of the CPU level', () => {
   assert.match(add.starter.c, /#pragma cpu 8x[\s\S]*\(char\*\)0x8000/);
   assert.equal(levelOf('// Task: add\nvoid main() {}', 'c'), 'cpu8x');
   assert.equal(levelOf('; Task: add\n.cpu 8s\nHLT', 'asm'), 'cpu8s');
+});
+
+test('a case puts its input at the start address of the CPU level (also for Try it)', () => {
+  const factorial = TASKS.find(t => t.id === 'factorial');
+  assert.deepEqual(caseInput(factorial.cases[0], 'cpu8x'), [[0x8000, [0]]]);
+  const letters = TASKS.find(t => t.id === 'letters');
+  assert.deepEqual(caseInput(letters.cases[0], 'cpu8x').map(([a]) => a), [0x8000, 0x8100]);
+  assert.deepEqual(caseInput(TASKS[0].cases[0], 'cpu8'), [[0x80, [3, 4]]]);
+});
+
+test('the ternary operator works in a recursive factorial', () => {
+  const source = SOLUTIONS.factorial.replace(/int factorial[^}]*\}/, 'int factorial(int n) { return (n < 2) ? 1 : factorial(n - 1) * n; }');
+  assert.match(source, /\? 1 : factorial/);
+  const result = checkSource(source, 'c');
+  assert.equal(result.passed, result.total);
 });
 
 test('a line that misses a pixel or wanders off is caught', () => {
