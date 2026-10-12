@@ -1,14 +1,17 @@
 // ARPEGGIO ORGAN
 //
 // Click the screen and press a letter key: the organ plays its chord as an
-// arpeggio, one note after the other, until you press the next key. A key
-// changes the chord at once and starts its arpeggio from the beginning, so
-// your key presses set the rhythm. Three rows of keys are three octaves of
-// chords: Q, A and Y (Z on an English keyboard) are C, and every key to the
-// right is a semitone higher, like the white and black keys of a piano:
-// C C# D D# E F F# G G# A A# H (German H is B). The dark boxes on the
-// screen are the black keys. Chords are major; hold Shift for minor. Space
-// stops.
+// arpeggio, one note after the other, until you press the next key. The
+// first key starts the beat. Every later key changes the chord at once,
+// but the beat goes on: an arpeggio is half a bar of 8 sixteenths, and its
+// first note always falls on the first beat, so the organ can play along
+// with a band. Space stops, and the next key starts a new beat.
+//
+// Three rows of keys are three octaves of chords: Q, A and Y (Z on an
+// English keyboard) are C, and every key to the right is a semitone higher,
+// like the white and black keys of a piano: C C# D D# E F F# G G# A A# H
+// (German H is B). The dark boxes on the screen are the black keys. Chords
+// are major; hold Shift for minor.
 //
 // ↑ and ↓ change the tempo, which the number display shows in beats per
 // minute (an arpeggio is 8 sixteenth notes, half a bar). ← and → choose one
@@ -165,9 +168,9 @@ void main() {
     char stick_before = 0;
     char chord = 0;             // the key position of the chord, with the Shift bit
     char held = 0;              // the key held down in the last frame
-    char step = 0;              // 0..7 in the arpeggio
+    char step = 0;              // the sixteenth now, 0..7 in the arpeggio
     char playing = 0;           // the piano key that is lit
-    int time = 0;               // sixteenths: + 4 · bpm per frame, a sixteenth at 3600
+    int time = 0;               // since the sixteenth began: + 4 · bpm per frame, the next one at 3600
     out(NUMBER, bpm);
     out(NOTE_LENGTH, 900 / bpm + 3);
 
@@ -178,9 +181,14 @@ void main() {
         last = now;
         char key = in(KEYS);
         char before = chord;
+        char tick = 0;
+        if (chord) {                            // the beat goes on: the next sixteenth when its time has come
+            time += (int)passed * 4 * bpm;
+            if (time >= 3600) { time -= 3600; step = (step + 1) & 7; tick = 1; }
+        }
         if (key != held && root_of(key)) {     // a key was just pressed (or Shift changed):
-            chord = key;                        // its chord, from the root, right now
-            step = 0;
+            if (!chord) { step = 0; time = 0; tick = 1; }       // the first key starts the beat
+            chord = key;                        // its chord, now
         }
         held = key;
         char stick = in(JOYSTICK);
@@ -204,13 +212,11 @@ void main() {
             if (stick & JOY_DOWN && bpm > 40) bpm--;
             if (bpm != old) { out(NUMBER, bpm); out(NOTE_LENGTH, 900 / bpm + 3); shown = 0; }
         }
-        if (stick & JOY_FIRE) chord = 0;       // Space: silence
-        if (chord != before) time = 3600;       // a new chord (or silence) at once …
-        else time += (int)passed * 4 * bpm;     // … else the next sixteenth when its time has come
-        if (time < 3600) continue;
-        time -= 3600;
+        if (stick & JOY_FIRE) chord = 0;       // Space: silence, until a key starts a new beat
+        if (!tick && chord == before) continue;
 
-        // The note first, so that drawing never delays it …
+        // The note first, so that drawing never delays it: on every sixteenth,
+        // and at once for a new chord (the note of this sixteenth).
         char note = 0;
         if (chord) { note = note_of(chord, step); out(SPEAKER, note); }
 
@@ -221,6 +227,5 @@ void main() {
             if (chord) { box(chord, chord & KEY_SHIFT ? MINOR : MAJOR); show_chord(chord, 1); }
         }
         if (note && note - LOWEST < NOTES) { playing = note - LOWEST + 1; piano_key(note - LOWEST, PLAYING); }
-        step = (step + 1) & 7;
     }
 }
