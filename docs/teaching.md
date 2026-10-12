@@ -114,10 +114,12 @@ cost? Then the C tasks: *Factorial*, *gcd*, *Primes*, *Letters* and *Line*.
     how many cycles would redrawing the screen cost instead? Make the rings
     flow inwards; cycle only half of the colors.
 24. **`24-arpeggio-organ.c`**: an instrument. Play "New Born" (Em H Em H Em
-    C G H: Shift+T, +, Shift+T, +, Shift+T, Q, I, +). Why does a chord only
-    change at the start of an arpeggio, and where in the program does that
-    happen? Why is the note played *before* the picture is updated? Change
-    the arpeggio pattern, or make the digit row play single notes.
+    C G H: Shift+T, +, Shift+T, +, Shift+T, Q, I, +). A press starts its
+    chord at once: why does the program compare the key with the one held
+    in the last frame, and what would happen without `held`? Why is the
+    note played *before* the picture is updated? ← and → switch between
+    five arpeggio patterns: add a sixth, or make the digit row play single
+    notes.
 25. **`25-raycaster.c`**: a 3D maze, like Wolfenstein 3D, without floating
     point. Find the golden door. Watch the frames per second on the number
     display at different clocks. Pause a few times: in which function is

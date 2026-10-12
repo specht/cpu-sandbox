@@ -133,7 +133,7 @@ stays on this computer and never reaches a student repository.
 | `21-life.c` | 8X | C: Conway's Game of Life with glowing cells |
 | `22-stars.c` | 8X | C: flying through a starfield, speed on the joystick |
 | `23-color-cycling.c` | 8X | C: a picture drawn once, animated only through the palette chip and vsync |
-| `24-arpeggio-organ.c` | 8X | C: three octaves of chords on the keyboard, arpeggios in exact rhythm, adjustable tempo |
+| `24-arpeggio-organ.c` | 8X | C: three octaves of chords on the keyboard, five arpeggio patterns in exact rhythm, adjustable tempo |
 | `25-raycaster.c` | 8X | C: a 3D maze with textured walls, floor and ceiling, fog from the palette, a map |
 
 The examples come in chapters, and each chapter ends with the tasks it

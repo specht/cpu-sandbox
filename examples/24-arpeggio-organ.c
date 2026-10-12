@@ -1,17 +1,21 @@
 // ARPEGGIO ORGAN
 //
 // Click the screen and press a letter key: the organ plays its chord as an
-// arpeggio, one note after the other, until you press the next key. The new
-// chord starts with the next arpeggio, so you can press it early and stay in
-// time. Three rows of keys are three octaves of chords: Q, A and Y (Z on an
-// English keyboard) are C, and every key to the right is a semitone higher,
-// like the white and black keys of a piano: C C# D D# E F F# G G# A A# H
-// (German H is B). The dark boxes on the screen are the black keys. Chords
-// are major; hold Shift for minor. Space stops.
-// ↑ and ↓ change the tempo, which the number display shows in beats per
-// minute (an arpeggio is 8 sixteenth notes, half a bar).
+// arpeggio, one note after the other, until you press the next key. A key
+// changes the chord at once and starts its arpeggio from the beginning, so
+// your key presses set the rhythm. Three rows of keys are three octaves of
+// chords: Q, A and Y (Z on an English keyboard) are C, and every key to the
+// right is a semitone higher, like the white and black keys of a piano:
+// C C# D D# E F F# G G# A A# H (German H is B). The dark boxes on the
+// screen are the black keys. Chords are major; hold Shift for minor. Space
+// stops.
 //
-// Try "New Born" by Muse: Em H Em H Em C G H, one key per arpeggio. In the
+// ↑ and ↓ change the tempo, which the number display shows in beats per
+// minute (an arpeggio is 8 sixteenth notes, half a bar). ← and → choose one
+// of five arpeggio patterns; the number display shows its number for a
+// second and a half.
+//
+// Try "New Born" by Muse: Em H Em H Em C G H, one key per half bar. In the
 // top row: Shift+T, +, Shift+T, +, Shift+T, Q, I, + (on an English keyboard
 // the + key is ]).
 //
@@ -20,7 +24,7 @@
 // speaker plays every note at the machine time of its OUT, and in(VSYNC)
 // paces the program: notes fall on the 60 frames per second, like on old
 // consoles. At 100, 150 or 180 BPM a sixteenth note is a whole number of
-// frames, so every note is exactly on time.
+// frames, so the notes of an arpeggio are exactly even.
 
 #pragma cpu 8x
 #pragma display 0x4000, 160, 64, indexed8
@@ -41,17 +45,25 @@
 #define LETTER 7
 #define MAJOR 8
 #define MINOR 9
-#define NEXT 10                 // the chord that comes next
-#define BOX_SHARP 11            // the box of a black key
+#define BOX_SHARP 10            // the box of a black key
 
-char colors[36] = {
+char colors[33] = {
     12, 16, 26,     235, 232, 222,  30, 32, 40,     150, 210, 255,  40, 110, 170,
     255, 200, 60,   72, 88, 116,    225, 232, 245,  60, 190, 110,   90, 130, 255,
-    230, 170, 60,   28, 34, 48};
+    28, 34, 48};
 
 char white_index[12] = {0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6};
 char is_black[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
-char pattern[8] = {0, 7, 12, 16, 19, 16, 12, 7}; // root, fifth, octave, tenth (minor: 15), …
+// Arpeggio patterns: semitones above the root, 8 sixteenths each. 4 is the
+// major third (minor: 3), 7 the fifth, 12 the octave, 16 the third an octave up.
+#define PATTERNS 5
+char patterns[40] = {
+    0, 7, 12, 16, 19, 16, 12, 7,        // 1 up and down
+    0, 4, 7, 12, 16, 19, 24, 28,        // 2 rising
+    28, 24, 19, 16, 12, 7, 4, 0,        // 3 falling
+    0, 7, 4, 7, 0, 7, 4, 7,             // 4 Alberti bass: low, high, middle, high
+    0, 12, 7, 12, 16, 12, 7, 12};       // 5 around the octave
+char *pattern = patterns;
 char key_color[NOTES];
 
 // The letters C D E F G A H, 3 x 5 pixels, one row per byte.
@@ -128,13 +140,13 @@ char root_of(char key) {
 
 char note_of(char key, char step) {
     char offset = pattern[step];
-    if (offset == 16 && (key & KEY_SHIFT)) offset = 15;    // minor: the third is a semitone lower
+    if (offset % 12 == 4 && (key & KEY_SHIFT)) offset--;    // minor: the third is a semitone lower
     return root_of(key) + offset;
 }
 
 // Lights or clears the notes of a chord on the piano.
 void show_chord(char key, char on) {
-    for (char step = 0; step < 5; step++) {
+    for (char step = 0; step < 8; step++) {
         char n = note_of(key, step) - LOWEST;
         if (n < NOTES) piano_key(n, on ? (is_black[n % 12] ? CHORD_BLACK : CHORD_WHITE) : (is_black[n % 12] ? BLACK_KEY : WHITE_KEY));
     }
@@ -142,13 +154,17 @@ void show_chord(char key, char on) {
 
 void main() {
     out(PALETTE, 0);
-    for (char i = 0; i < 36; i++) out(COLOR, colors[i]);
+    for (char i = 0; i < 33; i++) out(COLOR, colors[i]);
     for (char n = 0; n < NOTES; n++) piano_key(n, is_black[n % 12] ? BLACK_KEY : WHITE_KEY);
     for (char row = 2; row <= 4; row++)
         for (char column = 0; column < (row == 4 ? 10 : 12); column++) box(16 * row + column, BOX);
 
     char bpm = 100;
-    char chord = 0, next = 0;   // key positions with the Shift bit
+    char choice = 0;            // the pattern, 0..PATTERNS − 1
+    char shown = 0;             // frames left that the number display shows the pattern
+    char stick_before = 0;
+    char chord = 0;             // the key position of the chord, with the Shift bit
+    char held = 0;              // the key held down in the last frame
     char step = 0;              // 0..7 in the arpeggio
     char playing = 0;           // the piano key that is lit
     int time = 0;               // sixteenths: + 4 · bpm per frame, a sixteenth at 3600
@@ -161,32 +177,40 @@ void main() {
         char passed = now - last;       // 1, or more if drawing took longer than a frame
         last = now;
         char key = in(KEYS);
-        if (root_of(key) && key != next) {
-            if (next) box(next, BOX);
-            next = key == chord ? 0 : key;
-            if (next) box(next, NEXT);
+        char before = chord;
+        if (key != held && root_of(key)) {     // a key was just pressed (or Shift changed):
+            chord = key;                        // its chord, from the root, right now
+            step = 0;
         }
+        held = key;
         char stick = in(JOYSTICK);
-        if (!key && (now & 3) == 0) {           // ↑ ↓ (W and S are chord keys, so only when no chord key is held)
+        // The arrows also come from W A S D, which are chord keys: only when no chord key is held.
+        char pressed = key ? 0 : stick & ~stick_before;         // arrows that went down just now
+        stick_before = stick;
+        if (pressed & (JOY_LEFT | JOY_RIGHT)) {                 // ← →: the previous or next pattern
+            if (chord) show_chord(chord, 0);
+            choice = (choice + (pressed & JOY_RIGHT ? 1 : PATTERNS - 1)) % PATTERNS;
+            pattern = patterns + 8 * choice;
+            if (chord) show_chord(chord, 1);
+            out(NUMBER, choice + 1);
+            shown = 90;                                         // 1.5 seconds
+        } else if (shown) {
+            shown = shown > passed ? shown - passed : 0;
+            if (!shown) out(NUMBER, bpm);
+        }
+        if (!key && (now & 3) == 0) {           // ↑ ↓: the tempo, while held
             char old = bpm;
             if (stick & JOY_UP && bpm < 240) bpm++;
             if (stick & JOY_DOWN && bpm > 40) bpm--;
-            if (bpm != old) { out(NUMBER, bpm); out(NOTE_LENGTH, 900 / bpm + 3); }
+            if (bpm != old) { out(NUMBER, bpm); out(NOTE_LENGTH, 900 / bpm + 3); shown = 0; }
         }
-        if (stick & JOY_FIRE && chord) {        // Space: silence
-            show_chord(chord, 0);
-            box(chord, BOX);
-            chord = 0;
-            playing = 0;
-        }
-        if (!chord && next) { step = 0; time = 3600; }  // start at once when silent
-        else time += (int)passed * 4 * bpm;
+        if (stick & JOY_FIRE) chord = 0;       // Space: silence
+        if (chord != before) time = 3600;       // a new chord (or silence) at once …
+        else time += (int)passed * 4 * bpm;     // … else the next sixteenth when its time has come
         if (time < 3600) continue;
         time -= 3600;
 
         // The note first, so that drawing never delays it …
-        char before = chord;
-        if (step == 0 && next) { chord = next; next = 0; }      // a new chord starts with an arpeggio
         char note = 0;
         if (chord) { note = note_of(chord, step); out(SPEAKER, note); }
 
@@ -194,8 +218,7 @@ void main() {
         if (playing) { piano_key(playing - 1, is_black[(playing - 1) % 12] ? CHORD_BLACK : CHORD_WHITE); playing = 0; }
         if (chord != before) {
             if (before) { show_chord(before, 0); box(before, BOX); }
-            box(chord, chord & KEY_SHIFT ? MINOR : MAJOR);
-            show_chord(chord, 1);
+            if (chord) { box(chord, chord & KEY_SHIFT ? MINOR : MAJOR); show_chord(chord, 1); }
         }
         if (note && note - LOWEST < NOTES) { playing = note - LOWEST + 1; piano_key(note - LOWEST, PLAYING); }
         step = (step + 1) & 7;

@@ -253,7 +253,7 @@ test('plasma, life and stars (C) draw what they promise', () => {
   assert.ok(dots > 60 && dots <= 320, `stars on the screen: ${dots}`);
 });
 
-test('arpeggio organ (C): a key plays its chord from the next arpeggio on, exactly in time', async () => {
+test('arpeggio organ (C): a key plays its chord at once, the notes exactly in time', async () => {
   const { Devices, KEY_POSITIONS } = await import('../src/devices.js');
   const program = build(fs.readFileSync(new URL('24-arpeggio-organ.c', dir), 'utf8'), 'c');
   const devices = new Devices();
@@ -265,11 +265,34 @@ test('arpeggio organ (C): a key plays its chord from the next arpeggio on, exact
     cpu.step();
     if (!press('KeyT', true, 0.5, 0.6) && !press('BracketRight', false, 1.0, 1.1)) { devices.held = []; devices.shift = false; }
   }
-  assert.deepEqual(notes.slice(0, 8).map(n => n[1]), [64, 71, 76, 79, 83, 79, 76, 71], 'Shift+T, a semitone per key from Q: E minor (E B E G B G E B)');
-  assert.deepEqual(notes.slice(8, 13).map(n => n[1]), [71, 78, 83, 87, 90], 'then H (B) major, after the arpeggio');
-  const gaps = notes.slice(1, 16).map((n, i) => Math.round((n[0] - notes[i][0]) * 60));
+  // Shift+T at 0.5 s, + at 1.0 s: every press changes the chord at once and starts it from the root.
+  const changed = notes.findIndex(n => n[0] >= 1.0);
+  assert.equal(changed, 4, 'four sixteenths of E minor fit into half a second');
+  assert.deepEqual(notes.slice(0, 4).map(n => n[1]), [64, 71, 76, 79], 'Shift+T, a semitone per key from Q: E minor (E B E G …)');
+  assert.ok(Math.abs(notes[0][0] - 0.5) < 1 / 30 && Math.abs(notes[changed][0] - 1.0) < 1 / 30, 'each chord sounds right after its key');
+  assert.deepEqual(notes.slice(changed, changed + 8).map(n => n[1]), [71, 78, 83, 87, 90, 87, 83, 78], 'then H (B) major');
+  const gaps = notes.slice(changed + 1, changed + 16).map((n, i) => Math.round((n[0] - notes[changed + i][0]) * 60));
   assert.ok(gaps.every(g => g === 9), `100 BPM: a sixteenth every 9 frames (${gaps})`);
   assert.equal(devices.outputs.get(0x11), 100, 'the number display shows the tempo');
+});
+
+test('arpeggio organ: ← → choose the pattern, the number display shows it for a while', async () => {
+  const { Devices, KEY_POSITIONS } = await import('../src/devices.js');
+  const program = build(fs.readFileSync(new URL('24-arpeggio-organ.c', dir), 'utf8'), 'c');
+  const devices = new Devices();
+  const notes = [], numbers = [];
+  const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 8e6, devices });
+  devices.onOutput((port, value) => { if (port === 0x10) notes.push(value); if (port === 0x11) numbers.push([cpu.time, value]); });
+  const until = t => { while (cpu.time < t) cpu.step(); };
+  until(0.2); devices.joystick = 2; until(0.3); devices.joystick = 0;     // → once: pattern 2, rising
+  until(0.5); devices.held = [KEY_POSITIONS.KeyQ]; until(0.6); devices.held = [];
+  until(1.8);
+  assert.deepEqual(notes.slice(0, 8), [60, 64, 67, 72, 76, 79, 84, 88], 'C major, rising');
+  assert.deepEqual(numbers.map(n => n[1]), [100, 2, 100], 'the pattern number, then the tempo again');
+  assert.ok(Math.abs(numbers[2][0] - numbers[1][0] - 1.5) < 0.05, 'for one and a half seconds');
+  devices.joystick = 1; until(1.9); devices.joystick = 0; until(2.0);     // ← twice: back to 1, then 5
+  devices.joystick = 1; until(2.1); devices.joystick = 0;
+  assert.deepEqual(numbers.slice(3).map(n => n[1]), [1, 5]);
 });
 
 test('raycaster (C): textured walls, floor and ceiling; walking never enters a wall', () => {
