@@ -25,8 +25,8 @@
 // The fade: the columns come in the order 0, 128, 64, 192, 32, 160, 96, …,
 // each one halving a gap. Until the columns in its gap are computed, a
 // column lends them its colors: more and more pixels of the gap, in the
-// order of an 8 x 8 Bayer matrix. So the whole picture is there at once,
-// coarse at first, and sharp pixels sprinkle in until it is complete.
+// order of an 8 x 8 Bayer matrix. So the new picture dissolves into the old
+// one, coarse at first, and sharp pixels sprinkle in until it is complete.
 //
 // The colors: four ramps of four colors (water and sky, grass, rock, snow).
 // The program computes 49 brightnesses per ramp, and ordered dithering
@@ -59,7 +59,7 @@ char fade[64] = {               // the order in which pixels fade in: an 8 x 8 B
     12, 44, 4, 36, 14, 46, 6, 38,   60, 28, 52, 20, 62, 30, 54, 22,
     3, 35, 11, 43, 1, 33, 9, 41,    51, 19, 59, 27, 49, 17, 57, 25,
     15, 47, 7, 39, 13, 45, 5, 37,   63, 31, 55, 23, 61, 29, 53, 21};
-char fade_limit[9] = {64, 16, 24, 32, 40, 48, 56, 64, 0};      // how many of the 64 pixels a round fills
+char fade_limit[9] = {3, 6, 10, 16, 24, 34, 46, 64, 0};        // how many of the 64 pixels a round fills
 char reversed[256];             // i with its 8 bits in reverse order
 char quarter[65] = {            // sin of 0..64 (a quarter turn), 64 = 1.0
     0, 2, 3, 5, 6, 8, 9, 11, 12, 14, 16, 17, 19, 20, 22, 23, 24, 26, 27, 29, 30, 32,

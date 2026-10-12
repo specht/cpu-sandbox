@@ -205,7 +205,7 @@ test('landscape (C): a fractal height map, and a lake that mirrors the land', as
   const rows = [...rowStep.keys()];
   assert.ok(rows.some(r => rowStep[r] === 255 && rowTone[r] >= 64), 'land in the middle column');
   assert.ok(rows.some(r => rowStep[r] !== 255 && rowTone[r] >= 64), 'and its mirror image in the water');
-  // After a quarter of the columns, the whole screen is covered: 16 colors, sky at the top.
+  // After a quarter of the columns, most pixels show the new picture: 16 colors, sky at the top.
   until(65);
   assert.ok(cpu.cycles < 120_000_000, `a new landscape and a quarter of the columns in ${Math.round(cpu.cycles / 1e6)} M cycles`);
   const screen = cpu.memory.slice(0x8000, 0x8000 + 128 * 192);
