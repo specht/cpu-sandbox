@@ -71,7 +71,7 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
   // Static files: the page, its modules, the shared CPU code and vendored assets.
   const TYPES = {
     '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
-    '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.jpg': 'image/jpeg',
+    '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.woff': 'font/woff', '.woff2': 'font/woff2', '.jpg': 'image/jpeg',
   };
   const STATIC = [['/src/', 'src'], ['/js/', 'web/js'], ['/vendor/fonts/', 'web/vendor/fonts'], ['/vendor/', 'web/vendor'], ['/', 'web']];
   function staticFile(route) {

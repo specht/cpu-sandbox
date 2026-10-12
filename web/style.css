@@ -238,13 +238,15 @@ input[type=checkbox]{accent-color:#89baff}
 .screen-area{flex:1;min-height:0;display:grid;place-items:center;padding:12px;overflow:hidden;
   background:repeating-conic-gradient(#0c1420 0% 25%,#0e1724 0% 50%) 0 0/16px 16px}
 .screen-area{position:relative}
-.screen-area.with-number{padding-top:62px}
-.number-display{position:absolute;top:10px;right:12px;display:flex;align-items:center;gap:10px;padding:5px 12px 5px 10px;border-radius:8px;background:#080c13;border:1px solid #3b2c14;box-shadow:inset 0 0 14px rgba(0,0,0,.7)}
+/* The number display: a 7-segment LED readout. Segment7 is built from DSEG7 (SIL Open Font License, see vendor/fonts). */
+@font-face{font-family:'Segment7';src:url('/vendor/fonts/Segment7-Bold.woff') format('woff');font-weight:700;font-display:block}
+.number-display{position:absolute;z-index:1;top:10px;right:12px;display:flex;align-items:center;gap:10px;padding:6px 12px 6px 10px;border-radius:8px;background:#080c13;border:1px solid #3b2c14;box-shadow:inset 0 0 14px rgba(0,0,0,.7),0 2px 10px rgba(0,0,0,.45)}
 .number-label{display:flex;flex-direction:column;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#a07c45;line-height:1.25}
 .number-label small{font:9px var(--mono);letter-spacing:0;text-transform:none;color:#6e5a3a}
-.number-display b{font:700 30px/1 var(--mono);color:#ffb547;text-shadow:0 0 10px rgba(255,170,60,.6);letter-spacing:.04em;transition:text-shadow .25s}
-.number-display b .ghost{color:#2a1e0d;text-shadow:none}
-.number-display.changed b{text-shadow:0 0 16px rgba(255,190,90,.95);transition:none}
+.number-display b{position:relative;display:inline-block;font:700 28px/1 'Segment7',var(--mono);color:#ffb547;text-shadow:0 0 10px rgba(255,170,60,.6);transition:text-shadow .25s;white-space:pre}
+.number-display b .ghost{position:absolute;inset:0;color:rgba(255,181,71,.1);text-shadow:none}
+.number-display b .lit{position:relative}
+.number-display.changed b .lit{text-shadow:0 0 16px rgba(255,190,90,.95);transition:none}
 .screen-box{position:relative;line-height:0}
 .screen-box canvas{display:block;image-rendering:pixelated;cursor:grab;touch-action:none;
   box-shadow:0 0 0 1px #3e577a,0 10px 30px #0008}
@@ -336,6 +338,13 @@ input[type=checkbox]{accent-color:#89baff}
 .reference-table.compact td:first-child{width:1%}
 .reference-table td.wide-cost{color:#8fb4e8}
 .reference-code{margin:6px 0 10px;padding:8px 12px;border-radius:6px;background:#0c1524;border:1px solid #1f2f46;font:12px/1.5 var(--mono);color:#cfdcef;overflow-x:auto}
+.keymap{display:grid;gap:3px;margin:6px 0 12px;font-family:var(--mono)}
+.keymap-row{display:flex;gap:3px}
+.keymap-key{display:flex;flex-direction:column;align-items:center;justify-content:center;width:34px;height:34px;border-radius:5px;background:#162438;border:1px solid #2e4566;line-height:1.1}
+.keymap-key b{font-size:12px;color:#e3ecfb}
+.keymap-key small{font-size:9.5px;color:#8fb4e8}
+.keymap-key.shift{width:62px;background:#1d2a3f}
+.keymap-key.shift small{color:var(--gold)}
 .palette-list{display:grid;gap:14px;margin:6px 0 10px}
 .palette-head{display:flex;gap:10px;align-items:baseline;gap:8px;margin-bottom:4px;font-size:12px}
 .palette-swatches{display:inline-grid;gap:1px;border-radius:4px;overflow:hidden;border:1px solid #2e4566;background:#2e4566}

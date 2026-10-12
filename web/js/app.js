@@ -56,7 +56,7 @@ const screen = new Screen({
   onPick: address => { memory.select(address); renderMachine(); },
 });
 const memory = new MemoryView({ grid: $('memory'), page: $('memory-page'), zoom: $('memory-zoom') }, {
-  onSelect: () => { renderMachine(); },
+  onSelect: address => { showCodeAt(address); renderMachine(); },
   onHover: () => renderSelected(state.cpu?.memory ?? new Uint8Array(state.arch.memorySize)),
 });
 const devices = new Devices({ seed: Date.now() & 0xFFFF });
@@ -599,6 +599,26 @@ function followScreenPage({ draw = true } = {}) {
   state.screenPage = page;
   if (page === undefined) { if (!state.screenOverride) setSuggestedScreen(); return; }
   screen.set(screen.clamp({ ...screen.config, start: page * 256 }), { draw });
+}
+
+/**
+ * Clicking a byte of the program in the RAM view puts the cursor on its line,
+ * in the C source or in the generated assembly, whichever is shown.
+ */
+function showCodeAt(address) {
+  const assembly = state.assembly;
+  if (address === null || address === undefined || !assembly) return;
+  const inside = e => e.size && address >= e.address && address < e.address + e.size;
+  if (assembly.language === 'c') {
+    const entry = assembly.asmAssembly.listing.find(inside);
+    if (!entry) return;
+    if (state.view === 'asm') { asmView.jumpTo(entry.line); return; }
+    const line = assembly.sourceMap.get(entry.address) ?? assembly.listing.find(inside)?.line;
+    if (line) editor.jumpTo(line);
+    return;
+  }
+  const entry = assembly.listing.find(inside);
+  if (entry) editor.jumpTo(entry.line);
 }
 
 /** The footer of the RAM view explains the byte under the mouse, or else the selected one. */

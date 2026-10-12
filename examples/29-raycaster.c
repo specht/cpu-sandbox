@@ -27,7 +27,7 @@
 #define W 80
 #define H 50
 #define CELL 256                // positions in 1/256 cell
-#define TURN 3                  // 256 = a full turn
+#define TURN 1                  // per 1/60 s; 256 = a full turn
 
 char map[256] = {               // 16 x 16 cells: 0 floor, 1 brick, 2 stone, 3 wood, 4 the golden door
     1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,
@@ -189,6 +189,7 @@ void turn() {
     plane_y = dir_x * 2 / 3;
 }
 
+// Moves step · 4/256 cell along the view direction (backwards if negative).
 void walk(int step) {
     unsigned int nx = px + dir_x * step / 16, ny = py + dir_y * step / 16;
     int margin_x = dir_x * step > 0 ? 96 : -96, margin_y = dir_y * step > 0 ? 96 : -96;   // keep 3/8 cell away
@@ -230,16 +231,18 @@ void main() {
         pictures++;
         if ((char)(in(TIMER) - second) >= 60) { out(NUMBER, pictures); pictures = 0; second += 60; }
 
-        // Move as far as the time since the last picture allows, so the
-        // speed is the same at any clock.
+        // The timer says how many 1/60 s have passed since the last picture:
+        // moving that far keeps the speed the same at any clock and any
+        // number of pictures per second (about 2 cells and a quarter turn
+        // per second). At most 0.4 s at once, so nobody jumps through a wall.
         char now = in(TIMER), passed = now - last;
         last = now;
-        if (passed > 6) passed = 6;
+        if (passed > 24) passed = 24;
         char keys = in(JOYSTICK);
         if (keys & JOY_LEFT) { angle -= TURN * passed; turn(); }
         if (keys & JOY_RIGHT) { angle += TURN * passed; turn(); }
-        if (keys & JOY_UP) walk(4 * passed);
-        if (keys & JOY_DOWN) walk(-3 * passed);
+        if (keys & JOY_UP) walk(2 * passed);
+        if (keys & JOY_DOWN) walk(-(int)passed);
         if (keys & JOY_FIRE && !was_fire) map_shown = !map_shown;
         was_fire = keys & JOY_FIRE;
         if (wall(px + dir_x * 2, py + dir_y * 2) == 4) { fanfare(); turn(); }

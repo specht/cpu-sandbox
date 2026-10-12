@@ -55,10 +55,15 @@ English keyboard, Y and Z are not, but both give `0x40`.
 | 2 | `Q W E R T Z U I O P Ü +` | `0x20`–`0x2B` |
 | 3 | `A S D F G H J K L Ö Ä #` | `0x30`–`0x3B` |
 | 4 | `Y X C V B N M , . -` | `0x40`–`0x49` |
+| | **Shift** (either one) | adds `0x80` (bit 7) |
 
-Shift adds `0x80`; with no key held the device gives 0. In C the port is
-`KEYS` and the Shift bit `KEY_SHIFT`. `28-arpeggio-organ.c` turns the three
-letter rows into three octaves of chords.
+So T is `0x24`, and Shift+T is `0xA4`. With no key held the device gives 0;
+Shift alone counts as no key. In C the port is `KEYS` and the Shift bit
+`KEY_SHIFT`: `if (in(KEYS) & KEY_SHIFT)`. When a program reads the device, the
+bar above the screen shows the key held, its code and a **Shift** key that
+lights up while Shift is held; it can also be held down with the mouse.
+`28-arpeggio-organ.c` turns the three letter rows into three octaves of
+chords, a semitone per key, and Shift into minor.
 
 ## Sound
 

@@ -270,9 +270,9 @@ test('arpeggio organ (C): a key plays its chord from the next arpeggio on, exact
   const press = (code, shift, from, to) => { if (cpu.time >= from && cpu.time < to) { devices.held = [KEY_POSITIONS[code]]; devices.shift = shift; return true; } return false; };
   while (cpu.time < 3) {
     cpu.step();
-    if (!press('KeyE', true, 0.5, 0.6) && !press('KeyU', false, 1.0, 1.1)) { devices.held = []; devices.shift = false; }
+    if (!press('KeyT', true, 0.5, 0.6) && !press('BracketRight', false, 1.0, 1.1)) { devices.held = []; devices.shift = false; }
   }
-  assert.deepEqual(notes.slice(0, 8).map(n => n[1]), [64, 71, 76, 79, 83, 79, 76, 71], 'E minor in the top row: E B E G B G E B');
+  assert.deepEqual(notes.slice(0, 8).map(n => n[1]), [64, 71, 76, 79, 83, 79, 76, 71], 'Shift+T, a semitone per key from Q: E minor (E B E G B G E B)');
   assert.deepEqual(notes.slice(8, 13).map(n => n[1]), [71, 78, 83, 87, 90], 'then H (B) major, after the arpeggio');
   const gaps = notes.slice(1, 16).map((n, i) => Math.round((n[0] - notes[i][0]) * 60));
   assert.ok(gaps.every(g => g === 9), `100 BPM: a sixteenth every 9 frames (${gaps})`);

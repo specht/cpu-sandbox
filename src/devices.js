@@ -11,7 +11,7 @@ export const DEVICES = Object.freeze([
   Object.freeze({ port: 0x03, name: 'Random', direction: 'in', summary: 'A new random number 0–255 on every read.' }),
   Object.freeze({ port: 0x04, name: 'Vsync', direction: 'in', summary: 'Waits until the screen takes its next picture (60 times per second), then returns the timer value. Changes made right after it appear together in the next picture.' }),
   Object.freeze({ port: 0x05, name: 'Keys held', direction: 'in', summary: 'Where the last key pressed and still held sits on the keyboard: row × 16 + column (rows 1–4 from the digits down, columns from 1, Q, A and Y/Z on), +128 with Shift; 0 if none. The same on every keyboard layout.' }),
-  Object.freeze({ port: 0x10, name: 'Speaker', direction: 'out', summary: 'Plays a short beep; the value is the pitch as a MIDI note (60 = middle C).' }),
+  Object.freeze({ port: 0x10, name: 'Speaker', direction: 'out', summary: 'Plays a note; the value is the pitch as a MIDI note number (60 = middle C), the length comes from port 0x15.' }),
   Object.freeze({ port: 0x11, name: 'Number display', direction: 'out', summary: 'Shows the value as a decimal number.' }),
   Object.freeze({ port: 0x12, name: 'Screen page', direction: 'out', summary: 'Moves the screen to address value × 256. Draw the next picture into a hidden page, then show it at once (page flipping).' }),
   Object.freeze({ port: 0x13, name: 'Palette index', direction: 'out', summary: 'Chooses the palette color that port 0x14 changes next (0–255).' }),

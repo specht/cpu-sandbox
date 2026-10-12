@@ -133,6 +133,22 @@ function asciiPage() {
     el('p', { class: 'muted' }, 'Below 0x20 are control codes: 0 often ends a string, 10 (0x0A) is a new line, 8 backspace, 13 return. Digits are 0x30–0x39, so a digit d is the character 0x30 + d. Upper and lower case differ by 0x20.'));
 }
 
+// The keys of a German keyboard, row by row, as the keys-held device numbers them.
+const KEY_MAP = [
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'ß', '´'],
+  ['Q', 'W', 'E', 'R', 'T', 'Z', 'U', 'I', 'O', 'P', 'Ü', '+'],
+  ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ö', 'Ä', '#'],
+  ['Y', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '-'],
+];
+
+function keyMap() {
+  const cap = (label, code, extra = '') => el('span', { class: `keymap-key${extra}` }, el('b', {}, label), el('small', {}, code));
+  return el('div', { class: 'keymap', role: 'img', 'aria-label': 'Key positions: row × 16 + column; Shift adds 0x80' },
+    KEY_MAP.map((row, r) => el('div', { class: 'keymap-row', style: `padding-left:${r === 3 ? 0 : r * 14}px` },
+      r === 3 ? cap('⇧ Shift', '+80', ' shift') : null,
+      row.map((label, c) => cap(label, hex((r + 1) * 16 + c))))));
+}
+
 function devicesPage() {
   return el('div', { class: 'reference-page' },
     el('p', { class: 'reference-lead' }, 'Devices sit at numbered ports, not in RAM. IN reads a port, OUT writes one.'),
@@ -144,7 +160,11 @@ function devicesPage() {
         el('td', { class: 'num' }, el('code', {}, `0x${hex(d.port)}`)), el('td', {}, d.name),
         el('td', {}, el('code', {}, d.direction === 'in' ? 'IN' : 'OUT')), el('td', {}, d.summary))))),
     el('p', {}, 'Click the screen to send keys to the program: the arrow keys (or W A S D) and Space go to the joystick, every typed character also to the keyboard, and every key\'s place on the keyboard to keys held. Esc gives the keys back. The device bar above the screen shows each device the program uses; its joystick buttons can be clicked, too. The number display has a big readout of its own above the screen.'),
-    el('p', {}, 'Keys held gives row × 16 + column: row 1 is the digits, 2 starts with Q, 3 with A, 4 with Y (Z on English keyboards); +128 with Shift. The speaker plays each note at the machine time of its OUT, for the length set at port 0x15.'),
+    el('h3', {}, 'Keys held: where each key sits'),
+    el('p', {}, 'Port 0x05 gives the place of the last key that is still held: row × 16 + column, the same on every keyboard layout (here: German). Shift adds 0x80, so T is 0x24 and Shift+T is 0xA4; in C: ',
+      el('code', {}, 'in(KEYS) & KEY_SHIFT'), '. With no key held (or only Shift) it gives 0. The device bar shows a Shift key that lights up while Shift is held and can be held with the mouse.'),
+    keyMap(),
+    el('p', {}, 'The speaker plays each note at the machine time of its OUT, for the length set at port 0x15.'),
     el('p', { class: 'muted' }, 'The timer counts machine time (cycles ÷ clock), so a game paced by the timer or by vsync keeps its speed at any clock — as long as the CPU is fast enough to do its work between two frames. The screen ports (vsync, screen page, palette) are explained under Screen.'));
 }
 

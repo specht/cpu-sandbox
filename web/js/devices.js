@@ -56,11 +56,11 @@ export class DevicePanel {
     canvas.addEventListener('keydown', event => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
       if (event.key === 'Escape') { canvas.blur(); return; }
-      devices.shift = event.shiftKey;
+      devices.shift = event.shiftKey || this.shiftHeld;
       const position = KEY_POSITIONS[event.code];
       if (position) {
         // The keys-held device reports where the key is, whatever character it types.
-        this.keyLabels.set(position, event.key.length === 1 ? event.key.toUpperCase() : event.code);
+        if (!event.shiftKey && event.key.length === 1) this.keyLabels.set(position, event.key.toUpperCase());
         devices.press(position);
         event.preventDefault();
       }
@@ -72,7 +72,7 @@ export class DevicePanel {
       if (bit || event.key.length === 1 || event.key === 'Enter' || event.key === 'Backspace' || event.key === 'Tab') event.preventDefault();
     });
     canvas.addEventListener('keyup', event => {
-      devices.shift = event.shiftKey;
+      devices.shift = event.shiftKey || this.shiftHeld;
       if (KEY_POSITIONS[event.code]) devices.release(KEY_POSITIONS[event.code]);
       const bit = JOYSTICK_KEYS[event.key.length === 1 ? event.key.toLowerCase() : event.key];
       if (bit) devices.joystick &= ~bit;
@@ -114,7 +114,6 @@ export class DevicePanel {
     // The number display has its own big readout above the screen.
     const number = ports.includes(PORT.NUMBER);
     this.ui.number.hidden = !number;
-    this.ui.area.classList.toggle('with-number', number);
     const chips = ports.filter(port => port !== PORT.NUMBER).map(port => {
       const device = DEVICES.find(d => d.port === port);
       const head = el('span', { class: 'device-name' }, device.name, el('span', { class: 'device-port' }, hex(port)));
@@ -134,6 +133,21 @@ export class DevicePanel {
         this.value(chip, 'speaker');
         chip.append(this.muteButton);
         this.renderMute();
+      } else if (port === PORT.KEYS) {
+        // Shift adds 128 to the key position. The key cap shows it, and can be held with the mouse.
+        this.shiftButton = el('button', { type: 'button', class: 'key-cap shift', 'aria-pressed': 'false', title: 'Shift: adds 128 (0x80) to the key position', 'aria-label': 'Shift' }, '⇧ Shift');
+        const hold = on => event => {
+          event.preventDefault();
+          this.shiftHeld = on;
+          this.devices.shift = on;
+          if (on) this.shiftButton.setPointerCapture(event.pointerId);
+        };
+        this.shiftButton.addEventListener('mousedown', event => event.preventDefault());   // the keys stay with the screen
+        this.shiftButton.addEventListener('pointerdown', hold(true));
+        this.shiftButton.addEventListener('pointerup', hold(false));
+        this.shiftButton.addEventListener('pointercancel', hold(false));
+        this.value(chip, port);
+        chip.append(this.shiftButton);
       } else if (port === PORT.COLOR) {
         this.swatch = el('span', { class: 'device-swatch' });
         chip.append(this.swatch);
@@ -151,14 +165,17 @@ export class DevicePanel {
     chip.append(node);
   }
 
-  /** Three LED digits; unlit segments show as dim 8s. */
+  /**
+   * Three 7-segment digits. The faint 888 behind them are the unlit
+   * segments; in the DSEG font, ! is a blank digit of the same width.
+   */
   renderNumber(value) {
     const text = value === undefined ? '' : String(value);
     if (text === this.numberText) return;
     const first = this.numberText === undefined;
     this.numberText = text;
     const node = this.ui.numberValue;
-    node.replaceChildren(el('span', { class: 'ghost' }, '8'.repeat(3 - text.length)), text);
+    node.replaceChildren(el('span', { class: 'ghost', 'aria-hidden': 'true' }, '888'), el('span', { class: 'lit' }, '!'.repeat(3 - text.length) + text));
     node.setAttribute('aria-label', text || 'nothing yet');
     if (first || !text) return;
     this.ui.number.classList.add('changed');
@@ -213,7 +230,9 @@ export class DevicePanel {
     }
     set(PORT.RANDOM, String(d.lastRandom));
     const position = d.held.at(-1);
-    set(PORT.KEYS, position ? `${d.shift ? '⇧' : ''}${this.keyLabels.get(position) ?? ''} ${hex(position | (d.shift ? 0x80 : 0))}` : '—');
+    // The key's own character (as typed without Shift, once seen) and its code.
+    set(PORT.KEYS, position ? `${this.keyLabels.has(position) ? `${this.keyLabels.get(position)} ` : ''}${hex(position | (d.shift ? 0x80 : 0))}` : '—');
+    if (this.shiftButton && this.shiftButton.getAttribute('aria-pressed') !== String(d.shift)) this.shiftButton.setAttribute('aria-pressed', String(d.shift));
     const note = d.outputs.get(PORT.SPEAKER);
     set('speaker', note ? `♪ ${noteName(note)}` : '—');
     this.values.speaker?.classList.toggle('sounding', performance.now() - this.noteTime < 120);

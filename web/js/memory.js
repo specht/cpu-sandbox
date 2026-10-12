@@ -60,7 +60,7 @@ export class MemoryView {
     ui.grid.replaceChildren(this.hexView, this.mapView);
 
     this.scroller.addEventListener('scroll', () => {
-      const first = Math.floor(this.scroller.scrollTop / this.cell);
+      const first = this.firstRow();
       if (first === this.first) return;
       this.first = first;
       this.syncPage();
@@ -149,9 +149,19 @@ export class MemoryView {
       });
       this.window.replaceChildren(...this.rows.flatMap(row => [row.label, ...row.cells]));
     }
-    this.first = Math.min(Math.floor(this.scroller.scrollTop / cell), Math.max(0, total - 1));
+    this.first = this.firstRow();
     this.invalidate();
     if (this.state) this.render(this.state);
+  }
+
+  /**
+   * The first row of the window of cells. The window has a row more than
+   * fits; at the end of RAM it stops at the last row, so it never makes the
+   * scroll area longer than RAM.
+   */
+  firstRow() {
+    const total = this.size / 16;
+    return Math.max(0, Math.min(Math.floor(this.scroller.scrollTop / this.cell), total - this.rows.length));
   }
 
   layoutMap() {

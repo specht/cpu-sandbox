@@ -4,13 +4,16 @@
 // arpeggio, one note after the other, until you press the next key. The new
 // chord starts with the next arpeggio, so you can press it early and stay in
 // time. Three rows of keys are three octaves of chords: Q, A and Y (Z on an
-// English keyboard) are C, and to the right follow D E F G A H, then C D E …
-// one octave higher. Chords are major; hold Shift for minor. Space stops.
+// English keyboard) are C, and every key to the right is a semitone higher,
+// like the white and black keys of a piano: C C# D D# E F F# G G# A A# H
+// (German H is B). The dark boxes on the screen are the black keys. Chords
+// are major; hold Shift for minor. Space stops.
 // ↑ and ↓ change the tempo, which the number display shows in beats per
 // minute (an arpeggio is 8 sixteenth notes, half a bar).
 //
-// Try "New Born" by Muse: Em H Em H Em C G H (Shift+E, U, Shift+E, U,
-// Shift+E, Q, T, U in the top row), one key per arpeggio.
+// Try "New Born" by Muse: Em H Em H Em C G H, one key per arpeggio. In the
+// top row: Shift+T, +, Shift+T, +, Shift+T, Q, I, + (on an English keyboard
+// the + key is ]).
 //
 // The keys-held device (port 0x05) reports where a key sits on the keyboard,
 // not which letter it types, so the layout is the same everywhere. The
@@ -39,13 +42,13 @@
 #define MAJOR 8
 #define MINOR 9
 #define NEXT 10                 // the chord that comes next
+#define BOX_SHARP 11            // the box of a black key
 
-char colors[33] = {
+char colors[36] = {
     12, 16, 26,     235, 232, 222,  30, 32, 40,     150, 210, 255,  40, 110, 170,
-    255, 200, 60,   44, 54, 74,     200, 210, 230,  60, 190, 110,   90, 130, 255,
-    230, 170, 60};
+    255, 200, 60,   72, 88, 116,    225, 232, 245,  60, 190, 110,   90, 130, 255,
+    230, 170, 60,   28, 34, 48};
 
-char scale[7] = {0, 2, 4, 5, 7, 9, 11};         // C D E F G A H: the white keys
 char white_index[12] = {0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6};
 char is_black[12] = {0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0};
 char pattern[8] = {0, 7, 12, 16, 19, 16, 12, 7}; // root, fifth, octave, tenth (minor: 15), …
@@ -55,6 +58,7 @@ char key_color[NOTES];
 char font[35] = {
     3, 4, 4, 4, 3,   6, 5, 5, 5, 6,   7, 4, 6, 4, 7,   7, 4, 6, 4, 4,
     3, 4, 5, 5, 3,   2, 5, 7, 5, 5,   5, 5, 7, 5, 5};
+char sharp_sign[5] = {5, 15, 5, 15, 5};    // #, 4 pixels wide
 
 void rect(int x, int y, int w, int h, char color) {
     char *row = SCREEN + y * W + x;
@@ -92,17 +96,34 @@ void piano_key(char n, char color) {
 int box_x(char key) { return 4 + 3 * ((key >> 4) - 2) + 12 * (key & 15); }
 int box_y(char key) { return 30 + 11 * ((key >> 4) - 2); }
 
+// The box of a key with its note name: C, C#, D, … (sharps on dark boxes).
 void box(char key, char color) {
     key = key & 127;
-    rect(box_x(key), box_y(key), 11, 10, color);
-    letter(box_x(key) + 4, box_y(key) + 2, (key & 15) % 7, color == BOX ? LETTER : BACK);
+    char column = key & 15, sharp = is_black[column];
+    if (color == BOX && sharp) color = BOX_SHARP;
+    char ink = color == BOX || color == BOX_SHARP ? LETTER : BACK;
+    int x = box_x(key), y = box_y(key);
+    rect(x, y, 11, 10, color);
+    letter(sharp ? x + 1 : x + 4, y + 2, white_index[column], ink);
+    if (sharp) {
+        char *p = SCREEN + (y + 2) * W + x + 6;
+        for (char j = 0; j < 5; j++) {
+            char bits = sharp_sign[j];
+            if (bits & 8) p[0] = ink;
+            if (bits & 4) p[1] = ink;
+            if (bits & 2) p[2] = ink;
+            if (bits & 1) p[3] = ink;
+            p += W;
+        }
+    }
 }
 
-// The root note of the chord on a key, or 0 for keys without a chord.
+// The root note of the chord on a key, or 0 for keys without a chord:
+// row 2 (Q) starts at C4, row 3 (A) at C3, row 4 (Y) at C2, a semitone per key.
 char root_of(char key) {
     char row = (key >> 4) & 7, column = key & 15;
     if (row < 2 || row > 4 || column > 11) return 0;
-    return LOWEST + 12 * (4 - row) + 12 * (column / 7) + scale[column % 7];
+    return LOWEST + 12 * (4 - row) + column;
 }
 
 char note_of(char key, char step) {
@@ -121,7 +142,7 @@ void show_chord(char key, char on) {
 
 void main() {
     out(PALETTE, 0);
-    for (char i = 0; i < 33; i++) out(COLOR, colors[i]);
+    for (char i = 0; i < 36; i++) out(COLOR, colors[i]);
     for (char n = 0; n < NOTES; n++) piano_key(n, is_black[n % 12] ? BLACK_KEY : WHITE_KEY);
     for (char row = 2; row <= 4; row++)
         for (char column = 0; column < (row == 4 ? 10 : 12); column++) box(16 * row + column, BOX);
