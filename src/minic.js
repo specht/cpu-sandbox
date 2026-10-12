@@ -15,7 +15,8 @@
  *   preprocessor #define (also with parameters), #pragma cpu 8x,
  *                #pragma display <like .display>
  *   built in     in(port), out(port, value) and the port names TIMER,
- *                JOYSTICK, KEYBOARD, RANDOM, SPEAKER, NUMBER, SCREEN_PAGE, JOY_LEFT, …
+ *                JOYSTICK, KEYBOARD, RANDOM, VSYNC, SPEAKER, NUMBER, SCREEN_PAGE,
+ *                PALETTE, COLOR, JOY_LEFT, …
  *
  * Differences from C, chosen to match an 8-bit CPU:
  *   - char arithmetic stays 8 bits wide (200 + 100 is 44 for two chars);
@@ -157,7 +158,8 @@ function tokenize(source, firstLine = 1, directives = true) {
 
 /** Names every program knows without #include. */
 export const PREDEFINED = Object.freeze({
-  JOYSTICK: 0x00, KEYBOARD: 0x01, TIMER: 0x02, RANDOM: 0x03, SPEAKER: 0x10, NUMBER: 0x11, SCREEN_PAGE: 0x12,
+  JOYSTICK: 0x00, KEYBOARD: 0x01, TIMER: 0x02, RANDOM: 0x03, VSYNC: 0x04,
+  SPEAKER: 0x10, NUMBER: 0x11, SCREEN_PAGE: 0x12, PALETTE: 0x13, COLOR: 0x14,
   JOY_LEFT: 1, JOY_RIGHT: 2, JOY_UP: 4, JOY_DOWN: 8, JOY_FIRE: 16,
   NULL: 0, true: 1, false: 0,
 });

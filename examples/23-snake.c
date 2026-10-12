@@ -5,7 +5,7 @@
 // or the wall. Run the program, then click the screen so that the keys go to
 // the joystick; after a crash, any key starts a new game.
 //
-// The game uses every device: the joystick steers, the timer sets the pace,
+// The game uses every device: the joystick steers, vsync sets the pace,
 // the random number device places the apples, the speaker beeps and the
 // number display shows the score. The screen is the game board: get() reads
 // back what is at a square, so the snake finds walls, itself and apples by
@@ -57,24 +57,25 @@ void main() {
         int dx = 1, dy = 0;                 // the direction of the last step
         int next_dx = 1, next_dy = 0;       // the direction of the next step
         int head = 0, tail = 0, grow = 3, score = 0;
-        char delay = 8;                     // timer ticks per step
+        char delay = 8;                     // frames per step
         body_x[0] = x;
         body_y[0] = y;
         set(x, y, HEAD);
         place_apple();
         out(NUMBER, 0);
 
-        char last = in(TIMER);
+        char frames = 0;
         for (;;) {
-            // Read the joystick all the time, so that short taps count, but
+            // Read the joystick in every frame, so that short taps count, but
             // never turn back into the snake's own neck.
+            in(VSYNC);                      // wait for the next frame: 60 per second
             char keys = in(JOYSTICK);
             if (keys & JOY_LEFT && dx == 0) { next_dx = -1; next_dy = 0; }
             if (keys & JOY_RIGHT && dx == 0) { next_dx = 1; next_dy = 0; }
             if (keys & JOY_UP && dy == 0) { next_dx = 0; next_dy = -1; }
             if (keys & JOY_DOWN && dy == 0) { next_dx = 0; next_dy = 1; }
-            if ((char)(in(TIMER) - last) < delay) continue;
-            last = in(TIMER);
+            if (++frames < delay) continue;
+            frames = 0;
 
             dx = next_dx;
             dy = next_dy;

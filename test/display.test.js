@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assemble } from '../src/assembler.js';
 import { DEFAULT_DISPLAY, MODES, validateDisplay, decodeScreen, pixelValue, pixelAddress } from '../src/display.js';
-import { PALETTES } from '../src/palettes.js';
+import { PALETTES, paletteBytes, defaultPalette } from '../src/palettes.js';
 
 const config = (options = {}) => ({ ...DEFAULT_DISPLAY, ...options });
 const values = (memory, c) => {
@@ -10,7 +10,7 @@ const values = (memory, c) => {
   for (let y = 0; y < c.height; y++) for (let x = 0; x < c.width; x++) out.push(pixelValue(memory, c, x, y));
   return out;
 };
-const rgba = (memory, c, i = 0) => Array.from(decodeScreen(memory, c, PALETTES).slice(i * 4, i * 4 + 3));
+const rgba = (memory, c, i = 0) => Array.from(decodeScreen(memory, c, c.palette ? paletteBytes(c.palette) : null).slice(i * 4, i * 4 + 3));
 
 test('packed pixels are read most-significant bits first', () => {
   const memory = new Uint8Array(256);
@@ -47,7 +47,7 @@ test('a screen must fit into RAM', () => {
 
 test('indexed formats need a palette with exactly 2^bits colors', () => {
   const memory = new Uint8Array(256);
-  assert.throws(() => decodeScreen(memory, config({ mode: 'indexed4', palette: 'vga' }), PALETTES), /16 colors/);
+  assert.throws(() => decodeScreen(memory, config({ mode: 'indexed4' }), paletteBytes('cga_palette_1_high')), /16 colors/);
   for (const [name, colors] of Object.entries(PALETTES)) {
     assert.ok(Object.values(MODES).some(m => m.indexed && 2 ** m.bits === colors.length), `${name} must be usable by a pixel format`);
     for (const c of colors) assert.match(c, /^#[0-9A-F]{6}$/, name);
@@ -63,9 +63,14 @@ test('.display is only a suggestion: no bytes, checked at its source line', () =
     '.display 0x80, 16, 8, rgb24, pico_8',
     '.display 0x80, 16, 8, indexed4, nonexistent',
     '.display 0x80, 16, 8, indexed4, cga_palette_1_high',
-    '.display 0x80, 16, 8, indexed2',
     '.display 0x80, 16, 8, indexed6, pico_8',
   ]) assert.throws(() => assemble(`HLT\n${directive}`), e => e.name === 'AssemblyError' && e.line === 2, directive);
+});
+
+test('without a palette name, an indexed format starts with the standard palette of its size', () => {
+  assert.equal(assemble('.display 0x80, 16, 8, indexed2\nHLT').display.palette, 'cga_palette_1_high');
+  assert.equal(assemble('.cpu 8x\n.display 0x1000, 64, 48, indexed8\nHLT').display.palette, 'vga');
+  assert.equal(defaultPalette(16), 'color_graphics_adapter');
 });
 
 test('a screen over the program itself is allowed, with a warning', () => {

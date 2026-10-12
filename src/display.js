@@ -35,24 +35,15 @@ export function pixelAddress(config, x, y) {
   return config.start + y * Math.ceil(config.width * bits / 8) + Math.floor(x * bits / 8);
 }
 
-function paletteRGB(colors) {
-  return colors.map(c => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
-}
-const rgbCache = new WeakMap();
-
 /**
  * Decodes the screen into RGBA bytes (one entry per pixel, row by row).
- * Packed pixels are read most-significant bits first.
+ * Packed pixels are read most-significant bits first. Indexed formats look up
+ * their colors in `palette`: red, green, blue per color (the palette chip).
  */
-export function decodeScreen(memory, config, palettes, target) {
+export function decodeScreen(memory, config, palette, target) {
   const c = validateDisplay(config, memory.length), spec = MODES[c.mode];
-  let colors = null;
-  if (spec.indexed) {
-    const list = palettes[c.palette];
-    if (!list || list.length !== 2 ** c.bits) throw new RangeError(`${c.mode} needs a palette with ${2 ** c.bits} colors`);
-    colors = rgbCache.get(list) ?? paletteRGB(list);
-    rgbCache.set(list, colors);
-  }
+  const colors = spec.indexed ? palette : null;
+  if (colors && colors.length < 3 * 2 ** c.bits) throw new RangeError(`${c.mode} needs a palette with ${2 ** c.bits} colors`);
   const out = target ?? new Uint8ClampedArray(c.width * c.height * 4);
   let o = 0;
   for (let y = 0; y < c.height; y++) {
@@ -64,7 +55,7 @@ export function decodeScreen(memory, config, palettes, target) {
       } else {
         const bit = x * c.bits, v = memory[row + (bit >> 3)];
         const index = c.bits === 8 ? v : (v >> (8 - c.bits - (bit & 7))) & ((1 << c.bits) - 1);
-        if (colors) [r, g, b] = colors[index];
+        if (colors) { r = colors[index * 3]; g = colors[index * 3 + 1]; b = colors[index * 3 + 2]; }
         else if (c.mode === 'gray8') r = g = b = index;
         else { r = Math.round((index >> 5) * 255 / 7); g = Math.round(((index >> 2) & 7) * 255 / 7); b = Math.round((index & 3) * 255 / 3); }
       }

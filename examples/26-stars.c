@@ -3,18 +3,19 @@
 // Flying through space: 160 stars come closer every frame. A star at
 // distance z appears at 64 + 32·x/z, so it starts near the middle and moves
 // outwards faster and faster as z gets small - that is all there is to
-// perspective. Closer stars are brighter: colors 0..31 of the palette
-// ramps_256 are 32 shades of gray, and the closest stars are two pixels wide.
-// When a star passes by, it starts again far away.
+// perspective. Closer stars are brighter: the program turns colors 0..31 of
+// the palette into 32 shades of gray, and the closest stars are two pixels
+// wide. When a star passes by, it starts again far away.
 //
 // The joystick sets the speed (↑ faster, ↓ slower), the number display shows
-// it, and the timer paces the frames at 60 per second. Each star erases the
+// it, and in(VSYNC) paces the frames: it waits for the screen's next picture,
+// 60 per second. Each star erases the
 // pixel it drew last time, so there is no need to clear the screen.
 // Note the (int) casts: in(RANDOM) - 128 would stay a char and wrap.
 // Try 16 MHz.
 
 #pragma cpu 8x
-#pragma display 0x4000, 128, 96, indexed8, ramps_256
+#pragma display 0x4000, 128, 96, indexed8
 
 #define W 128
 #define H 96
@@ -34,13 +35,16 @@ void new_star(char i, int z) {
 }
 
 void main() {
+    out(PALETTE, 0);                        // colors 0..31: black .. white
+    for (char i = 0; i < 32; i++) {
+        char level = i * 8 + i / 4;         // 0 .. 255
+        out(COLOR, level); out(COLOR, level); out(COLOR, level);
+    }
     char speed = 2;
     for (char i = 0; i < STARS; i++) new_star(i, 1 + in(RANDOM));
-    char last = in(TIMER);
     for (;;) {
-        while (in(TIMER) == last) {}        // wait for the next tick
-        last = in(TIMER);
-        if ((last & 7) == 0) {              // a held key changes the speed 7 times a second
+        char frame = in(VSYNC);             // wait for the next picture
+        if ((frame & 7) == 0) {             // a held key changes the speed 7 times a second
             char keys = in(JOYSTICK);
             if (keys & JOY_UP && speed < 12) speed++;
             if (keys & JOY_DOWN && speed > 0) speed--;

@@ -128,6 +128,7 @@ test('Mandelbrot (8X) renders the set in many colors', () => {
   assert.equal(pixels[30 * 80 + 60], 0, 'c = −0.06 is in the set');
   assert.notEqual(pixels[0], 0, 'the corner is outside');
   assert.ok(r.cpu.cycles < 8_000_000, 'fast enough to watch at 1 MHz');
+  assert.deepEqual(Array.from(r.cpu.io.palette.slice(3, 6)), [0x0B, 0x10, 0x33], 'the program sets its own colors');
 });
 
 test('input (MiniCPU 8): the joystick moves the dot, typed keys reach the number display', () => {
@@ -218,9 +219,11 @@ test('snake (C): steering towards the apples scores points', () => {
   const at = (x, y) => { const b = cpu.memory[0x2000 + y * 16 + (x >> 1)]; return x & 1 ? b & 15 : b >> 4; };
   const find = color => { for (let y = 0; y < 24; y++) for (let x = 0; x < 32; x++) if (at(x, y) === color) return [x, y]; return null; };
   const moves = [[1, -1, 0], [2, 1, 0], [4, 0, -1], [8, 0, 1]];
+  let frame = -1;
   while (cpu.time < 20) {
     cpu.step();
-    if (cpu.instructions % 2000) continue;
+    if (Math.floor(cpu.time * 60) === frame) continue;   // steer once per frame
+    frame = Math.floor(cpu.time * 60);
     const head = find(10), apple = find(8);
     if (!head || !apple) continue;
     const wanted = moves.filter(([, dx, dy]) => Math.sign(apple[0] - head[0]) === dx && dx || Math.sign(apple[1] - head[1]) === dy && dy);
@@ -228,6 +231,20 @@ test('snake (C): steering towards the apples scores points', () => {
     cpu.io.joystick = safe ? safe[0] : 0;
   }
   assert.ok(cpu.io.outputs.get(0x11) >= 5, `score ${cpu.io.outputs.get(0x11)}`);
+});
+
+test('color cycling (C): after drawing, only the palette changes', () => {
+  const program = build(fs.readFileSync(new URL('27-color-cycling.c', dir), 'utf8'), 'c');
+  const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 16e6 });
+  while (cpu.time < 1.2) cpu.step();
+  const screen = cpu.memory.slice(0x4000, 0x4000 + 128 * 96), colors = cpu.io.palette.slice(3, 3 * 65);
+  assert.equal(new Set(screen).size, 64, 'all 64 colors are used');
+  assert.ok(screen.every(v => v >= 1 && v <= 64));
+  const frame = Math.floor(cpu.time * 60);
+  while (cpu.time < 1.5) cpu.step();
+  assert.ok(Math.floor(cpu.time * 60) - frame >= 17, 'vsync paces it at 60 frames per second');
+  assert.ok(cpu.memory.slice(0x4000, 0x4000 + 128 * 96).every((v, i) => v === screen[i]), 'the screen stays the same');
+  assert.notDeepEqual(cpu.io.palette.slice(3, 3 * 65), colors, 'the colors move');
 });
 
 test('plasma, life and stars (C) draw what they promise', () => {

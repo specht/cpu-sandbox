@@ -43,3 +43,13 @@ test('docs/cpu-levels.md lists every instruction with its opcode, size and cycle
     assert.ok(row.includes(`${sizeOf(i, ARCHITECTURES.cpu8x)} | `) && row.includes(`· ${cycleLabel(i, ARCHITECTURES.cpu8x)} |`), `${i.syntax} is out of date`);
   }
 });
+
+test('docs/palettes has a current picture of every predefined palette, and docs/screen.md shows them', async () => {
+  const { PALETTES } = await import('../src/palettes.js');
+  const { paletteSvg } = await import('../scripts/palette-swatches.mjs');
+  const doc = read('docs/screen.md');
+  for (const name of Object.keys(PALETTES)) {
+    assert.equal(read(`docs/palettes/${name}.svg`), paletteSvg(name), `${name}.svg is out of date (npm run docs)`);
+    assert.ok(doc.includes(`palettes/${name}.svg`), `docs/screen.md does not show ${name}`);
+  }
+});

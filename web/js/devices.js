@@ -1,7 +1,7 @@
 // The devices at the I/O ports: what the program reads and writes, the keys
 // that go to the joystick and keyboard while the screen has the focus, and
 // the speaker's beeps.
-import { DEVICES, PORT, JOYSTICK } from '/src/devices.js';
+import { DEVICES, PORT, JOYSTICK, frameAt } from '/src/devices.js';
 import { hex } from '/src/cpu.js';
 import { el, icon, loadPreferences, savePreferences } from './util.js';
 
@@ -102,6 +102,10 @@ export class DevicePanel {
         this.value(chip, 'speaker');
         chip.append(this.muteButton);
         this.renderMute();
+      } else if (port === PORT.COLOR) {
+        this.swatch = el('span', { class: 'device-swatch' });
+        chip.append(this.swatch);
+        this.value(chip, port);
       } else this.value(chip, port);
       return chip;
     });
@@ -146,7 +150,20 @@ export class DevicePanel {
       if (button.getAttribute('aria-pressed') !== on) button.setAttribute('aria-pressed', on);
     }
     set(PORT.KEYBOARD, d.typed.length ? d.typed.map(c => (c >= 32 && c < 127 ? String.fromCharCode(c) : `·`)).join('').slice(0, 8) : '—');
-    set(PORT.TIMER, cpu ? String(Math.floor(cpu.time * 60) & 255) : '0');
+    set(PORT.TIMER, cpu ? String(frameAt(cpu.time) & 255) : '0');
+    set(PORT.VSYNC, cpu ? `frame ${frameAt(cpu.time) & 255}` : '—');
+    set(PORT.PALETTE, String(d.colorIndex));
+    if (this.swatch) {
+      // The color being written, or else the one just finished.
+      const i = d.colorPart ? d.colorIndex : (d.colorIndex + 255) & 255, p = d.palette;
+      const color = `#${hex((p[i * 3] << 16) | (p[i * 3 + 1] << 8) | p[i * 3 + 2], 6)}`;
+      if (this.swatch.dataset.color !== `${i}${color}`) {
+        this.swatch.dataset.color = `${i}${color}`;
+        this.swatch.style.background = color;
+        this.swatch.title = `Color ${i} = ${color}`;
+      }
+      set(PORT.COLOR, d.changedColors.size ? `${d.changedColors.size} set` : '—');
+    }
     set(PORT.RANDOM, String(d.lastRandom));
     const note = d.outputs.get(PORT.SPEAKER);
     set('speaker', note ? `♪ ${noteName(note)}` : '—');

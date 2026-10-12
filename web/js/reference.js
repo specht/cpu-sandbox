@@ -4,6 +4,7 @@ import { ARCHITECTURES } from '/src/architectures.js';
 import { INSTRUCTIONS, WIDE_OPERATIONS, availableOn, sizeOf, cycleLabel } from '/src/opcodes.js';
 import { MODES } from '/src/display.js';
 import { DEVICES } from '/src/devices.js';
+import { PALETTES, defaultPalette } from '/src/palettes.js';
 import { hex } from '/src/cpu.js';
 import { el } from './util.js';
 
@@ -99,7 +100,7 @@ function cPage() {
       row('#define N 10   #define SQ(x) ((x)*(x))', 'Constants and macros.'),
       row('#pragma cpu 8x', 'The CPU level (default 8X). The CPU menu edits this line.'),
       row('#pragma display 0x0800, 64, 48, mono', 'Suggests the screen, like .display.'),
-      row('in(TIMER)   out(NUMBER, x)', 'Read and write device ports. TIMER, JOYSTICK, KEYBOARD, RANDOM, SPEAKER, NUMBER, SCREEN_PAGE and JOY_LEFT … JOY_FIRE are predefined.'),
+      row('in(TIMER)   out(NUMBER, x)', 'Read and write device ports. JOYSTICK, KEYBOARD, TIMER, RANDOM, VSYNC, SPEAKER, NUMBER, SCREEN_PAGE, PALETTE, COLOR and JOY_LEFT … JOY_FIRE are predefined.'),
       row('asm("INC A\\n" "INC B");', 'Inserts assembly instructions, one per line (\\n); labels and ; comments work as in assembly.'),
     )),
     el('h3', {}, 'Different from C'),
@@ -143,7 +144,7 @@ function devicesPage() {
         el('td', { class: 'num' }, el('code', {}, `0x${hex(d.port)}`)), el('td', {}, d.name),
         el('td', {}, el('code', {}, d.direction === 'in' ? 'IN' : 'OUT')), el('td', {}, d.summary))))),
     el('p', {}, 'Click the screen to send keys to the program: the arrow keys (or W A S D) and Space go to the joystick, every typed character also to the keyboard. Esc gives the keys back. The device bar above the screen shows each device the program uses; its joystick buttons can be clicked, too.'),
-    el('p', { class: 'muted' }, 'The timer counts machine time (cycles ÷ clock), so a game paced by the timer keeps its speed at any clock — as long as the CPU is fast enough to do its work between two ticks.'));
+    el('p', { class: 'muted' }, 'The timer counts machine time (cycles ÷ clock), so a game paced by the timer or by vsync keeps its speed at any clock — as long as the CPU is fast enough to do its work between two frames. The screen ports (vsync, screen page, palette) are explained under Screen.'));
 }
 
 function assemblerPage() {
@@ -156,24 +157,62 @@ function assemblerPage() {
       row('.db 1, 2, "Hi", 0', 'Put bytes into RAM: numbers, characters or strings.'),
       row('WIDTH .equ 16', 'A named constant.'),
       row('loop:', 'A label is the address of the following byte.'),
-      row('.display 0x80, 16, 8, indexed4, pico_8', 'Suggests how the screen should show RAM: start, width, height, pixel format [, palette].'),
+      row('.display 0x80, 16, 8, indexed4, pico_8', 'Suggests how the screen should show RAM: start, width, height, pixel format [, palette]. See Screen.'),
     )),
     el('h3', {}, 'Values'),
     el('p', {}, 'Decimal ', el('code', {}, '42'), ', hexadecimal ', el('code', {}, '0x2A'), ', binary ', el('code', {}, '0b101010'),
       ', characters ', el('code', {}, "'A'"), ', labels and constants, combined with ', el('code', {}, '+ - * / & | << >>'),
       ' and parentheses, e.g. ', el('code', {}, 'screen + 16 * y'), ' or ', el('code', {}, 'table >> 8'), '. Negative bytes wrap: ',
-      el('code', {}, '-1'), ' is 255. Comments start with ', el('code', {}, ';'), '.'),
+      el('code', {}, '-1'), ' is 255. Comments start with ', el('code', {}, ';'), '.'));
+}
+
+const paletteName = key => key.replaceAll('_', ' ');
+
+/** All colors of a palette as squares, the same size in every palette; 256 colors in rows of 32. */
+function swatches(colors) {
+  const many = colors.length > 16, columns = Math.min(colors.length, many ? 32 : 16);
+  return el('div', { class: 'palette-swatches', style: `grid-template-columns:repeat(${columns}, ${many ? 9 : 18}px)` },
+    colors.map((color, i) => el('span', { style: `background:${color}`, title: `${i} = ${color}` })));
+}
+
+function screenPage() {
+  const row = (code, text) => el('tr', {}, el('td', {}, el('code', {}, code)), el('td', {}, text));
+  const code = text => el('pre', { class: 'reference-code' }, text);
+  return el('div', { class: 'reference-page' },
+    el('p', { class: 'reference-lead' }, 'The screen is a window on RAM: a video chip reads the bytes and turns them into pixels, 60 pictures per second.'),
+    el('p', {}, el('code', {}, '.display 0x4000, 128, 96, indexed8'), ' (in C: ', el('code', {}, '#pragma display …'),
+      ') suggests where the screen starts, its width and height and the pixel format. The bar above the screen can change all of that while the program runs; RAM stays the same.'),
     el('h3', {}, 'Pixel formats'),
     el('table', { class: 'reference-table compact' }, el('tbody', {},
-      Object.entries(MODES).map(([mode, spec]) => row(mode, `${spec.label}${spec.indexed ? ' from a palette' : ''}${spec.bits < 8 ? `, ${8 / spec.bits} pixels per byte (leftmost pixel in the highest bits)` : ''}`)))),
-    el('p', {}, 'Every screen row starts on a new byte. The screen only reads RAM: changing the format, the start or the size never changes a byte.'));
+      Object.entries(MODES).map(([mode, spec]) => row(mode, `${spec.label}${spec.indexed ? ', colors from the palette chip' : ''}${spec.bits < 8 ? `, ${8 / spec.bits} pixels per byte (leftmost pixel in the highest bits)` : ''}`)))),
+    el('p', {}, 'Every screen row starts on a new byte. gray8 shows the byte as a gray level, rgb332 as 3 bits red, 3 bits green and 2 bits blue, rgb24 takes three bytes per pixel.'),
+    el('h3', {}, 'The palette chip'),
+    el('p', {}, 'In the indexed formats a pixel is a color number. The video chip looks the number up in its palette: 256 colors of red, green and blue, 0–255 each. ',
+      'The palette lives in the chip, not in RAM. At the start it holds the palette named in .display, or else the first predefined one of the right size (below); choosing a palette in the screen bar loads it, too.'),
+    el('p', {}, 'A program sets its own colors with two ports: ', el('code', {}, 'OUT 0x13'), ' chooses a color number, then three ', el('code', {}, 'OUT 0x14'),
+      ' give red, green and blue. After blue the chip moves on to the next color by itself, so a loop can write many colors in a row:'),
+    code('LDI A, 1\nOUT 0x13, A      ; color 1 is …\nLDI A, 255\nOUT 0x14, A      ; … red 255,\nLDI A, 128\nOUT 0x14, A      ; green 128,\nLDI A, 0\nOUT 0x14, A      ; blue 0: orange'),
+    el('p', {}, 'In C: ', el('code', {}, 'out(PALETTE, 1); out(COLOR, 255); out(COLOR, 128); out(COLOR, 0);'),
+      '. Changing a color changes every pixel with that number at once, without touching RAM: that is color cycling (27-color-cycling.c). The device bar shows the color written last.'),
+    el('h3', {}, 'Vsync and page flipping'),
+    el('p', {}, 'At the start of every frame — 60 times per second of machine time — the screen takes its picture of RAM and the palette. ',
+      el('code', {}, 'IN A, 0x04'), ' (in C: ', el('code', {}, 'in(VSYNC)'), ') waits for that moment; the CPU idles until then. ',
+      'What the program changes right after it appears together in the next picture, never half done. The wait also paces a game at 60 steps per second at any clock.'),
+    el('p', {}, 'For bigger changes, draw into a second screen page that is not shown, then wait for vsync and show it with ', el('code', {}, 'OUT 0x12'),
+      ' (in C: ', el('code', {}, 'out(SCREEN_PAGE, address >> 8)'), '). While paused or stepping, the screen shows RAM as it is right now.'),
+    el('h3', {}, 'Predefined palettes'),
+    el('div', { class: 'palette-list' }, Object.entries(PALETTES).map(([key, colors]) => el('div', { class: 'palette-entry' },
+      el('div', { class: 'palette-head' }, el('code', {}, key), el('span', { class: 'muted' },
+        `${colors.length} colors${defaultPalette(colors.length) === key ? ' · the default' : ''}`)),
+      swatches(colors)))),
+    el('p', { class: 'muted' }, 'Hover a color to see its number and value. 1bit monitor glow, the CGA palettes, PICO-8, Sweetie 16 and VGA come from PixelRAM; fire 256 runs from black over red, orange and yellow to white.'));
 }
 
 export class Reference {
   constructor(ui) {
     this.ui = ui;
-    this.pages = { ...Object.fromEntries(Object.values(ARCHITECTURES).map(arch => [arch.id, () => levelPage(arch)])), assembler: assemblerPage, c: cPage, devices: devicesPage, ascii: asciiPage };
-    const labels = { cpu8: '8', cpu8s: '8S', cpu8x: '8X', devices: 'Devices', assembler: 'Assembler', c: 'C', ascii: 'ASCII' };
+    this.pages = { ...Object.fromEntries(Object.values(ARCHITECTURES).map(arch => [arch.id, () => levelPage(arch)])), assembler: assemblerPage, c: cPage, devices: devicesPage, screen: screenPage, ascii: asciiPage };
+    const labels = { cpu8: '8', cpu8s: '8S', cpu8x: '8X', devices: 'Devices', screen: 'Screen', assembler: 'Assembler', c: 'C', ascii: 'ASCII' };
     this.tabs = Object.keys(this.pages).map(key => el('button', {
       type: 'button', role: 'tab', 'aria-selected': 'false', dataset: { page: key }, onclick: () => this.show(key),
     }, key.startsWith('cpu') ? `MiniCPU ${labels[key]}` : labels[key]));

@@ -80,11 +80,12 @@ assembler directives and an ASCII table.
 
 The screen is a view of RAM: drag the picture up or down to move through memory, drag its
 corner to resize it, and pick the pixel format and palette above it. This
-never changes RAM. See [docs/screen.md](docs/screen.md).
+never changes RAM. Programs can set their own colors in the palette chip and
+wait for the screen's next picture (vsync). See [docs/screen.md](docs/screen.md).
 
 Devices sit at I/O ports, read with `IN` and written with `OUT`: a joystick, a
-keyboard, a timer, random numbers, a speaker, a number display and a screen
-page register for flicker-free animation (page flipping). The devices
+keyboard, a timer, vsync, random numbers, a speaker, a number display, a screen
+page register for flicker-free animation (page flipping) and the palette chip. The devices
 a program uses appear above the screen; **click the screen** to send your keys
 to the program (Esc gives them back). See [docs/devices.md](docs/devices.md).
 
@@ -119,11 +120,12 @@ stays on this computer and never reaches a student repository.
 | `19-input` | 8 | devices: joystick, keyboard, timer, number display |
 | `20-breakout` | 8X | a game: paddle, ball, colored bricks, sound |
 | `21-first-c.c` | 8S | C: functions, locals on the stack, the generated assembly |
-| `22-cube.c` | 8X | C demo: a solid, shaded 3D cube with page flipping and an assembly inner loop |
-| `23-snake.c` | 8X | C game: joystick, timer, random numbers, speaker, number display |
+| `22-cube.c` | 8X | C demo: a solid, shaded 3D cube with its own palette, vsync, page flipping and an assembly inner loop |
+| `23-snake.c` | 8X | C game: joystick, vsync, random numbers, speaker, number display |
 | `24-plasma.c` | 8X | C demo: the plasma effect in RGB 3-3-2 |
 | `25-life.c` | 8X | C: Conway's Game of Life with glowing cells |
 | `26-stars.c` | 8X | C: flying through a starfield, speed on the joystick |
+| `27-color-cycling.c` | 8X | C: a picture drawn once, animated only through the palette chip and vsync |
 
 A suggested order with questions and exercises: [docs/teaching.md](docs/teaching.md).
 

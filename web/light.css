@@ -92,6 +92,7 @@
 :root[data-theme="light"] .device-port{color:#5e7492}
 :root[data-theme="light"] .device-value{color:#432c04}
 :root[data-theme="light"] .device-value.sounding{color:#121212}
+:root[data-theme="light"] .device-swatch{border:1px solid rgba(18,18,18,0.35)}
 :root[data-theme="light"] .key-cap{background:#dee7f3;border-color:#85a0c7;color:#394c65}
 :root[data-theme="light"] .key-cap[aria-pressed=true]{border-color:#352301;color:#f1ece3}
 :root[data-theme="light"] .device-mute{color:#394c65}
@@ -163,6 +164,8 @@
 :root[data-theme="light"] .reference-table .family-row th{color:#446080}
 :root[data-theme="light"] .new-tag{border:1px solid #619d7f}
 :root[data-theme="light"] .reference-table td.wide-cost{color:#294a77}
+:root[data-theme="light"] .reference-code{background:#e6edf9;border:1px solid #b8cdeb;color:#212a39}
+:root[data-theme="light"] .palette-swatches{border:1px solid #99b4da;background:#99b4da}
 :root[data-theme="light"] .ascii-table th{color:#455873}
 :root[data-theme="light"] .ascii-table td{border:1px solid #b8cdeb}
 :root[data-theme="light"] .ascii-table td b{color:#432c04}

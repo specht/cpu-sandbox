@@ -17,9 +17,12 @@ one access to the device).
 | `0x01` | Keyboard | `IN` | the next typed character (ASCII), or 0 if nothing was typed |
 | `0x02` | Timer | `IN` | counts 60 times per second of machine time, 0–255, then starts over |
 | `0x03` | Random | `IN` | a new random number on every read |
+| `0x04` | Vsync | `IN` | waits until the screen takes its next picture, then returns the timer value |
 | `0x10` | Speaker | `OUT` | plays a short beep; the value is a MIDI note number (60 = middle C, 69 = 440 Hz) |
 | `0x11` | Number display | `OUT` | shows the value as a decimal number |
 | `0x12` | Screen page | `OUT` | moves the screen to address value × 256 (page flipping) |
+| `0x13` | Palette index | `OUT` | chooses the palette color that port `0x14` changes next |
+| `0x14` | Palette color | `OUT` | red, green, blue of that color; then the next color |
 
 Reading a port nobody is plugged into, or writing to an input device, is an
 assembly error.
@@ -45,6 +48,11 @@ again and again in a loop.
 - The timer counts **machine time** (cycles ÷ clock). A game that waits for
   the next timer tick runs at the same speed at any clock — as long as the CPU
   can do its work between two ticks. Below that, the game slows down.
+- **Vsync** waits for the next frame without a loop: `IN A, 0x04` lets the
+  CPU idle until the screen takes its next picture. That is the simplest way
+  to pace a game (`23-snake.c`, `26-stars.c`), and at a high clock it saves
+  the browser millions of wasted instructions per second. The vsync, screen
+  page and palette ports are explained in [The screen](screen.md).
 
 ## Page flipping
 
@@ -59,8 +67,10 @@ into the hidden one and then shows it with a single `OUT`:
         OUT 0x12, A         ; the screen now starts at 0x0C00
 ```
 
-The screen settings above the canvas follow the device; `22-cube.c` uses it.
+The screen settings above the canvas follow the device. `22-cube.c` waits for
+vsync before it flips, so every picture shows one finished cube.
 On MiniCPU 8 and 8S RAM is a single page, so the device is useful on 8X.
 
-Stepping back undoes an `OUT` (number display, screen page), but it does not un-press
+Stepping back undoes an `OUT` (number display, screen page, palette) and the
+wait of a vsync, but it does not un-press
 keys or un-type characters: input comes from outside the machine.

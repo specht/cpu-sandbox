@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/*.test.js",
-    "docs": "node scripts/instruction-table.mjs"
+    "docs": "node scripts/instruction-table.mjs && node scripts/palette-swatches.mjs"
   },
   "engines": { "node": ">=18" }
 }

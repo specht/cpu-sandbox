@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="288" height="18" viewBox="0 0 288 18">
+<rect x="0" y="0" width="18" height="18" fill="#000000"><title>0 = #000000</title></rect>
+<rect x="18" y="0" width="18" height="18" fill="#555555"><title>1 = #555555</title></rect>
+<rect x="36" y="0" width="18" height="18" fill="#AAAAAA"><title>2 = #AAAAAA</title></rect>
+<rect x="54" y="0" width="18" height="18" fill="#FFFFFF"><title>3 = #FFFFFF</title></rect>
+<rect x="72" y="0" width="18" height="18" fill="#0000AA"><title>4 = #0000AA</title></rect>
+<rect x="90" y="0" width="18" height="18" fill="#5555FF"><title>5 = #5555FF</title></rect>
+<rect x="108" y="0" width="18" height="18" fill="#00AA00"><title>6 = #00AA00</title></rect>
+<rect x="126" y="0" width="18" height="18" fill="#55FF55"><title>7 = #55FF55</title></rect>
+<rect x="144" y="0" width="18" height="18" fill="#00AAAA"><title>8 = #00AAAA</title></rect>
+<rect x="162" y="0" width="18" height="18" fill="#55FFFF"><title>9 = #55FFFF</title></rect>
+<rect x="180" y="0" width="18" height="18" fill="#AA0000"><title>10 = #AA0000</title></rect>
+<rect x="198" y="0" width="18" height="18" fill="#FF5555"><title>11 = #FF5555</title></rect>
+<rect x="216" y="0" width="18" height="18" fill="#AA00AA"><title>12 = #AA00AA</title></rect>
+<rect x="234" y="0" width="18" height="18" fill="#FF55FF"><title>13 = #FF55FF</title></rect>
+<rect x="252" y="0" width="18" height="18" fill="#AA5500"><title>14 = #AA5500</title></rect>
+<rect x="270" y="0" width="18" height="18" fill="#FFFF55"><title>15 = #FFFF55</title></rect>
+</svg>

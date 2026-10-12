@@ -1,5 +1,7 @@
-// Palettes from specht/pixelram/tools/palettes.yaml (commit 951d93a), keeping
-// their original index order, plus palettes made for the bundled demos.
+// The predefined palettes: the screen's palette chip starts with one of them.
+// Most come from specht/pixelram/tools/palettes.yaml (commit 951d93a), in
+// their original index order; programs can change every color themselves
+// (ports 0x13 and 0x14, see devices.js).
 const parse = str => str.trim().split(/\s+/).map(c => `#${c.toUpperCase()}`);
 const hex2 = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
 
@@ -9,25 +11,12 @@ const fire = Array.from({ length: 256 }, (_, i) => {
   return hex2(t * 3 * 255) + hex2((t - 0.33) * 2.6 * 255) + hex2((t - 0.72) * 3.6 * 255);
 }).join(' ');
 
-// Eight smooth ramps of 32 shades each, from almost black to the full color:
-// gray, red, orange, yellow, green, cyan, blue, magenta. Color = 32 · ramp + shade,
-// made for shading: the more light a surface gets, the higher the shade.
-const RAMP_COLORS = [[255, 255, 255], [255, 64, 64], [255, 150, 40], [255, 230, 60], [80, 230, 90], [60, 220, 230], [70, 120, 255], [230, 80, 230]];
-const ramps = RAMP_COLORS.flatMap((color, ramp) => Array.from({ length: 32 }, (_, shade) => {
-  const t = ramp === 0 && shade === 0 ? 0 : 0.06 + 0.94 * (shade / 31) ** 1.2;   // color 0 is black
-  return color.map(c => hex2(c * t)).join('');
-})).join(' ');
-
 export const PALETTES = Object.freeze({
   '1bit_monitor_glow': parse('222323 f0f6f0'),
   'cga_palette_1_high': parse('000000 ff55ff 55ffff ffffff'),
   'color_graphics_adapter': parse('000000 555555 aaaaaa ffffff 0000aa 5555ff 00aa00 55ff55 00aaaa 55ffff aa0000 ff5555 aa00aa ff55ff aa5500 ffff55'),
   'pico_8': parse('000000 1d2b53 7e2553 008751 ab5236 5f574f c2c3c7 fff1e8 ff004d ffa300 ffec27 00e436 29adff 83769c ff77a8 ffccaa'),
   'sweetie_16': parse('1a1c2c 5d275d b13e53 ef7d57 ffcd75 a7f070 38b764 257179 29366f 3b5dc9 41a6f6 73eff7 f4f4f4 94b0c2 566c86 333c57'),
-  // CPU Sandbox: index 0 is black, 1..15 run from deep blue over white to ember red.
-  'twilight_16': parse('000000 0b1033 132463 1c3d93 2762c0 3d8fdc 70c1ee b8e7f6 fff6dc ffd98a ffb347 f5871c d95c10 a8360c 6e1c0a 3c0c08'),
-  'fire_256': parse(fire),
-  'ramps_256': parse(ramps),
   // PixelRAM VGA has 256 entries; the first 16 correspond to VGA's basic colors.
   'vga': parse(`000000 0000aa 00aa00 00aaaa aa0000 aa00aa aa5500 aaaaaa 555555 5555ff 55ff55 55ffff ff5555 ff55ff ffff55 ffffff
     000000 141414 202020 2c2c2c 383838 454545 515151 616161 717171 828282 929292 a2a2a2 b6b6b6 cbcbcb e3e3e3 ffffff
@@ -41,4 +30,19 @@ export const PALETTES = Object.freeze({
     202041 282041 302041 382041 412041 412038 412030 412028 412020 412820 413020 413820 414120 384120 304120 284120 204120 204128 204130 204138 204141 203841 203041 202841
     2c2c41 302c41 342c41 3c2c41 412c41 412c3c 412c34 412c30 412c2c 41302c 41342c 413c2c 41412c 3c412c 34412c 30412c 2c412c 2c4130 2c4134 2c413c 2c4141 2c3c41 2c3441 2c3041
     000000 000000 000000 000000 000000 000000 000000 000000`.replace(/\s+/g, ' ').trim()),
+  // CPU Sandbox: heat 0..255 from black over red, orange and yellow to white.
+  'fire_256': parse(fire),
 });
+
+/** The palette a screen format starts with when .display names none: the first one that fits. */
+export function defaultPalette(colors) {
+  return Object.keys(PALETTES).find(key => PALETTES[key].length === colors) ?? null;
+}
+
+/** A palette as bytes: red, green, blue for every color. */
+export function paletteBytes(name) {
+  const colors = PALETTES[name] ?? [];
+  const bytes = new Uint8Array(colors.length * 3);
+  colors.forEach((c, i) => { for (let k = 0; k < 3; k++) bytes[i * 3 + k] = parseInt(c.slice(1 + 2 * k, 3 + 2 * k), 16); });
+  return bytes;
+}

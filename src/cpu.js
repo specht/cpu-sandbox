@@ -1,5 +1,5 @@
 import { architecture } from './architectures.js';
-import { Devices } from './devices.js';
+import { Devices, PORT, FRAMES_PER_SECOND, frameAt } from './devices.js';
 import { OPCODES as OP, BY_CODE, INSTRUCTIONS, REGISTER_NAMES, availableOn, cyclesOf } from './opcodes.js';
 
 export class CpuFault extends Error {
@@ -77,7 +77,7 @@ export class MiniCPU {
     rows[at + 10] = -1; rows[at + 11] = -1;
     this.times[row] = this.time;
     this.writeStart[row] = this.logTotal;
-    let opcode = 0, timing = 0;
+    let opcode = 0, timing = 0, waitUntil = 0;
     this.wideOp = false;
     try {
       opcode = this.fetch();
@@ -164,12 +164,13 @@ export class MiniCPU {
           const d = this.reg(BYTE), port = this.fetch(), value = this.io.read(port, this);
           if (value === undefined) this.fail(`Nothing is plugged into port 0x${hex(port)}`);
           r[d] = value;
+          if (port === PORT.VSYNC) waitUntil = (frameAt(this.time) + 1) / FRAMES_PER_SECOND;
           break;
         }
         case OP.OUT: {
-          const port = this.fetch(), s = this.reg(BYTE), before = this.io.outputs.get(port);
+          const port = this.fetch(), s = this.reg(BYTE), before = this.io.snapshot(port);
           if (!this.io.write(port, r[s])) this.fail(`Nothing is plugged into port 0x${hex(port)}`);
-          rows[at + 10] = port; rows[at + 11] = before === undefined ? -1 : before;
+          rows[at + 10] = port; rows[at + 11] = before;
           break;
         }
         default: this.fail(`Unknown opcode 0x${hex(opcode)}`);
@@ -180,10 +181,14 @@ export class MiniCPU {
       throw error;
     }
     if (this.wideOp) timing = 2;
-    const cycles = this.timing[opcode * 3 + timing];
+    let cycles = this.timing[opcode * 3 + timing];
+    if (waitUntil) {
+      // IN from the vsync port: the CPU idles until the screen takes its next picture.
+      cycles = Math.max(cycles, Math.ceil((waitUntil - this.time) * this.clockHz));
+      this.time = Math.max(this.time + cycles / this.clockHz, waitUntil);
+    } else this.time += cycles / this.clockHz;
     rows[at + 9] = cycles;
     this.cycles += cycles;
-    this.time += cycles / this.clockHz;
     this.instructions++;
     // Commit the row; forget the oldest rows whose RAM writes the log has overwritten.
     const size = this.historySize;
@@ -295,7 +300,7 @@ export class MiniCPU {
     this.fault = null;
     this.cycles -= this.rows[at + 9];
     this.time = this.times[row];
-    if (this.rows[at + 10] >= 0) this.io.restore(this.rows[at + 10], this.rows[at + 11] < 0 ? undefined : this.rows[at + 11]);
+    if (this.rows[at + 10] >= 0) this.io.restore(this.rows[at + 10], this.rows[at + 11]);
     this.instructions--;
     return true;
   }

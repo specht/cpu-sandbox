@@ -2,8 +2,8 @@
 import { ARCHITECTURES } from '/src/architectures.js';
 import { build, languageOf } from '/src/build.js';
 import { MiniCPU, CpuFault, hex } from '/src/cpu.js';
-import { DEFAULT_DISPLAY, validateDisplay } from '/src/display.js';
-import { Devices, PORT } from '/src/devices.js';
+import { DEFAULT_DISPLAY, MODES, validateDisplay } from '/src/display.js';
+import { Devices, PORT, frameAt } from '/src/devices.js';
 import { DevicePanel } from './devices.js';
 import { $, el, icon, grouped, formatHz, formatDuration, loadPreferences, savePreferences } from './util.js';
 import { Catalog, ProgramPicker, request } from './catalog.js';
@@ -52,7 +52,7 @@ const screen = new Screen({
   canvas: $('screen'), area: $('screen-area'), grip: $('screen-grip'), info: $('screen-info'),
   format: $('screen-format'), palette: $('screen-palette'), start: $('screen-start'), width: $('screen-width'), height: $('screen-height'),
 }, {
-  onChange: () => { state.screenOverride = true; $('screen-reset').disabled = false; renderMachine(); },
+  onChange: () => { state.screenOverride = true; $('screen-reset').disabled = false; syncPalette(); renderMachine(); },
   onPick: address => { memory.select(address); renderMachine(); },
 });
 const memory = new MemoryView({ grid: $('memory'), page: $('memory-page'), zoom: $('memory-zoom') }, {
@@ -311,6 +311,13 @@ function setSuggestedScreen() {
   screen.set(config);
   state.screenOverride = false;
   $('screen-reset').disabled = true;
+  syncPalette();
+}
+
+/** The palette chosen for the screen is loaded into the palette chip (and replaces the program's colors). */
+const chosenPalette = () => (screen.config && MODES[screen.config.mode].indexed ? screen.config.palette : null);
+function syncPalette() {
+  if (chosenPalette() !== devices.paletteName) devices.loadPalette(chosenPalette());
 }
 
 /** The CPU menu edits the .cpu line (#pragma cpu in C), so the source always says which CPU it needs. */
@@ -375,7 +382,7 @@ function updateBreakpoints() {
 
 function restartMachine() {
   stop();
-  devices.reset();
+  devices.reset(chosenPalette());
   state.cpu = state.assembly ? new MiniCPU(state.assembly.memory, state.assembly.architecture, { devices, clockHz: clockHz() }) : null;
   state.message = null;
   state.budget = 0;
@@ -393,6 +400,7 @@ function start() {
   state.message = null;
   state.measured = { cycles: 0, seconds: 0 };
   state.achievedHz = null;
+  state.frame = frameAt(state.cpu.time);
   if (state.cpu) state.cpu.clockHz = clockHz();
   if (state.assembly.ports.some(port => port <= 1)) $('screen').focus(); // the keys go to the program
   requestAnimationFrame(frame);
@@ -426,6 +434,8 @@ function frame(now) {
     const cycles = execute();
     if (!cycles) { state.running = false; break; }
     state.budget -= cycles;
+    // At the start of every frame the screen takes its picture, like a video chip.
+    if (frameAt(cpu.time) !== state.frame) { state.frame = frameAt(cpu.time); captureScreen(); }
     if (cpu.halted) { state.running = false; break; }
     if ((++count & 1023) === 0 && performance.now() > deadline) { state.budget = 0; break; } // the browser cannot keep up
   }
@@ -536,8 +546,8 @@ function renderMachine() {
   renderRegisters();
   devicePanel.render(state.assembly?.ports ?? []);
   const ram = cpu?.memory ?? new Uint8Array(arch.memorySize);
-  followScreenPage();
-  screen.render(ram);
+  if (state.running) screen.present();   // the picture of the last frame
+  else { followScreenPage(); screen.render(ram, devices.palette); }
 
   const written = new Set(cpu && !state.running ? cpu.lastWrites() : []);
   const scr = screen.valid;
@@ -577,13 +587,18 @@ function renderMachine() {
   status.className = `run-status${kind ? ` ${kind}` : ''}`;
 }
 
+function captureScreen() {
+  followScreenPage({ draw: false });
+  screen.capture(state.cpu.memory, devices.palette);
+}
+
 /** The screen page device moves the screen, like the start register of a video chip. */
-function followScreenPage() {
+function followScreenPage({ draw = true } = {}) {
   const page = devices.outputs.get(PORT.SCREEN);
   if (page === state.screenPage) return;
   state.screenPage = page;
   if (page === undefined) { if (!state.screenOverride) setSuggestedScreen(); return; }
-  screen.set(screen.clamp({ ...screen.config, start: page * 256 }));
+  screen.set(screen.clamp({ ...screen.config, start: page * 256 }), { draw });
 }
 
 /** The footer of the RAM view explains the byte under the mouse, or else the selected one. */

@@ -8,14 +8,28 @@
 ; Numbers are signed bytes with 5 fraction bits (32 = 1.0, −64 = −2.0).
 ;
 ; X points into the table (XH = page, XL = the number to square),
-; Y walks through the screen, two 4-bit pixels per byte.
+; Y walks through the screen, two 4-bit pixels per byte. The 16 colors, from
+; deep blue over white to ember red, come from the table at the end: the
+; program writes them into the palette chip first.
 ; Run it at 1 MHz and watch the picture appear line by line.
 
 .cpu 8x
-.display screen, 80, 60, indexed4, twilight_16
+.display screen, 80, 60, indexed4
 
 squares .equ 0x0300             ; 256-byte table, one page
 screen  .equ 0x0400             ; 80 × 60 pixels, 2400 bytes
+PALETTE .equ 0x13               ; the palette chip: color number …
+COLOR   .equ 0x14               ; … and red, green, blue
+
+; ---- 0. the palette: 16 colors, 48 bytes ----------------------------------
+        LDI A, 0
+        OUT PALETTE, A          ; start with color 0;
+        LDI X, colors
+color:  LDA A, [X]
+        OUT COLOR, A            ; after each blue, the chip moves on by itself
+        INC X
+        CMP X, colors + 48
+        JNZ color
 
 ; ---- 1. squares[n] = n²/32 for n = 0..128, rounded, at most 255 -----------
         LDI B, 0                ; C:B = n² as a 16-bit number
@@ -156,3 +170,8 @@ ci:     .db 0
 zr:     .db 0
 zi:     .db 0
 count:  .db 0
+
+colors: .db 0x00, 0x00, 0x00,  0x0B, 0x10, 0x33,  0x13, 0x24, 0x63,  0x1C, 0x3D, 0x93
+        .db 0x27, 0x62, 0xC0,  0x3D, 0x8F, 0xDC,  0x70, 0xC1, 0xEE,  0xB8, 0xE7, 0xF6
+        .db 0xFF, 0xF6, 0xDC,  0xFF, 0xD9, 0x8A,  0xFF, 0xB3, 0x47,  0xF5, 0x87, 0x1C
+        .db 0xD9, 0x5C, 0x10,  0xA8, 0x36, 0x0C,  0x6E, 0x1C, 0x0A,  0x3C, 0x0C, 0x08

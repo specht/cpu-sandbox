@@ -259,3 +259,36 @@ test('the formatter aligns labels, instructions and comments without changing th
   assert.deepEqual(assemble(formatSource(source)).memory, assemble(source).memory);
   assert.equal(formatSource(formatSource(source)), formatSource(source));
 });
+
+test('the palette ports set colors in the palette chip, and stepping back undoes them', async () => {
+  const { Devices } = await import('../src/devices.js');
+  const devices = new Devices();
+  devices.reset('pico_8');
+  const asm = assemble('LDI A, 1\nOUT 0x13, A\nLDI B, 10\nOUT 0x14, B\nLDI B, 20\nOUT 0x14, B\nLDI B, 30\nOUT 0x14, B\nOUT 0x14, B\nHLT');
+  const cpu = new MiniCPU(asm.memory, 'cpu8', { devices });
+  assert.deepEqual(Array.from(devices.palette.slice(3, 6)), [0x1D, 0x2B, 0x53]);   // pico-8 color 1
+  while (!cpu.halted) cpu.step();
+  assert.deepEqual(Array.from(devices.palette.slice(3, 6)), [10, 20, 30]);
+  assert.equal(devices.palette[6], 30, 'after blue, the next color is chosen');
+  assert.deepEqual([...devices.changedColors].sort(), [1, 2]);
+  while (cpu.canUndo) cpu.back();
+  assert.deepEqual(Array.from(devices.palette.slice(3, 9)), [0x1D, 0x2B, 0x53, 0x7E, 0x25, 0x53]);
+  assert.equal(devices.changedColors.size, 0);
+  assert.equal(devices.colorIndex, 0);
+});
+
+test('reading the vsync port waits for the next frame, and stepping back returns the time', () => {
+  const asm = assemble('NOP\nIN A, 0x04\nIN B, 0x04\nIN C, 0x02\nHLT');
+  const cpu = new MiniCPU(asm.memory, 'cpu8', { clockHz: 6000 });   // 100 cycles per frame
+  cpu.step();
+  assert.equal(cpu.step(), 99, 'the rest of the first frame');
+  assert.equal(cpu.cycles, 100);
+  assert.equal(cpu.registers[0], 1);
+  assert.equal(cpu.step(), 100, 'a whole frame');
+  assert.equal(cpu.registers[1], 2);
+  cpu.step();
+  assert.equal(cpu.registers[2], 2, 'the timer agrees');
+  cpu.back(); cpu.back();
+  assert.equal(cpu.cycles, 100);
+  assert.ok(Math.abs(cpu.time - 1 / 60) < 1e-12);
+});

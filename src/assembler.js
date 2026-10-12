@@ -1,7 +1,7 @@
 import { architecture, architectureFromDirective, ARCHITECTURES } from './architectures.js';
 import { INSTRUCTIONS, availableOn, sizeOf, REG, WIDE_OPERATIONS } from './opcodes.js';
 import { validateDisplay, MODES } from './display.js';
-import { PALETTES } from './palettes.js';
+import { PALETTES, defaultPalette } from './palettes.js';
 import { DEVICES, deviceAt } from './devices.js';
 
 /** MiniCPU two-pass assembler. No eval and no dependencies. */
@@ -431,7 +431,9 @@ export function assemble(text, { architecture: fallback = 'cpu8' } = {}) {
     };
     const spec = MODES[display.mode];
     if (!spec) fail(node.line, `Unknown pixel format ${mode} (known: ${Object.keys(MODES).join(', ')})`);
-    if (spec.indexed && !palette) fail(node.line, `${display.mode} needs a palette with ${2 ** spec.bits} colors`);
+    // Without a name, an indexed format starts with the standard palette of its size;
+    // the program can set its own colors through the palette ports.
+    if (spec.indexed && !palette) display.palette = defaultPalette(2 ** spec.bits);
     if (!spec.indexed && palette) fail(node.line, `${display.mode} does not use a palette`);
     if (spec.indexed && PALETTES[display.palette]?.length !== 2 ** spec.bits) {
       const fitting = Object.keys(PALETTES).filter(k => PALETTES[k].length === 2 ** spec.bits);

@@ -1,6 +1,9 @@
 // The screen: a canvas that shows a window of RAM as pixels. Dragging the
 // picture moves the window through RAM, the corner grip resizes it, and the
 // bar above chooses how bytes become colors. None of this changes RAM.
+// Indexed formats take their colors from the palette chip (devices.palette).
+// While the program runs, the app captures a picture at the start of every
+// frame and presents the latest one, like a monitor fed by a video chip.
 import { MODES, MAX_SIDE, validateDisplay, decodeScreen, pixelAddress, pixelValue } from '/src/display.js';
 import { PALETTES } from '/src/palettes.js';
 import { hex } from '/src/cpu.js';
@@ -16,6 +19,8 @@ export class Screen {
     this.memorySize = 256;
     this.config = null;
     this.memory = new Uint8Array(256);
+    this.palette = new Uint8Array(768);
+    this.captured = false;
     this.error = null;
     this.cell = 1;
     this.frozenCell = null;
@@ -51,10 +56,10 @@ export class Screen {
   setMemorySize(size) { this.memorySize = size; }
 
   /** Sets the mapping without reporting it as a user change. */
-  set(config) {
+  set(config, { draw = true } = {}) {
     this.config = { ...config };
     this.syncFields();
-    this.draw();
+    if (draw) this.draw();
   }
 
   /** A user change: keeps the screen inside RAM where possible. */
@@ -93,13 +98,33 @@ export class Screen {
 
   // ------------------------------------------------------------ drawing
 
-  render(memory) {
-    this.memory = memory;
-    this.draw();
+  /** Draws RAM now (while paused, or after a change of the mapping). */
+  render(memory, palette) {
+    this.capture(memory, palette);
+    this.present();
   }
 
-  draw() {
-    if (!this.config) return;
+  draw() { this.render(this.memory, this.palette); }
+
+  /** Takes a picture of RAM and the palette chip, shown by the next present(). */
+  capture(memory, palette = this.palette) {
+    this.memory = memory;
+    this.palette = palette;
+    if (!this.prepare()) return;
+    decodeScreen(memory.length >= this.memorySize ? memory : new Uint8Array(this.memorySize), this.config, palette, this.image.data);
+    this.captured = true;
+  }
+
+  /** Shows the last picture taken. */
+  present() {
+    if (!this.valid) return;
+    if (this.captured) { this.context.putImageData(this.image, 0, 0); this.captured = false; }
+    this.showInfo();
+  }
+
+  /** Checks the mapping and sizes the canvas; false (with a message) if the mapping is invalid. */
+  prepare() {
+    if (!this.config) return false;
     const { canvas } = this.ui;
     try {
       this.valid = validateDisplay(this.config, this.memorySize);
@@ -109,7 +134,7 @@ export class Screen {
       this.error = error.message;
       this.ui.info.textContent = error.message;
       this.context.clearRect(0, 0, canvas.width, canvas.height);
-      return;
+      return false;
     }
     const { width, height } = this.config;
     if (canvas.width !== width || canvas.height !== height || !this.image) {
@@ -117,9 +142,7 @@ export class Screen {
       this.image = this.context.createImageData(width, height);
       this.fit();
     }
-    decodeScreen(this.memory.length >= this.memorySize ? this.memory : new Uint8Array(this.memorySize), this.config, PALETTES, this.image.data);
-    this.context.putImageData(this.image, 0, 0);
-    this.showInfo();
+    return true;
   }
 
   fit() {
@@ -140,7 +163,8 @@ export class Screen {
     if (this.hover) {
       const { x, y } = this.hover;
       const addr = pixelAddress(c, x, y), value = pixelValue(this.memory, c, x, y);
-      const shown = c.bits === 24 ? `#${hex(value, 6)}` : c.bits === 8 ? `${value} (0x${hex(value)})` : `${value}`;
+      let shown = c.bits === 24 ? `#${hex(value, 6)}` : c.bits === 8 ? `${value} (0x${hex(value)})` : `${value}`;
+      if (MODES[c.mode].indexed) shown += ` = #${hex((this.palette[value * 3] << 16) | (this.palette[value * 3 + 1] << 8) | this.palette[value * 3 + 2], 6)}`;
       this.ui.info.textContent = `(${x}, ${y}) · byte 0x${hex(addr, digits)} · value ${shown}`;
     } else {
       this.ui.info.textContent = `${c.width} × ${c.height} · ${grouped(c.bytesSpanned)} bytes · 0x${hex(c.start, digits)}–0x${hex(c.endExclusive - 1, digits)}`;
