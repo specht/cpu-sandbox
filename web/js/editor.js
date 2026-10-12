@@ -333,4 +333,10 @@ export class SourceEditor {
   }
 
   refresh() { this.editor.refresh(); }
+
+  /** Shows or hides the margin with the address and bytes of every line (its markers stay). */
+  showBytes(on) {
+    const gutters = on ? ['cm-bytes', 'cm-breakpoints', 'CodeMirror-linenumbers'] : ['cm-breakpoints', 'CodeMirror-linenumbers'];
+    if (this.editor.getOption('gutters').length !== gutters.length) this.editor.setOption('gutters', gutters);
+  }
 }

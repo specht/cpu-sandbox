@@ -594,6 +594,19 @@ function cycleForward() {
   renderMachine();
 }
 
+// The address and bytes next to the code: useful, but wide; it can be hidden.
+function showBytes(on) {
+  state.bytes = on;
+  $('source-bytes').setAttribute('aria-pressed', String(on));
+  editor.showBytes(on);
+  asmView.showBytes(on);
+}
+showBytes(preferences.bytes !== false);
+$('source-bytes').addEventListener('click', () => {
+  showBytes(!state.bytes);
+  savePreferences({ bytes: state.bytes });
+});
+
 $('cycle-mode').addEventListener('click', () => {
   micro.on = !micro.on;
   resetCycles();

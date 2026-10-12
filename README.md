@@ -86,7 +86,8 @@ du eine Aufgabe wählen (siehe Schritt 6). Das Programm entsteht in
 - **Speichern** mit **Ctrl+S**. Die App übersetzt dein Programm schon beim
   Tippen; Fehler erscheinen unter dem Editor, ein Klick springt in die Zeile.
 - Links neben dem Code stehen die **Adresse und die Bytes** jeder Zeile: So
-  sieht dein Programm im Speicher aus.
+  sieht dein Programm im Speicher aus. **Bytes** unter dem Editor blendet
+  diese Spalte aus und wieder ein.
 - Unten steuerst du die CPU: **Run** (Leertaste), **Step** (→) führt einen
   Befehl aus, **Step back** (←) macht ihn rückgängig, **Restart** (Pos1)
   beginnt von vorn. Der **Clock**-Regler stellt die Taktfrequenz ein, von

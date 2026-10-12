@@ -62,7 +62,8 @@ assembler directives and an ASCII table.
 ## In the browser
 
 - **Left:** the editor. The margin shows the address and the bytes of every
-  line; bytes the program has overwritten turn amber. Assembly happens while
+  line; bytes the program has overwritten turn amber. **Bytes** under the
+  editor hides and shows that column (remembered in the browser). Assembly happens while
   you type, problems are listed under the editor. Click a line number to set a
   breakpoint.
 - **Right:** registers and flags (changes are highlighted; a click switches
