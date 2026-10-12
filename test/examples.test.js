@@ -184,6 +184,33 @@ test('every C example compiles without warnings and starts with a title comment'
   }
 });
 
+test('landscape (C): a fractal height map, and a lake that mirrors the land', async () => {
+  const { Devices } = await import('../src/devices.js');
+  const program = build(fs.readFileSync(new URL('26-landscape.c', dir), 'utf8'), 'c');
+  assert.ok(program.loadedBytes <= 0x8000, 'code and data end below the screen');
+  const devices = new Devices();
+  const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 64e6, devices });
+  const L = name => program.labels.get(name);
+  // Run until column 129 starts: the arrays then describe column 128, in the middle.
+  let columns = 0;
+  while (columns < 129) { cpu.step(); if (cpu.pc === L('_column')) columns++; }
+  assert.ok(cpu.cycles < 180_000_000, `a new landscape and half a picture in ${Math.round(cpu.cycles / 1e6)} M cycles`);
+  const map = cpu.memory.slice(L('_map'), L('_map') + 129 * 128);
+  const water = map.filter(h => h < 64).length / map.length;
+  assert.ok(Math.max(...map) > 240 && water > 0.1 && water < 0.6, `mountains and lakes (${Math.round(water * 100)} % water)`);
+  const camera = (cpu.memory[L('_cam_y') + 1] & 127) * 129 + (cpu.memory[L('_cam_x') + 1] & 127);
+  assert.ok(map[camera] < 64, 'the camera floats over a lake');
+  const rowStep = cpu.memory.slice(L('_row_step'), L('_row_step') + 192), rowTone = cpu.memory.slice(L('_row_tone'), L('_row_tone') + 192);
+  const rows = [...rowStep.keys()];
+  assert.ok(rows.some(r => rowStep[r] === 255 && rowTone[r] >= 64), 'land in the middle column');
+  assert.ok(rows.some(r => rowStep[r] !== 255 && rowTone[r] >= 64), 'and its mirror image in the water');
+  // The left half of the screen: 16 colors, sky at the top.
+  const screen = cpu.memory.slice(0x8000, 0x8000 + 128 * 192);
+  const left = [...screen].filter((_, i) => (i & 127) < 64);
+  assert.ok(new Set(left.flatMap(v => [v >> 4, v & 15])).size >= 12, 'most of the 16 colors');
+  assert.ok(screen.slice(0, 64).every(v => (v >> 4) < 4 && (v & 15) < 4), 'blue sky in the top row');
+});
+
 test('first steps in C: a gray ramp and the sum of five squares', () => {
   const { program, cpu } = runC('17-first-c.c', 1e6);
   assert.ok(cpu.halted);

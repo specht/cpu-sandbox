@@ -93,6 +93,13 @@ a byte of RAM. Shifting the colors every frame makes still pictures flow:
 written last and how many colors the program has set. Stepping back undoes
 palette writes, too.
 
+Few colors can look like many: **dithering** mixes two neighbouring colors
+in a fine pattern, and from a distance the eye sees the color in between.
+`26-landscape.c` uses ordered dithering with a 4 × 4 Bayer matrix: every
+pixel compares the fraction of its brightness with the number of its place
+in the matrix, so 4 colors per ramp give 49 brightnesses, and a 256 × 192
+picture needs only 4 bits per pixel.
+
 ## Vsync: when the screen takes its picture
 
 While a program runs, the screen takes its picture of RAM and the palette at
@@ -161,3 +168,4 @@ palettes; hover a color to see its number.
 | 16 × 8, 4 bits | 128 | 64 |
 | 8 × 8, 8 bits | 64 | 64 |
 | 80 × 60, 4 bits (8X only) | 4800 | 2400 |
+| 256 × 192, 4 bits (8X only, `26-landscape.c`) | 49152 | 24576 |
