@@ -12,6 +12,8 @@ import { Screen } from './screen.js';
 import { MemoryView } from './memory.js';
 import { Reference } from './reference.js';
 import { memoryMap, stackItems, describe } from '/src/memorymap.js';
+import { TaskPanel } from './tasks.js';
+import { TASKS, taskById } from '/src/tasks.js';
 
 const CLOCKS = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1e3, 2e3, 5e3, 1e4, 2e4, 5e4, 1e5, 2e5, 5e5, 1e6, 2e6, 4e6, 8e6, 16e6, 32e6, 64e6];
 const preferences = loadPreferences();
@@ -60,6 +62,18 @@ const memory = new MemoryView({ grid: $('memory'), page: $('memory-page'), zoom:
   onHover: () => renderSelected(state.cpu?.memory ?? new Uint8Array(state.arch.memorySize)),
 });
 const devices = new Devices({ seed: Date.now() & 0xFFFF });
+const tasks = new TaskPanel({
+  source: () => editor.value,
+  language: () => state.language,
+  groupOf: () => (state.program && !state.program.readonly ? state.program.group : preferences.copyGroup ?? null),
+  openProgram: value => openProgram(value),
+  tryCase: (testCase, { restart = true } = {}) => {
+    state.testCase = testCase;
+    if (!restart) return;
+    restartMachine();
+    if (testCase) setStatus(`Case ${testCase.name} is in the machine: Run or step through it`);
+  },
+});
 const devicePanel = new DevicePanel({ strip: $('devices'), canvas: $('screen'), note: $('screen-note'), area: $('screen-area'), number: $('number-display'), numberValue: $('number-value') }, devices, {
   cpu: () => state.cpu,
 });
@@ -193,7 +207,20 @@ function setNewLanguage(language) {
   const file = $('copy-file');
   if (file.value) file.value = file.value.replace(/\.(asm|c)$/i, '') + (language === 'c' ? '.c' : '.asm');
   file.placeholder = language === 'c' ? 'program.c' : 'program.asm';
+  chooseTask($('new-task').value);
 }
+
+/** A task brings its own starter program, file name and CPU level. */
+function chooseTask(id) {
+  const task = taskById(id), file = $('copy-file');
+  $('new-cpu').disabled = !!task;
+  if (!task) return;
+  $('new-cpu').value = dialog.language === 'c' && task.cpu === 'cpu8' ? 'cpu8s' : task.cpu;
+  const names = TASKS.map(t => t.id);
+  if (!file.value || names.includes(file.value.replace(/\.(asm|c)$/i, ''))) file.value = `${task.id}.${dialog.language === 'c' ? 'c' : 'asm'}`;
+}
+for (const task of TASKS) $('new-task').add(new Option(`${task.title} (${ARCHITECTURES[task.cpu].name})`, task.id));
+$('new-task').addEventListener('change', () => chooseTask($('new-task').value));
 for (const tab of $('new-language').querySelectorAll('button')) tab.addEventListener('click', () => setNewLanguage(tab.dataset.language));
 for (const arch of Object.values(ARCHITECTURES)) $('new-cpu').add(new Option(arch.name, arch.id));
 
@@ -213,6 +240,7 @@ function openProgramDialog(mode) {
     $('copy-file').value = state.program.readonly ? base : base.replace(/\.(asm|c)$/i, '-copy.$1');
   } else {
     $('copy-file').value = '';
+    $('new-task').value = '';
     setNewLanguage(preferences.newLanguage ?? 'asm');
   }
   $('copy-error').hidden = true;
@@ -228,7 +256,8 @@ $('copy-form').addEventListener('submit', async event => {
   const group = $('copy-group').value.trim();
   let file = $('copy-file').value.trim();
   if (!/\.(asm|c)$/i.test(file)) file += language === 'c' ? '.c' : '.asm';
-  const source = copy ? editor.value : template(languageOf(file), ARCHITECTURES[$('new-cpu').value], file);
+  const task = copy ? null : taskById($('new-task').value);
+  const source = copy ? editor.value : task ? task.starter[languageOf(file)] : template(languageOf(file), ARCHITECTURES[$('new-cpu').value], file);
   try {
     await request('/api/programs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ group, file, source }) });
     preferences.copyGroup = group;
@@ -260,6 +289,7 @@ function scheduleAssembly() {
 function assembleNow({ restart }) {
   clearTimeout(assemblyTimer);
   const text = editor.value;
+  tasks.update(text);
   let assembly;
   try {
     assembly = build(text, state.language);
@@ -384,6 +414,14 @@ function restartMachine() {
   stop();
   devices.reset(chosenPalette());
   state.cpu = state.assembly ? new MiniCPU(state.assembly.memory, state.assembly.architecture, { devices, clockHz: clockHz() }) : null;
+  // A test case of the task, loaded with "Try it": its input goes into RAM and the keyboard.
+  const testCase = state.testCase;
+  if (state.cpu && testCase) {
+    for (const [address, values] of Object.entries(testCase.memory ?? {})) {
+      if (Number(address) + values.length <= state.cpu.memory.length) state.cpu.memory.set(values, Number(address));
+    }
+    if (testCase.typed) devices.type(testCase.typed);
+  }
   state.message = null;
   state.budget = 0;
   renderMachine();

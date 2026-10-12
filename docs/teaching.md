@@ -106,6 +106,13 @@ the level next to the file name.
     the CPU most often, and why? Why is the floor cheaper per pixel than the
     walls? Change the map, the textures or the fog.
 
+## Tasks with automatic checks
+
+Eleven tasks, from adding two numbers to sorting, check themselves: **+**
+creates a program for a task, **Check** runs its test cases and **Class
+progress** compares the working solutions by cycles and bytes. See
+[tasks.md](tasks.md).
+
 ## Exercises
 
 - Sum 1 + 2 + … + n. What happens when the result passes 255? Use CF to

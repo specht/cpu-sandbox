@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
+import { TASKS, taskOf, checkSource } from './src/tasks.js';
 
 const base = path.dirname(fileURLToPath(import.meta.url));
 const isName = name => typeof name === 'string' && /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(name);
@@ -93,6 +94,34 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
     const bytes = fs.readFileSync(path.join(folder, name));
     return { name, cpu: cpuOf(bytes.toString('utf8'), name), revision: digest(bytes) };
   });
+  // Class progress: every student program that names a task is checked; results
+  // are kept per file content, so only changed files run again.
+  const checked = new Map();   // digest → result
+  function progress() {
+    const students = [];
+    if (!safeDirectory(programRoot)) return { tasks: TASKS.map(t => ({ id: t.id, title: t.title, cpu: t.cpu })), students };
+    for (const e of fs.readdirSync(programRoot, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (!e.isDirectory() || e.isSymbolicLink() || !isName(e.name)) continue;
+      const folder = path.join(programRoot, e.name), cells = {};
+      for (const file of listAsm(folder)) {
+        const bytes = fs.readFileSync(path.join(folder, file));
+        if (bytes.length > MAX_SOURCE) continue;
+        const text = bytes.toString('utf8'), id = taskOf(text);
+        if (!id) continue;
+        const key = digest(bytes) + file.slice(-2);
+        if (!checked.has(key)) checked.set(key, checkSource(text, /\.c$/i.test(file) ? 'c' : 'asm'));
+        const result = checked.get(key);
+        if (!result) continue;
+        const cell = { file, passed: result.passed, total: result.total, bytes: result.bytes, cycles: result.cycles, error: result.error };
+        // The best attempt per task: most cases passed, then fewest cycles.
+        const best = cells[id];
+        if (!best || cell.passed > best.passed || (cell.passed === best.passed && cell.cycles < best.cycles)) cells[id] = { ...cell, attempts: (best?.attempts ?? 0) + 1 };
+        else best.attempts++;
+      }
+      students.push({ id: e.name, cells });
+    }
+    return { tasks: TASKS.map(t => ({ id: t.id, title: t.title, cpu: t.cpu })), students };
+  }
   return http.createServer(async (req, res) => {
     try {
       // Only same-origin calls are accepted for writes. The server listens on loopback by default.
@@ -148,6 +177,7 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
         catch (e) { if (e.code === 'EEXIST') throw new ApiError(409, `${input.group}/${input.file} already exists`); throw e; }
         return json(res, 201, { group: input.group, file: input.file, revision: digest(Buffer.from(source)) });
       }
+      if (route === '/api/progress' && req.method === 'GET') return json(res, 200, progress());
       if (route === '/api/settings' && req.method === 'GET') return json(res, 200, readSettings(settingsFile));
       if (route === '/api/settings' && req.method === 'PUT') {
         const input = await bodyJson(req);

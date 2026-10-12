@@ -174,6 +174,55 @@ input[type=checkbox]{accent-color:#89baff}
 .app-dialog::backdrop{background:#060b15c0}
 .reference-dialog{width:min(980px,calc(100vw - 28px));height:min(90vh,820px)}
 .copy-dialog{width:min(480px,calc(100vw - 28px))}
+/* ------------------------------------------------------------- tasks */
+.task-bar{display:flex;align-items:center;gap:8px;padding:6px 10px;margin:0 0 8px;border-radius:8px;background:#13233a;border:1px solid #2c4a72;font-size:12.5px;min-width:0}
+.task-bar>.ui-icon{flex:none;color:var(--gold)}
+.task-text{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#cfdcef}
+.task-text strong{color:#fff}
+.task-bar.expanded{align-items:flex-start}
+.task-bar.expanded .task-text{white-space:normal}
+.task-bar.expanded .task-more .ui-icon{transform:rotate(180deg)}
+.task-more{width:24px;height:24px;flex:none}
+.task-case{display:inline-flex;align-items:center;gap:4px;flex:none;padding:1px 2px 1px 8px;border-radius:12px;background:#2b2412;border:1px solid #7b6232;color:var(--gold);font-size:11.5px;max-width:220px}
+.task-case b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.task-case .icon-button{width:20px;height:20px}
+.task-result{display:inline-flex;align-items:center;gap:4px;flex:none;font:600 12px var(--mono)}
+.task-result.passed{color:var(--green)}
+.task-result.failed{color:#f08a7e}
+.task-check{flex:none;height:28px}
+.check-dialog{width:min(720px,calc(100vw - 28px))}
+.check-summary,.check-error{display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin:12px 0;font-size:13.5px}
+.check-summary.passed .ui-icon{color:var(--green)}
+.check-summary.failed .ui-icon,.check-error .ui-icon{color:#f08a7e}
+.check-cases{list-style:none;margin:0 0 12px;padding:0;display:grid;gap:4px}
+.check-cases li{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;background:#111d2f;border:1px solid #1f2f46}
+.check-cases li.passed>.ui-icon{color:var(--green);flex:none}
+.check-cases li.failed>.ui-icon{color:#f08a7e;flex:none}
+.check-case{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+.check-case b{font-family:var(--mono);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.check-message{color:#f3b2a9}
+.check-cases button{flex:none;height:26px;font-size:11.5px}
+.progress-dialog{width:min(1100px,calc(100vw - 28px))}
+.progress-dialog .dialog-header .icon-button:not(.dialog-close){margin-left:auto}
+.progress-table-wrap{overflow:auto;border:1px solid #1f2f46;border-radius:8px;margin-bottom:14px}
+.progress-table{border-collapse:collapse;font-size:12px;width:100%}
+.progress-table th,.progress-table td{padding:4px 6px;border-bottom:1px solid #1f2f46;text-align:center;white-space:nowrap}
+.progress-table thead th{position:sticky;top:0;background:var(--panel-solid)}
+.progress-table tbody th{text-align:left;font-weight:600}
+.progress-table tr.mine th,.compare-table tr.mine td{color:var(--gold)}
+.progress-task{height:auto;padding:3px 6px;font-size:11px;font-weight:700;border-radius:5px;background:transparent;border-color:transparent;color:#9cb2cf;white-space:normal;max-width:96px;line-height:1.2}
+.progress-task:hover,.progress-task.selected{border-color:#3e577a;color:#fff;background:#162438}
+.progress-cell button{min-width:44px;height:24px;padding:0 6px;font:600 11px var(--mono);border-radius:5px}
+.progress-cell.passed button{color:var(--green);border-color:#387458;background:#12291f}
+.progress-cell.started button{color:#e8b86a;border-color:#7b6232;background:#241e10}
+.progress-cell.missing{color:#4f6584}
+.progress-compare h3{display:flex;align-items:center;gap:6px;font-size:14px;margin:4px 0 8px}
+.progress-compare h3 .ui-icon{color:var(--gold)}
+.compare-table{border-collapse:collapse;font-size:12.5px;min-width:60%}
+.compare-table th,.compare-table td{padding:4px 10px;border-bottom:1px solid #1f2f46;text-align:left}
+.compare-table .num{text-align:right;font-family:var(--mono)}
+.compare-table td.best{color:var(--green);font-weight:700}
+button.link{height:auto;padding:0;border:0;background:none;color:#8fb4e8;font:inherit;text-decoration:underline;cursor:pointer}
 .dialog-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px 13px;border-bottom:1px solid var(--border)}
 .dialog-header h2{font-size:18px;margin:3px 0 0}
 .dialog-close{border-color:transparent;background:transparent;color:#aebfd6}

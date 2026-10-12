@@ -14,6 +14,8 @@
   <header class="topbar">
     <div class="brand"><strong>CPU SANDBOX</strong></div>
     <div class="topright">
+      <button type="button" id="progress-open" aria-haspopup="dialog" aria-controls="progress-dialog" title="Tasks: how far everyone in the class is, and how the solutions compare">
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-clipboard-check"/></svg> Class progress</button>
       <button type="button" id="reference-open" aria-haspopup="dialog" aria-controls="reference-dialog">
         <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-book"/></svg> Documentation</button>
       <button type="button" id="theme-toggle" class="icon-button theme-toggle" title="Switch to the light theme" aria-label="Switch to the light theme"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-sun"/></svg></button>
@@ -44,6 +46,15 @@
           <button type="button" id="source-copy" title="Save this program as a new file in a student folder" aria-haspopup="dialog" aria-controls="copy-dialog">
             <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-copy"/></svg> Save copy</button>
         </div>
+      </div>
+      <div id="task-bar" class="task-bar" hidden>
+        <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-flag"/></svg>
+        <div class="task-text"><strong id="task-title"></strong> <span id="task-description"></span></div>
+        <button type="button" id="task-more" class="icon-button task-more" title="Show the whole task" aria-label="Show the whole task" aria-expanded="false"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-chevron-down"/></svg></button>
+        <span id="task-case" class="task-case" hidden title="This case is loaded into the machine: its input is in RAM (or typed). Restart keeps it.">Case <b id="task-case-name"></b>
+          <button type="button" id="task-case-clear" class="icon-button" title="Run the program without the case again" aria-label="Clear the case"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-x"/></svg></button></span>
+        <span id="task-result" class="task-result" hidden></span>
+        <button type="button" id="task-check" class="task-check" title="Run all test cases of the task"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-clipboard-check"/></svg> Check</button>
       </div>
       <div id="source-editor" class="source-editor" aria-label="Source editor"></div>
       <div id="asm-view" class="source-editor asm-view" aria-label="Generated assembly" hidden></div>
@@ -149,6 +160,27 @@
     <div class="dialog-body" id="reference-body"></div>
   </dialog>
 
+  <dialog id="check-dialog" class="app-dialog check-dialog" aria-labelledby="check-title">
+    <div class="dialog-header">
+      <h2 id="check-title">Check</h2>
+      <button type="button" id="check-close" class="icon-button dialog-close" aria-label="Close"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-x"/></svg></button>
+    </div>
+    <div class="dialog-body" id="check-body"></div>
+  </dialog>
+
+  <dialog id="progress-dialog" class="app-dialog progress-dialog" aria-labelledby="progress-title">
+    <div class="dialog-header">
+      <h2 id="progress-title">Class progress</h2>
+      <button type="button" id="progress-refresh" class="icon-button" title="Check again" aria-label="Check again"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-refresh"/></svg></button>
+      <button type="button" id="progress-close" class="icon-button dialog-close" aria-label="Close"><svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true"><use href="/vendor/tabler-icons.svg#ti-x"/></svg></button>
+    </div>
+    <div class="dialog-body">
+      <p id="progress-status" class="muted" role="status"></p>
+      <div class="progress-table-wrap"><table class="progress-table"><thead id="progress-head"></thead><tbody id="progress-body"></tbody></table></div>
+      <section id="progress-compare" class="progress-compare" hidden></section>
+    </div>
+  </dialog>
+
   <dialog id="copy-dialog" class="app-dialog copy-dialog" aria-labelledby="copy-title">
     <form method="dialog" id="copy-form">
       <div class="dialog-header">
@@ -169,6 +201,7 @@
               <button type="button" role="tab" data-language="c" aria-selected="false">C</button>
             </nav></div>
           <label class="stacked">CPU <select id="new-cpu"></select></label>
+          <label class="stacked">Task <select id="new-task"><option value="">No task: an empty program</option></select></label>
         </div>
         <p id="copy-error" class="dialog-status failed" role="alert" hidden></p>
       </div>

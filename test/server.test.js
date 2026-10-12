@@ -120,3 +120,18 @@ test('C programs are programs too: .c files are listed with the level from #prag
   assert.equal((await write('POST','/api/programs',{group:'anna',file:'new.c',source:'void main() {}'})).response.status,201);
   assert.equal((await write('POST','/api/programs',{group:'anna',file:'new.py',source:''})).response.status,400);
 });
+test('class progress checks every program that names a task, and keeps the best attempt',async t=>{
+  const {request,programs}=await fixture(t);
+  fs.writeFileSync(path.join(programs,'anna','add.asm'),'; Task: add\n LDA A, [0x80]\n LDA B, [0x81]\n ADD A, B\n STA [0x82], A\n HLT\n');
+  fs.writeFileSync(path.join(programs,'anna','add2.asm'),'; Task: add\n LDA A, [0x80]\n STA [0x82], A\n HLT\n');
+  fs.writeFileSync(path.join(programs,'ben','count.asm'),'; Task: countdown\n LDI A, 3\n OUT 0x11, A\n HLT\n');
+  const {payload}=await request('/api/progress');
+  assert.ok(payload.tasks.some(task=>task.id==='add'&&task.title));
+  const anna=payload.students.find(s=>s.id==='anna'), ben=payload.students.find(s=>s.id==='ben');
+  assert.equal(anna.cells.add.file,'add.asm');
+  assert.equal(anna.cells.add.passed,anna.cells.add.total);
+  assert.equal(anna.cells.add.attempts,2);
+  assert.ok(anna.cells.add.cycles>0&&anna.cells.add.bytes===12, `${anna.cells.add.bytes} bytes`);
+  assert.equal(ben.cells.countdown.passed,0);
+  assert.equal(anna.cells.countdown,undefined);
+});
