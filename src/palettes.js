@@ -1,5 +1,5 @@
 // Palettes from specht/pixelram/tools/palettes.yaml (commit 951d93a), keeping
-// their original index order, plus two palettes made for the bundled demos.
+// their original index order, plus palettes made for the bundled demos.
 const parse = str => str.trim().split(/\s+/).map(c => `#${c.toUpperCase()}`);
 const hex2 = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
 
@@ -8,6 +8,15 @@ const fire = Array.from({ length: 256 }, (_, i) => {
   const t = i / 255;
   return hex2(t * 3 * 255) + hex2((t - 0.33) * 2.6 * 255) + hex2((t - 0.72) * 3.6 * 255);
 }).join(' ');
+
+// Eight smooth ramps of 32 shades each, from almost black to the full color:
+// gray, red, orange, yellow, green, cyan, blue, magenta. Color = 32 · ramp + shade,
+// made for shading: the more light a surface gets, the higher the shade.
+const RAMP_COLORS = [[255, 255, 255], [255, 64, 64], [255, 150, 40], [255, 230, 60], [80, 230, 90], [60, 220, 230], [70, 120, 255], [230, 80, 230]];
+const ramps = RAMP_COLORS.flatMap((color, ramp) => Array.from({ length: 32 }, (_, shade) => {
+  const t = ramp === 0 && shade === 0 ? 0 : 0.06 + 0.94 * (shade / 31) ** 1.2;   // color 0 is black
+  return color.map(c => hex2(c * t)).join('');
+})).join(' ');
 
 export const PALETTES = Object.freeze({
   '1bit_monitor_glow': parse('222323 f0f6f0'),
@@ -18,6 +27,7 @@ export const PALETTES = Object.freeze({
   // CPU Sandbox: index 0 is black, 1..15 run from deep blue over white to ember red.
   'twilight_16': parse('000000 0b1033 132463 1c3d93 2762c0 3d8fdc 70c1ee b8e7f6 fff6dc ffd98a ffb347 f5871c d95c10 a8360c 6e1c0a 3c0c08'),
   'fire_256': parse(fire),
+  'ramps_256': parse(ramps),
   // PixelRAM VGA has 256 entries; the first 16 correspond to VGA's basic colors.
   'vga': parse(`000000 0000aa 00aa00 00aaaa aa0000 aa00aa aa5500 aaaaaa 555555 5555ff 55ff55 55ffff ff5555 ff55ff ffff55 ffffff
     000000 141414 202020 2c2c2c 383838 454545 515151 616161 717171 828282 929292 a2a2a2 b6b6b6 cbcbcb e3e3e3 ffffff

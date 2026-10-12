@@ -9,7 +9,8 @@ const JOYSTICK_KEYS = {
   ArrowLeft: JOYSTICK.LEFT, ArrowRight: JOYSTICK.RIGHT, ArrowUp: JOYSTICK.UP, ArrowDown: JOYSTICK.DOWN,
   a: JOYSTICK.LEFT, d: JOYSTICK.RIGHT, w: JOYSTICK.UP, s: JOYSTICK.DOWN, ' ': JOYSTICK.FIRE,
 };
-const BUTTONS = [['←', JOYSTICK.LEFT], ['→', JOYSTICK.RIGHT], ['↑', JOYSTICK.UP], ['↓', JOYSTICK.DOWN], ['Space', JOYSTICK.FIRE]];
+// [label, joystick bit, icon]
+const BUTTONS = [['Left', JOYSTICK.LEFT, 'arrow-left'], ['Right', JOYSTICK.RIGHT, 'arrow-right'], ['Up', JOYSTICK.UP, 'arrow-up'], ['Down', JOYSTICK.DOWN, 'arrow-down'], ['Space', JOYSTICK.FIRE, null]];
 const NOTE_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
 const noteName = n => `${NOTE_NAMES[n % 12]}${Math.floor(n / 12) - 1}`;
 
@@ -87,8 +88,8 @@ export class DevicePanel {
       const head = el('span', { class: 'device-name' }, device.name, el('span', { class: 'device-port' }, hex(port)));
       const chip = el('span', { class: 'device', title: device.summary, dataset: { port } }, head);
       if (port === PORT.JOYSTICK) {
-        this.buttons = BUTTONS.map(([label, bit]) => {
-          const button = el('button', { type: 'button', class: 'key-cap', 'aria-pressed': 'false', 'aria-label': `Joystick ${label}` }, label);
+        this.buttons = BUTTONS.map(([label, bit, glyph]) => {
+          const button = el('button', { type: 'button', class: `key-cap${glyph ? ' arrow' : ''}`, 'aria-pressed': 'false', 'aria-label': `Joystick ${label}`, title: label }, glyph ? icon(glyph) : label);
           const release = () => { this.devices.joystick &= ~bit; };
           button.addEventListener('pointerdown', event => { event.preventDefault(); button.setPointerCapture(event.pointerId); this.devices.joystick |= bit; });
           button.addEventListener('pointerup', release);

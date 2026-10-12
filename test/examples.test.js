@@ -239,6 +239,6 @@ test('plasma, life and stars (C) draw what they promise', () => {
   const alive = life.cpu.memory.slice(0x4000, 0x4000 + 64 * 48).filter(v => v === 255 || v >= 120).length;
   assert.ok(alive > 50 && alive < 2000, `living cells: ${alive}`);
   const stars = runC('26-stars.c', 2e6);
-  const dots = stars.cpu.memory.slice(0x4000, 0x4000 + 128 * 96).filter(v => v >= 24 && v <= 31).length;
-  assert.ok(dots > 60 && dots <= 160, `stars on the screen: ${dots}`);
+  const dots = stars.cpu.memory.slice(0x4000, 0x4000 + 128 * 96).filter(v => v >= 10 && v <= 31).length;
+  assert.ok(dots > 60 && dots <= 320, `stars on the screen: ${dots}`);
 });

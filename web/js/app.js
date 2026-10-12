@@ -393,6 +393,7 @@ function start() {
   state.message = null;
   state.measured = { cycles: 0, seconds: 0 };
   state.achievedHz = null;
+  if (state.cpu) state.cpu.clockHz = clockHz();
   if (state.assembly.ports.some(port => port <= 1)) $('screen').focus(); // the keys go to the program
   requestAnimationFrame(frame);
   renderControls();
@@ -434,6 +435,9 @@ function frame(now) {
   if (state.measured.seconds >= 0.5) {
     state.achievedHz = state.measured.cycles / state.measured.seconds;
     state.measured = { cycles: 0, seconds: 0 };
+    // When the browser falls behind the clock, machine time follows the speed it
+    // really reaches, so the timer (and every game paced by it) keeps real time.
+    cpu.clockHz = state.achievedHz < clockHz() * 0.9 ? state.achievedHz : clockHz();
   }
   renderMachine();
   if (state.running) requestAnimationFrame(frame);
@@ -486,7 +490,7 @@ function renderControls() {
 }
 
 const REGISTER_GROUPS = [['A', 'B', 'C', 'D'], ['X', 'Y'], ['PC', 'SP'], ['ZF', 'CF']];
-const printable = v => (v >= 0x20 && v < 0x7F ? `'${String.fromCharCode(v)}'` : '');
+const printable = v => (v >= 0x21 && v < 0x7F ? String.fromCharCode(v) : '');
 
 function renderRegisters() {
   const cpu = state.cpu, arch = state.arch, digits = arch.addressBits / 4;
@@ -510,14 +514,15 @@ function renderRegisters() {
         if (cpu) value = cpu[name.toLowerCase()] ? '1' : '0';
       } else {
         const v = cpu ? cpu.registers['ABCD'.indexOf(name)] : 0;
-        title = `${name} = 0x${hex(v)} = ${v} = 0b${v.toString(2).padStart(8, '0')}${printable(v) ? ` = ${printable(v)}` : ''}`;
+        title = `${name} = 0x${hex(v)} = ${v} = 0b${v.toString(2).padStart(8, '0')}${printable(v) ? ` = '${printable(v)}'` : ''}`;
         if (cpu) {
           value = hex(v);
           extra.push(el('span', { class: 'register-decimal' }, String(v)), el('span', { class: 'register-char' }, printable(v)));
         }
       }
       chips.push(el('span', { class: `register${changed.has(name) ? ' changed' : ''}${name.endsWith('F') ? ' flag' : ''}`, title },
-        el('b', { class: 'register-name' }, name), el('span', { class: 'register-value' }, value), ...extra));
+        // SP can be one past the end of RAM (0x100, 0x10000): keep room for that digit so nothing moves.
+        el('b', { class: 'register-name' }, name), el('span', { class: 'register-value', style: name === 'SP' ? `width:${digits + 1}ch;text-align:right` : null }, value), ...extra));
     }
     if (chips.length) groups.push(el('span', { class: 'register-group' }, ...chips));
   }
@@ -557,7 +562,7 @@ function renderMachine() {
 
   const digits = arch.addressBits / 4;
   $('cycle-label').textContent = cpu
-    ? `${grouped(cpu.cycles)} cycles · ${grouped(cpu.instructions)} instructions · ${formatDuration(cpu.cycles / clockHz())} at ${formatHz(clockHz())}${state.running && state.achievedHz && state.achievedHz < clockHz() * 0.9 ? ` · this browser manages ${formatHz(state.achievedHz)}` : ''}`
+    ? `${grouped(cpu.cycles)} cycles · ${grouped(cpu.instructions)} instructions · ${formatDuration(cpu.time)} at ${formatHz(clockHz())}${state.running && state.achievedHz && state.achievedHz < clockHz() * 0.9 ? ` · this browser manages ${formatHz(state.achievedHz)}` : ''}`
     : '0 cycles';
   $('next-instruction').textContent = cpu && !cpu.halted && assembly ? `next: ${cpu.disassemble().text}  @ ${hex(cpu.pc, digits)}` : '';
   const status = $('run-status');

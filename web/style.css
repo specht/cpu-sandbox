@@ -136,9 +136,10 @@ input[type=checkbox]{accent-color:#89baff}
 .picker-option{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:5px;cursor:pointer;font-size:13px}
 .picker-option.active{background:#24406a}
 .picker-option.selected .picker-name{color:#fff}
-.picker-option.selected::after{content:'✓';margin-left:auto;color:var(--blue);padding-left:6px}
+.picker-check{flex:none;width:16px;margin-left:auto;display:inline-flex;justify-content:center;color:var(--blue)}
+.status-icon ~ .picker-check,.level-tag ~ .picker-check{margin-left:2px}
+.picker-check .ui-icon{width:15px;height:15px}
 .picker-option .status-icon{margin-left:auto}
-.picker-option.selected .status-icon{margin-left:6px}
 .picker-empty{padding:10px;color:var(--muted);font-size:12.5px}
 .swatch{display:inline-block;width:11px;height:11px;border-radius:50%;background:var(--swatch);flex:none;
   box-shadow:0 0 0 1px #0006}
@@ -196,6 +197,8 @@ input[type=checkbox]{accent-color:#89baff}
 .device-value.sounding{color:#fff;text-shadow:0 0 8px var(--gold)}
 .key-cap{min-width:26px;height:24px;padding:0 6px;font:600 11px var(--mono);border-radius:4px;background:#0f1a2a;border-color:#3e577a;color:#9cb2cf}
 .key-cap[aria-pressed=true]{background:var(--gold);border-color:#ffd99a;color:#1a1408}
+.key-cap.arrow{width:26px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.key-cap .ui-icon{width:14px;height:14px}
 .device-mute{width:24px;height:24px;border-color:transparent;background:transparent;color:#9cb2cf}
 .device-hint{font-size:11px;margin-left:auto}
 .screen-box.captured canvas{box-shadow:0 0 0 2px var(--gold),0 10px 30px #0008}
@@ -211,9 +214,9 @@ input[type=checkbox]{accent-color:#89baff}
   border:1px solid #2e4566;font:12.5px var(--mono);white-space:nowrap}
 .register-name{color:#e3ecf8;font-weight:700;font-size:12px;min-width:1ch}
 .register-value{color:#f5c98a;font-weight:600}
-.register-decimal{color:#8da3c1;font-size:11px;min-width:3ch;text-align:right}
-.register-decimal.wide{min-width:4ch}
-.register-char{color:#8fd6a8;font-size:11.5px;min-width:3ch}
+.register-decimal{color:#8da3c1;font-size:11px;width:3ch;text-align:right}
+.register-decimal.wide{width:5ch}
+.register-char{color:#8fd6a8;font-size:12px;width:1ch;text-align:center}
 .register.flag .register-value{color:#cbd9ee}
 .register.changed{border-color:var(--gold);background:#3a2f1b}
 
@@ -282,6 +285,7 @@ input[type=checkbox]{accent-color:#89baff}
 .asm-bytes{display:flex;gap:7px;padding:0 6px;font:11px/inherit var(--mono);color:#5f7898;white-space:nowrap}
 .asm-address{color:#4a5f7a}
 .asm-bytes-values{color:#a9c0de}
+.asm-bytes.data .asm-bytes-values{color:#7fb6f0}
 .asm-bytes.modified .asm-bytes-values{color:var(--gold)}
 .source-editor.stale .asm-bytes{opacity:.35}
 .source-editor .cm-variable{color:#e8f0ff}
@@ -294,7 +298,6 @@ input[type=checkbox]{accent-color:#89baff}
 .picker-group{padding:7px 8px 3px;font-size:10.5px;font-weight:700;color:#7e9cbf;text-transform:uppercase;letter-spacing:.08em}
 .level-tag{flex:none;padding:0 5px;border-radius:4px;font:700 10px/16px var(--mono);border:1px solid}
 .picker-option .level-tag{margin-left:auto}
-.picker-option.selected::after{margin-left:8px}
 .level-8{color:#9fb3cf;border-color:#3e577a}
 .level-8s{color:var(--green);border-color:#387458}
 .level-8x{color:var(--gold);border-color:#7b6232}

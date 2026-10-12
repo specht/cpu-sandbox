@@ -62,13 +62,15 @@ assembler warns, and the fire demo invites you to drag its screen over its code.
 | 2 | `1bit_monitor_glow` |
 | 4 | `cga_palette_1_high` |
 | 16 | `color_graphics_adapter`, `pico_8`, `sweetie_16`, `twilight_16` |
-| 256 | `vga`, `fire_256` |
+| 256 | `vga`, `fire_256`, `ramps_256` |
 
 Most palettes come from
 [PixelRAM](https://github.com/specht/pixelram/blob/main/tools/palettes.yaml)
 with their original color order. `twilight_16` (black, then blue over white to
 red) and `fire_256` (black → red → yellow → white) were made for the
-Mandelbrot and fire demos.
+Mandelbrot and fire demos, `ramps_256` for shading: eight ramps of 32 shades
+(gray, red, orange, yellow, green, cyan, blue, magenta), color = 32 · ramp +
+shade.
 
 ## How many pixels fit?
 

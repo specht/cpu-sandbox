@@ -35,7 +35,7 @@ export function build(text, language = 'asm') {
     const line = cLine(entry.line);
     if (!line) continue;
     const known = byLine.get(line);
-    if (!known) byLine.set(line, { line, address: entry.address, size: entry.size, bytes: [...entry.bytes], source: entry.source });
+    if (!known) byLine.set(line, { line, address: entry.address, size: entry.size, bytes: [...entry.bytes], source: entry.source, kind: entry.kind });
     else if (known.address + known.size === entry.address) { known.size += entry.size; known.bytes.push(...entry.bytes); }
   }
   const listing = [...byLine.values()];

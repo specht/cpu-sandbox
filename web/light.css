@@ -143,6 +143,7 @@
 :root[data-theme="light"] .asm-bytes{color:#6780a0}
 :root[data-theme="light"] .asm-address{color:#8299b6}
 :root[data-theme="light"] .asm-bytes-values{color:#2e415a}
+:root[data-theme="light"] .asm-bytes.data .asm-bytes-values{color:#144c7e}
 :root[data-theme="light"] .source-editor .cm-variable{color:#161c26}
 :root[data-theme="light"] .source-editor .cm-bracket{color:#033b49}
 :root[data-theme="light"] .source-editor .source-warning-line{background:rgba(201,184,149,0.439)}

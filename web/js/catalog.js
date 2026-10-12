@@ -157,7 +157,8 @@ export class ProgramPicker {
           this.active = index;
           this.options.querySelectorAll('.picker-option').forEach((node, i) => node.classList.toggle('active', i === index));
         },
-      }, el('span', { class: 'picker-name' }, prettyName(entry.file.name)), levelTag(entry.file.cpu)));
+      }, el('span', { class: 'picker-name' }, prettyName(entry.file.name)), levelTag(entry.file.cpu),
+      el('span', { class: 'picker-check' }, this.isSelected(entry) ? icon('check') : null)));
     });
     if (!this.filtered.length) nodes.push(el('div', { class: 'picker-empty' }, 'No program matches this filter.'));
     this.options.replaceChildren(...nodes);

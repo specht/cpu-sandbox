@@ -219,7 +219,8 @@ export class SourceEditor {
     this.editor.operation(() => {
       for (const entry of listing) {
         const bytes = el('span', { class: 'asm-bytes-values' });
-        const marker = el('span', { class: 'asm-bytes' }, el('span', { class: 'asm-address' }, hex(entry.address, addressDigits)), bytes);
+        // Data (.db, C variables) in blue, like in the RAM view: these bytes are not instructions.
+        const marker = el('span', { class: `asm-bytes${entry.kind === 'data' ? ' data' : ''}` }, el('span', { class: 'asm-address' }, hex(entry.address, addressDigits)), bytes);
         this.byteMarkers.push({ entry, marker, bytes, modified: null });
         this.editor.setGutterMarker(entry.line - 1, 'cm-bytes', marker);
       }

@@ -3,7 +3,8 @@
 // A shaded cube in 3D, written in C. Every frame turns the corners and the
 // face normals around two axes and projects the corners onto the screen with
 // perspective. A face is drawn only if it faces the viewer, filled row by row,
-// and the more directly it faces the viewer, the brighter its color.
+// and the more directly it faces the viewer, the brighter its color: the
+// palette ramps_256 has 32 shades of each color.
 //
 // Double buffering: there are two screen pages of 12 KiB each. The program
 // draws into the hidden page and then shows it with out(SCREEN_PAGE, …), so
@@ -15,7 +16,7 @@
 // clock; try 16 MHz.
 
 #pragma cpu 8x
-#pragma display 0x4000, 128, 96, indexed8, vga
+#pragma display 0x4000, 128, 96, indexed8, ramps_256
 
 #define WIDTH 128
 #define HEIGHT 96
@@ -39,7 +40,8 @@ int corners[24] = {             // x, y, z of the eight corners
     -SIZE, -SIZE,  SIZE,   SIZE, -SIZE,  SIZE,   SIZE, SIZE,  SIZE,   -SIZE, SIZE,  SIZE};
 char faces[24] = {0, 1, 2, 3,   5, 4, 7, 6,   4, 0, 3, 7,   1, 5, 6, 2,   4, 5, 1, 0,   3, 2, 6, 7};
 int normals[18] = {0, 0, -64,   0, 0, 64,   -64, 0, 0,   64, 0, 0,   0, -64, 0,   0, 64, 0};
-char hues[6] = {8, 12, 16, 20, 0, 4};   // red, yellow, green, cyan, blue, magenta
+// The palette ramps_256 has eight ramps of 32 shades: color = 32 * ramp + shade.
+char ramps[6] = {1, 2, 3, 4, 5, 6};     // red, orange, yellow, green, cyan, blue
 
 int screen_x[8];                // the corners on the screen
 int screen_y[8];
@@ -130,9 +132,9 @@ void main() {
         for (char f = 0; f < 6; f++) {
             turn(normals[3 * f], normals[3 * f + 1], normals[3 * f + 2]);
             if (tz >= 0) continue;                  // facing away: hidden
-            int light = -tz;                        // 1 .. 64
-            char shade = light > 56 ? 56 : light > 38 ? 32 : light > 20 ? 104 : 176;
-            draw_face(f, shade + hues[f]);
+            int light = -tz;                        // 1 .. 64: how directly it faces us
+            char shade = 6 + light * 25 / 64;       // 6 .. 31
+            draw_face(f, 32 * ramps[f] + shade);
         }
         used_top[hidden] = top;
         used_bottom[hidden] = bottom;
