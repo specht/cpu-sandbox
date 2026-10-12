@@ -84,12 +84,12 @@ palette lives in the chip, not in RAM. It starts with the palette named in
 
 In C: `out(PALETTE, 1); out(COLOR, 255); out(COLOR, 128); out(COLOR, 0);`.
 Because the chip moves on by itself, a loop can write a whole table of colors
-with one `OUT 0x13` and many `OUT 0x14` (`17-mandelbrot.asm`), or compute them
-(`22-cube.c`, `26-stars.c`). This is how the VGA card of the PC worked.
+with one `OUT 0x13` and many `OUT 0x14` (`14-mandelbrot.asm`), or compute them
+(`18-cube.c`, `22-stars.c`). This is how the VGA card of the PC worked.
 
 A changed color changes every pixel with that number at once, without writing
 a byte of RAM. Shifting the colors every frame makes still pictures flow:
-**color cycling**, as in `27-color-cycling.c`. The device bar shows the color
+**color cycling**, as in `23-color-cycling.c`. The device bar shows the color
 written last and how many colors the program has set. Stepping back undoes
 palette writes, too.
 
@@ -148,8 +148,8 @@ The first palette of each size is the default: `1bit_monitor_glow`,
 `cga_palette_1_high`, `color_graphics_adapter` and `vga`. All but `fire_256`
 come from [PixelRAM](https://github.com/specht/pixelram/blob/main/tools/palettes.yaml)
 with their original color order; `fire_256` runs from black over red, orange
-and yellow to white, for heat values (`11-fire.asm`, `18-inferno.asm`,
-`25-life.c`). The Screen page of the Documentation dialog shows the same
+and yellow to white, for heat values (`09-fire.asm`, `15-inferno.asm`,
+`21-life.c`). The Screen page of the Documentation dialog shows the same
 palettes; hover a color to see its number.
 
 ## How many pixels fit?

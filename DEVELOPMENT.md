@@ -115,29 +115,29 @@ stays on this computer and never reaches a student repository.
 
 | | Level | |
 | --- | --- | --- |
-| `01-add` … `04-square-root` | 8 | registers, flags, loops |
-| `05-memory`, `06-rectangle` | 8 | addressing, pixels in RAM |
-| `07-primes`, `08-self-modifying` | 8 | cost of algorithms, code is data |
-| `09-pixel-formats`, `10-bouncing-dot` | 8 | screen formats, an endless loop |
-| `11-fire` | 8 | demo: flickering flames, code and screen in 256 bytes |
-| `12-subroutines`, `13-recursion` | 8S | the stack, arguments and local variables |
-| `14-scroller` | 8S | demo: LED sign |
-| `15-pointers`, `16-lines` | 8X | X/Y, Bresenham lines |
-| `17-mandelbrot` | 8X | demo: fixed-point fractal with a table of squares |
-| `18-inferno` | 8X | demo: the DOOM fire at 128 × 96 pixels |
-| `19-input` | 8 | devices: joystick, keyboard, timer, number display |
-| `20-breakout` | 8X | a game: paddle, ball, colored bricks, sound |
-| `21-first-c.c` | 8S | C: functions, locals on the stack, the generated assembly |
-| `22-cube.c` | 8X | C demo: a solid, shaded 3D cube with its own palette, vsync, page flipping and an assembly inner loop |
-| `23-snake.c` | 8X | C game: joystick, vsync, random numbers, speaker, number display |
-| `24-plasma.c` | 8X | C demo: the plasma effect in RGB 3-3-2 |
-| `25-life.c` | 8X | C: Conway's Game of Life with glowing cells |
-| `26-stars.c` | 8X | C: flying through a starfield, speed on the joystick |
-| `27-color-cycling.c` | 8X | C: a picture drawn once, animated only through the palette chip and vsync |
-| `28-arpeggio-organ.c` | 8X | C: three octaves of chords on the keyboard, arpeggios in exact rhythm, adjustable tempo |
-| `29-raycaster.c` | 8X | C: a 3D maze with textured walls, floor and ceiling, fog from the palette, a map |
+| `01-add` … `03-division` | 8 | registers, flags, loops |
+| `04-memory`, `05-self-modifying` | 8 | addresses, code is data |
+| `06-rectangle`, `07-pixel-formats` | 8 | pixels in RAM, screen formats |
+| `08-input` | 8 | devices: joystick, keyboard, timer, number display |
+| `09-fire` | 8 | demo: flickering flames, code and screen in 256 bytes |
+| `10-subroutines`, `11-hanoi` | 8S | the stack, arguments, recursion |
+| `12-scroller` | 8S | demo: LED sign |
+| `13-pointers` | 8X | X and Y, 64 KiB |
+| `14-mandelbrot` | 8X | demo: fixed-point fractal with a table of squares |
+| `15-inferno` | 8X | demo: the DOOM fire at 128 × 96 pixels |
+| `16-breakout` | 8X | a game: paddle, ball, colored bricks, sound |
+| `17-first-c.c` | 8S | C: functions, locals on the stack, the generated assembly |
+| `18-cube.c` | 8X | C demo: a solid, shaded 3D cube with its own palette, vsync, page flipping and an assembly inner loop |
+| `19-snake.c` | 8X | C game: joystick, vsync, random numbers, speaker, number display |
+| `20-plasma.c` | 8X | C demo: the plasma effect in RGB 3-3-2 |
+| `21-life.c` | 8X | C: Conway's Game of Life with glowing cells |
+| `22-stars.c` | 8X | C: flying through a starfield, speed on the joystick |
+| `23-color-cycling.c` | 8X | C: a picture drawn once, animated only through the palette chip and vsync |
+| `24-arpeggio-organ.c` | 8X | C: three octaves of chords on the keyboard, arpeggios in exact rhythm, adjustable tempo |
+| `25-raycaster.c` | 8X | C: a 3D maze with textured walls, floor and ceiling, fog from the palette, a map |
 
-A suggested order with questions and exercises: [docs/teaching.md](docs/teaching.md).
+The examples come in chapters, and each chapter ends with the tasks it
+prepares for, without solving them: [docs/teaching.md](docs/teaching.md).
 
 ## Assembly in brief
 
@@ -171,7 +171,8 @@ differences from C: [docs/minic.md](docs/minic.md).
 ## Tasks
 
 A program takes part in a task when one of its first lines is `; Task: add`
-(`// Task: add` in C). The task bar above the editor shows the task, **Check**
+(`// Task: add` in C). A new program for a task starts with the task and its
+contract (input, result, an example) as a comment. **Check**
 runs its test cases on fresh machines and **Try it** loads a case into the
 machine to debug it. **Class progress** (top right) checks every program in
 `programs/` on the server and shows the best attempt per student and task;

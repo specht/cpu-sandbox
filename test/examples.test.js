@@ -38,31 +38,27 @@ test('every example assembles without warnings and fits its screen into RAM', ()
 
 test('arithmetic examples compute what their comments promise', () => {
   assert.equal(run('01-add.asm').cpu.registers[0], 8);
-  assert.equal(run('02-countdown.asm').cpu.registers[0], 0);
+  assert.deepEqual(Array.from(run('02-loop.asm').cpu.registers).slice(0, 2), [0, 15]);
   assert.deepEqual(Array.from(run('03-division.asm').cpu.registers).slice(2), [3, 1]);
-  assert.equal(run('04-square-root.asm').cpu.registers[3], 4);
-  const memory = run('05-memory.asm').cpu;
+  const memory = run('04-memory.asm').cpu;
   assert.deepEqual(Array.from(memory.registers).slice(0, 3), [0x61, 72, 101]);
 });
 
-test('rectangle, primes and self-modifying code', () => {
+test('rectangle and self-modifying code', () => {
   const rect = run('06-rectangle.asm');
   assert.equal(screen(rect).filter(v => v === 0xCC).length, 32);
-  const primes = run('07-primes.asm');
-  const expected = Array.from({ length: 128 }, (_, n) => n > 1 && [...Array(n).keys()].slice(2).every(d => n % d) ? 255 : 0);
-  assert.deepEqual(screen(primes), expected);
-  const smc = run('08-self-modifying.asm');
+  const smc = run('05-self-modifying.asm');
   assert.equal(smc.cpu.registers[1], 42);
   assert.notEqual(smc.cpu.memory[smc.asm.labels.get('target') + 2], smc.asm.memory[smc.asm.labels.get('target') + 2]);
 });
 
 test('pixel formats: one even ramp of bytes', () => {
-  const r = run('09-pixel-formats.asm');
+  const r = run('07-pixel-formats.asm');
   assert.deepEqual(screen(r), Array.from({ length: 128 }, (_, i) => (2 * i) & 255));
 });
 
 test('fire (MiniCPU 8) animates forever without touching its code', () => {
-  const r = run('11-fire.asm', 60000);
+  const r = run('09-fire.asm', 60000);
   assert.equal(r.cpu.halted, false);
   codeUnchanged(r);
   const heat = screen(r);
@@ -71,7 +67,7 @@ test('fire (MiniCPU 8) animates forever without touching its code', () => {
 });
 
 test('inferno (MiniCPU 8X) burns hot at the bottom and fades out at the top', () => {
-  const r = run('18-inferno.asm', 1_500_000);
+  const r = run('15-inferno.asm', 1_500_000);
   assert.equal(r.asm.architecture, 'cpu8x');
   codeUnchanged(r);
   const heat = screen(r), row = y => heat.slice(y * 128, y * 128 + 128);
@@ -81,14 +77,20 @@ test('inferno (MiniCPU 8X) burns hot at the bottom and fades out at the top', ()
   assert.ok(new Set(row(30)).size > 4, 'flickering flames in between');
 });
 
-test('recursion (8S) fills a table with Fibonacci numbers', () => {
-  const r = run('13-recursion.asm');
+test('Hanoi (8S) moves the tower to the right peg in 15 moves', () => {
+  const r = run('11-hanoi.asm');
+  assert.ok(r.cpu.halted);
   assert.equal(r.cpu.sp, 256);
-  assert.deepEqual(screen(r), [0, 1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233]);
+  assert.equal(r.cpu.memory[r.asm.labels.get('moves')], 15);
+  assert.equal(r.cpu.io.outputs.get(0x11), 15);
+  const tower = [0x18, 0x3C, 0x7E, 0xFF];
+  assert.deepEqual(Array.from(r.cpu.memory.slice(0xC0, 0xCC)), tower.flatMap(d => [0, 0, d]));
+  assert.ok(r.asm.loadedBytes <= r.asm.display.start, 'code fits below the screen');
+  codeUnchanged(r, r.asm.labels.get('top'));
 });
 
 test('scroller (MiniCPU 8S) shows letters and keeps the stack balanced', () => {
-  const asm = load('14-scroller.asm');
+  const asm = load('12-scroller.asm');
   assert.equal(asm.architecture, 'cpu8s');
   const cpu = new MiniCPU(asm.memory, 'cpu8s', { historySize: 1 });
   const frame = asm.labels.get('frame');
@@ -100,25 +102,16 @@ test('scroller (MiniCPU 8S) shows letters and keeps the stack balanced', () => {
 });
 
 test('subroutines (8S) and pointers (8X) halt with balanced stacks', () => {
-  const sub = run('12-subroutines.asm');
+  const sub = run('10-subroutines.asm');
   assert.equal(sub.cpu.sp, 256);
   assert.equal(screen(sub).filter(Boolean).length, 4);
-  const ptr = run('15-pointers.asm');
+  const ptr = run('13-pointers.asm');
   assert.equal(ptr.cpu.sp, 0x10000);
   assert.deepEqual(Array.from(ptr.cpu.memory.slice(0x800, 0x840)), Array.from(ptr.asm.memory.slice(0x400, 0x440)));
 });
 
-test('lines (8X) draws a cube outline without self-modifying code', () => {
-  const r = run('16-lines.asm');
-  assert.ok(r.cpu.halted);
-  codeUnchanged(r, r.asm.labels.get('x0'));
-  const pixels = screen(r), at = (x, y) => pixels[y * 64 + x];
-  for (const [x, y] of [[32, 4], [10, 16], [54, 36], [32, 47], [10, 26]]) assert.equal(at(x, y), 1, `${x},${y}`);
-  assert.equal(at(0, 0), 0);
-});
-
 test('Mandelbrot (8X) renders the set in many colors', () => {
-  const r = run('17-mandelbrot.asm');
+  const r = run('14-mandelbrot.asm');
   assert.ok(r.cpu.halted);
   assert.equal(r.cpu.sp, 0x10000);
   const pixels = screen(r);
@@ -132,7 +125,7 @@ test('Mandelbrot (8X) renders the set in many colors', () => {
 });
 
 test('input (MiniCPU 8): the joystick moves the dot, typed keys reach the number display', () => {
-  const asm = load('19-input.asm');
+  const asm = load('08-input.asm');
   const cpu = new MiniCPU(asm.memory, asm.architecture, { clockHz: 1e5, historySize: 1 });
   const runFor = seconds => { const end = cpu.time + seconds; while (cpu.time < end) cpu.step(); };
   const dot = () => Array.from(cpu.memory.slice(0x80)).indexOf(255);
@@ -148,7 +141,7 @@ test('input (MiniCPU 8): the joystick moves the dot, typed keys reach the number
 });
 
 test('Breakout (8X): a scripted player clears bricks; without a player the game ends', () => {
-  const asm = load('20-breakout.asm'), L = asm.labels;
+  const asm = load('16-breakout.asm'), L = asm.labels;
   const play = (seconds, player) => {
     const cpu = new MiniCPU(asm.memory, asm.architecture, { clockHz: 1e6, historySize: 1 }), m = cpu.memory;
     while (cpu.time < seconds) {
@@ -192,14 +185,14 @@ test('every C example compiles without warnings and starts with a title comment'
 });
 
 test('first steps in C: a gray ramp and the sum of five squares', () => {
-  const { program, cpu } = runC('21-first-c.c', 1e6);
+  const { program, cpu } = runC('17-first-c.c', 1e6);
   assert.ok(cpu.halted);
   assert.equal(cpu.io.outputs.get(0x11), 55);
   assert.equal(cpu.memory[program.display.start + 10], 40);
 });
 
 test('solid cube (C): page flipping shows finished pictures of shaded faces', () => {
-  const { program, cpu } = runC('22-cube.c', 3e6);
+  const { program, cpu } = runC('18-cube.c', 3e6);
   const end = Math.max(...program.asmAssembly.listing.map(e => e.address + e.size));
   assert.ok(end <= 0x4000, 'code and data stay below the screen pages');
   const page = cpu.io.outputs.get(0x12);
@@ -214,7 +207,7 @@ test('solid cube (C): page flipping shows finished pictures of shaded faces', ()
 });
 
 test('snake (C): steering towards the apples scores points', () => {
-  const program = build(fs.readFileSync(new URL('23-snake.c', dir), 'utf8'), 'c');
+  const program = build(fs.readFileSync(new URL('19-snake.c', dir), 'utf8'), 'c');
   const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 1e6 });
   const at = (x, y) => { const b = cpu.memory[0x2000 + y * 16 + (x >> 1)]; return x & 1 ? b & 15 : b >> 4; };
   const find = color => { for (let y = 0; y < 24; y++) for (let x = 0; x < 32; x++) if (at(x, y) === color) return [x, y]; return null; };
@@ -234,7 +227,7 @@ test('snake (C): steering towards the apples scores points', () => {
 });
 
 test('color cycling (C): after drawing, only the palette changes', () => {
-  const program = build(fs.readFileSync(new URL('27-color-cycling.c', dir), 'utf8'), 'c');
+  const program = build(fs.readFileSync(new URL('23-color-cycling.c', dir), 'utf8'), 'c');
   const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 16e6 });
   while (cpu.time < 1.2) cpu.step();
   const screen = cpu.memory.slice(0x4000, 0x4000 + 128 * 96), colors = cpu.io.palette.slice(3, 3 * 65);
@@ -248,21 +241,21 @@ test('color cycling (C): after drawing, only the palette changes', () => {
 });
 
 test('plasma, life and stars (C) draw what they promise', () => {
-  const plasma = runC('24-plasma.c', 3e6);
+  const plasma = runC('20-plasma.c', 3e6);
   const page = plasma.cpu.io.outputs.get(0x12) * 256;
   assert.ok(new Set(plasma.cpu.memory.slice(page, page + 80 * 60)).size > 12, 'many colors');
-  const life = runC('25-life.c', 4e6);
+  const life = runC('21-life.c', 4e6);
   assert.ok(life.cpu.io.outputs.get(0x11) >= 2, 'generations pass');
   const alive = life.cpu.memory.slice(0x4000, 0x4000 + 64 * 48).filter(v => v === 255 || v >= 120).length;
   assert.ok(alive > 50 && alive < 2000, `living cells: ${alive}`);
-  const stars = runC('26-stars.c', 2e6);
+  const stars = runC('22-stars.c', 2e6);
   const dots = stars.cpu.memory.slice(0x4000, 0x4000 + 128 * 96).filter(v => v >= 10 && v <= 31).length;
   assert.ok(dots > 60 && dots <= 320, `stars on the screen: ${dots}`);
 });
 
 test('arpeggio organ (C): a key plays its chord from the next arpeggio on, exactly in time', async () => {
   const { Devices, KEY_POSITIONS } = await import('../src/devices.js');
-  const program = build(fs.readFileSync(new URL('28-arpeggio-organ.c', dir), 'utf8'), 'c');
+  const program = build(fs.readFileSync(new URL('24-arpeggio-organ.c', dir), 'utf8'), 'c');
   const devices = new Devices();
   const notes = [];
   const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 8e6, devices });
@@ -280,7 +273,7 @@ test('arpeggio organ (C): a key plays its chord from the next arpeggio on, exact
 });
 
 test('raycaster (C): textured walls, floor and ceiling; walking never enters a wall', () => {
-  const program = build(fs.readFileSync(new URL('29-raycaster.c', dir), 'utf8'), 'c');
+  const program = build(fs.readFileSync(new URL('25-raycaster.c', dir), 'utf8'), 'c');
   const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 32e6 });
   const flips = [];
   cpu.io.onOutput(port => { if (port === 0x12) flips.push(cpu.cycles); });

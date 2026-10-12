@@ -13,7 +13,7 @@ The CPU menu in the browser edits that line.
 | Addresses | 1 byte | 1 byte | 2 bytes |
 | Registers | A B C D, PC | + SP | + X Y (16 bit), XL XH YL YH |
 | New instructions | — | `PUSH POP CALL RET`, `[SP+n]`, `ADD/SUB SP, n` | none: the known instructions work with X and Y |
-| Demo | `11-fire.asm` | `14-scroller.asm` | `17-mandelbrot.asm`, `18-inferno.asm` |
+| Demo | `09-fire.asm` | `12-scroller.asm` | `14-mandelbrot.asm`, `15-inferno.asm` |
 
 ## One instruction set
 
@@ -67,8 +67,8 @@ LDI A, 0x70 for the number itself".
 - Stack, code and screen still share 256 bytes: too many PUSHes overwrite
   whatever lies below the stack. The RAM view marks the stack.
 
-A calling convention that works with these instructions (used in
-`13-recursion.asm`):
+A calling convention that works with these instructions (`11-hanoi.asm`
+uses it without locals; the C compiler uses it for every function):
 
 1. The caller PUSHes the arguments and CALLs the function.
 2. The function makes room for its locals with `SUB SP, n`.
@@ -85,7 +85,7 @@ There is no separate base (frame) pointer: all offsets are counted from SP.
 That keeps the CPU small, but every PUSH inside a function moves SP and shifts
 the offsets by one. The simplest rule is to reserve all locals at the start
 with `SUB SP, n` and not to PUSH in the middle of a function — or to recount
-the offsets, which is a good exercise in itself.
+the offsets, which is a good exercise in itself (`11-hanoi.asm` does that).
 
 ## MiniCPU 8X — memory and pointers
 

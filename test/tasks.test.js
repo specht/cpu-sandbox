@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TASKS, taskOf, checkSource, place, levelOf, caseInput } from '../src/tasks.js';
+import { TASKS, taskOf, checkSource, place, levelOf, caseInput, taskLines } from '../src/tasks.js';
+import { formatSource } from '../src/format.js';
+import { formatC } from '../src/cformat.js';
 import { build } from '../src/build.js';
 
 // A reference solution for every task: each must pass all of its cases.
@@ -296,6 +298,27 @@ test('every starter compiles and names its task', () => {
       const source = t.starter[language];
       assert.equal(taskOf(source), t.id, `${t.id} ${language}`);
       assert.doesNotThrow(() => build(source, language), `${t.id} ${language}`);
+    }
+  }
+});
+
+test('a new program starts with the task and its contract as a comment', () => {
+  const length = TASKS.find(t => t.id === 'length');
+  const asm = length.starter.asm.split('\n'), c = length.starter.c.split('\n');
+  assert.equal(asm[0], '; Task: length · Length of a text');
+  assert.ok(asm.includes('; Input    0x80 …: the text, then a byte 0'));
+  assert.ok(asm.includes('; Result   A: the number of characters'));
+  assert.ok(c.includes('// Input    0x8000 …: the text, then a byte 0'));
+  assert.ok(c.includes('// Result   the number display: the number of characters'));
+  assert.ok(c.includes('// Example  "Hello" → 5'));
+  assert.match(taskLines(length, 'asm', 'cpu8x').join('\n'), /Input {4}0x8000/, 'the addresses follow the level');
+  for (const t of TASKS) {
+    assert.ok(t.result, `${t.id} names its result`);
+    for (const language of ['asm', 'c']) {
+      const source = t.starter[language];
+      assert.ok(source.split('\n').every(line => line.length <= 68), `${t.id} ${language}: short lines`);
+      assert.doesNotMatch(source, /\{(\+|answer)/, `${t.id} ${language}: every placeholder filled`);
+      assert.equal(language === 'c' ? formatC(source) : formatSource(source), source, `${t.id} ${language} is formatted`);
     }
   }
 });

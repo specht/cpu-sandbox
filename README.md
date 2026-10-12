@@ -71,7 +71,7 @@ App-Ordner; Git ignoriert sie, sie landet also in keinem Repository.
 ## 4. Dein erstes Programm
 
 Links oben wählst du ein Programm. Unter **Examples** liegen die Beispiele,
-von `01-add.asm` (zwei Zahlen addieren) bis `29-raycaster.c` (ein 3D-Labyrinth).
+von `01-add.asm` (zwei Zahlen addieren) bis `25-raycaster.c` (ein 3D-Labyrinth).
 Sie lassen sich nicht verändern; **Save copy** speichert eine Kopie in deinem
 Ordner, die du dann bearbeiten kannst.
 
@@ -116,7 +116,10 @@ Programm gehört zu einer Aufgabe, wenn in einer seiner ersten Zeilen ihr Name
 steht, zum Beispiel `; Task: add` (in C: `// Task: add`). Das erledigt **+**
 für dich, wenn du dort eine Aufgabe wählst.
 
-Über dem Editor steht dann die Aufgabe. **Check** prüft dein Programm mit
+Die Aufgabe steht dann als Kommentar oben in deinem Programm, darunter, wo
+die Eingabe liegt (**Input**), wohin das Ergebnis gehört (**Result**) und ein
+Beispiel. Die Aufgabentexte sind auf Englisch, wie alles in der App.
+**Check** prüft dein Programm mit
 allen Testfällen und zeigt, was nicht stimmt, etwa
 `0x82 should be 7, but it is 8`. **Try it** lädt einen Testfall in die
 Maschine: Seine Eingabe steht dann im Speicher, und du kannst Schritt für
@@ -168,8 +171,8 @@ cd .. && ./run
   gehen dabei verloren.
 - **Die Tasten kommen nicht im Programm an**: Klicke auf den Bildschirm.
 
-Mehr: [docs/teaching.md](docs/teaching.md) (die Beispiele der Reihe nach, mit
-Fragen), [docs/cpu-levels.md](docs/cpu-levels.md) (die drei CPU-Stufen),
+Mehr: [docs/teaching.md](docs/teaching.md) (die Beispiele in Kapiteln, mit
+Fragen und den passenden Aufgaben), [docs/cpu-levels.md](docs/cpu-levels.md) (die drei CPU-Stufen),
 [docs/minic.md](docs/minic.md) (C für die MiniCPU),
 [docs/devices.md](docs/devices.md) (die Geräte),
 [docs/screen.md](docs/screen.md) (der Bildschirm),

@@ -1,106 +1,124 @@
 # Teaching with the CPU Sandbox
 
-The examples form one path from a single addition to a fractal. Every
-example opens on the CPU level it needs (its `.cpu` line); the picker shows
-the level next to the file name.
+The examples form one path from a single addition to a 3D maze, in chapters.
+Each chapter ends with the tasks it prepares for (**Your turn**): the
+examples show the instructions and ideas a task needs, never its solution.
+Every example opens on the CPU level it needs (its `.cpu` line); the picker
+shows the level next to the file name. The demos (fire, scroller, Mandelbrot,
+inferno, cube, raycaster …) are there to show what the little machine can
+do — start a lesson with one of them.
 
-## MiniCPU 8: instructions, memory, loops
+## 1. MiniCPU 8: instructions and loops
 
 1. **`01-add`**: step through four instructions. Which bytes in the margin
    are the opcode, which the operands? How many cycles does each take?
-2. **`02-countdown`**: `DEC` and `JNZ`. Watch PC jump back and ZF change.
-   Change the start value — what happens with 0?
+2. **`02-loop`**: `DEC` and `JNZ`. Watch PC jump back, A shrink, B grow and
+   ZF change. Start with 10 instead of 5. What happens with 0, and why is
+   B then 128?
 3. **`03-division`**: quotient and remainder by subtraction. The loop
    invariant is `13 = quotient × 4 + remainder`. Why does the loop end?
-4. **`04-square-root`**: subtract odd numbers. Predict D for 0, 1, 24, 25.
-5. **`05-memory`**: constant, fixed address, address in a register. Find the
-   string at `0x60` in the RAM view.
+
+## 2. Memory and the screen
+
+4. **`04-memory`**: constant, fixed address, address in a register. Find the
+   text at `0x60` in the RAM view.
+5. **`05-self-modifying`**: a program changes its own instruction. Predict B
+   before you run it. The margin shows the changed byte in amber.
 6. **`06-rectangle`**: pixel (x, y) is at `0x80 + 16·y + x`. Draw only the
    border instead, then compare the cycle counts.
-7. **`07-primes`**: trial division is slow — note the cycles, then make it
-   faster (stop at √n, skip even numbers, or write a sieve).
-8. **`08-self-modifying`**: a program changes its own instruction. Predict B
-   before you run it. The margin shows the changed byte in amber.
-9. **`09-pixel-formats`**: one ramp of bytes, many pictures. Switch the pixel
+7. **`07-pixel-formats`**: one ramp of bytes, many pictures. Switch the pixel
    format and explain each picture from the bits.
-10. **`10-bouncing-dot`**: a program that never halts. Pause, step back and
-    find where direction and trail are stored.
-11. **`11-fire`** (demo): the whole effect in 80 bytes next to its own
-    screen. Set the clock to 100 kHz and to 1 MHz: how many frames per
-    second does each give? Drag the screen down over the code. What changes
-    when the random cooling uses `AND C, 15` instead of `AND C, 31`?
 
-## MiniCPU 8S: subroutines and the stack
+**Your turn:** the tasks *Add*, *Length*, *Maximum*, *Fibonacci*,
+*Multiply*, *Sort* and *Checkerboard*, in this order.
 
-12. **`12-subroutines`**: step through nested `CALL`s and watch SP and the
+## 3. Devices: input and output
+
+8. **`08-input`**: the program polls three devices in a loop. Why does the
+   dot move exactly ten times per second, at any clock? What happens at
+   1 kHz? Which key codes do Enter and Backspace give?
+9. **`09-fire`** (demo): the whole effect in 80 bytes next to its own
+   screen, with random numbers from port 3. Set the clock to 100 kHz and to
+   1 MHz: how many frames per second does each give? Drag the screen down
+   over the code. What changes when the random cooling uses `AND C, 15`
+   instead of `AND C, 31`?
+
+**Your turn:** *Countdown* and *Typed digits*.
+
+## 4. MiniCPU 8S: subroutines and the stack
+
+10. **`10-subroutines`**: step through nested `CALL`s and watch SP and the
     bytes at `0xFC`–`0xFF`. Which return address is on the stack when?
-13. **`13-recursion`**: Fibonacci by a function that calls itself, with its
-    argument and a local variable on the stack (`SUB SP`, `[SP+n]`). Draw the stack
-    for fib(3) on paper, then step through it. Why would a local variable at
-    a fixed address break the recursion?
-14. **`14-scroller`** (demo): two subroutines move a 32 × 8 LED sign. Change
+11. **`11-hanoi`**: the Towers of Hanoi, a function that calls itself twice,
+    with its four arguments on the stack. Step into a few calls and find
+    n, from, to and via in the RAM view. How low does SP get? Why could the
+    arguments not live at fixed addresses? Change it to three disks; why
+    would five not fit on this screen?
+12. **`12-scroller`** (demo): two subroutines move a 32 × 8 LED sign. Change
     the message — each letter is a list entry pointing to a glyph. Add a
     glyph of your own. How many cycles does one frame need?
 
-## MiniCPU 8X: more memory, pointers
+**Your turn:** no task needs the stack, but any task may use it: add
+`.cpu 8s` and write *Multiply* or *Maximum* as a subroutine.
 
-15. **`15-pointers`**: X reads, Y writes. Why are A–D not enough as pointers
+## 5. MiniCPU 8X: more memory, pointers
+
+13. **`13-pointers`**: X reads, Y writes. Why are A–D not enough as pointers
     on 8X? Compare the bytes of `LDA A, [0x70]` on 8S and on 8X (switch the
     CPU menu): the same source, longer code, more cycles.
-16. **`16-lines`**: Bresenham's line algorithm with only addition and
-    comparison. `plot` computes a 16-bit address with `ADD X, X` and
-    `ADD X, A`. Add a second shape.
-17. **`17-mandelbrot`** (demo): signed fixed-point numbers, a table of squares
+14. **`14-mandelbrot`** (demo): signed fixed-point numbers, a table of squares
     instead of multiplication, and 9-bit arithmetic with the carry flag. Run it
     at 1 MHz (about six seconds) and at 16 MHz. Try another section of the set
     by changing the offsets in `row` and `pixel`.
-18. **`18-inferno`** (demo): the fire from MiniCPU 8 at 128 × 96 pixels, with
-    the even simpler algorithm from DOOM. Compare it with `11-fire`: what
+15. **`15-inferno`** (demo): the fire from MiniCPU 8 at 128 × 96 pixels, with
+    the even simpler algorithm from DOOM. Compare it with `09-fire`: what
     does 8X make possible, and what does each pixel cost in cycles? Make the
     wind blow the other way.
+16. **`16-breakout`** (game): find where it waits for the timer, reads the
+    joystick and asks the screen what the ball is about to hit. Lower the
+    clock until the game slows down — how many cycles does one step need?
+    Then tap Space very briefly: why is the tap sometimes missed?
 
-## Devices: input and output
+**Your turn:** *Average* and *Reverse a text*.
 
-19. **`19-input`** (MiniCPU 8): the program polls three devices in a loop. Why
-    does the dot move exactly ten times per second, at any clock? What happens
-    at 1 kHz? Which key codes do Enter and Backspace give?
-20. **`20-breakout`** (MiniCPU 8X): a complete game. Find where it waits for
-    the timer, reads the joystick and asks the screen what the ball is about
-    to hit. Lower the clock until the game slows down — how many cycles does
-    one step need? Then tap Space very briefly: why is the tap sometimes
-    missed?
+## 6. C: the same machine, one level up
 
-## C: the same machine, one level up
-
-21. **`21-first-c.c`** (MiniCPU 8S): a loop, a function and a call. Open the
+17. **`17-first-c.c`** (MiniCPU 8S): a loop, a function and a call. Open the
     Assembly tab and find the C lines in it. Where do `i`, `sum` and `n` live?
     What does `square(n)` push, and how does the result come back?
-22. **`22-cube.c`** (MiniCPU 8X, demo): 3D rotation with a sine table in fixed
+
+**Your turn:** solve a task from chapter 2 again, in C. **Class progress**
+shows both solutions side by side: how many more bytes and cycles does C
+cost? Then the C tasks: *Factorial*, *gcd*, *Primes*, *Letters* and *Line*.
+
+## 7. C: demos and games
+
+18. **`18-cube.c`** (demo): 3D rotation with a sine table in fixed
     point, perspective, hidden faces, flat shading, filled polygons and page
     flipping. `fill()` is written in assembly: count its cycles per byte and
     compare with `clear` loops the compiler generates. Switch the RAM view to
     256 bytes per row and watch the two pages take turns. `make_palette()`
     computes 192 colors: give the cube other colors.
-23. **`23-snake.c`** (game): every device at once. How does `in(VSYNC)` pace
+19. **`19-snake.c`** (game): every device at once. How does `in(VSYNC)` pace
     the game, and why is the joystick read in every frame? How does the snake
     know what is in front of it? Make the walls deadly only on two sides.
-24. **`24-plasma.c`** (demo): three waves from one table of 64 values. Why
+20. **`20-plasma.c`** (demo): three waves from one table of 64 values. Why
     does `(char)(…)` make the rainbow go round? Change the waves.
-25. **`25-life.c`**: Conway's Game of Life. Count the cycles of one
+21. **`21-life.c`**: Conway's Game of Life. Count the cycles of one
     generation; how could the neighbour count be made cheaper?
-26. **`26-stars.c`**: perspective in one line, `x / z`. Watch the stars in the
+22. **`22-stars.c`**: perspective in one line, `x / z`. Watch the stars in the
     RAM map; why do the `(int)` casts matter? Tint the far stars blue by
     changing the palette, not the drawing code.
-27. **`27-color-cycling.c`**: a picture that moves without changing RAM.
+23. **`23-color-cycling.c`**: a picture that moves without changing RAM.
     Watch the RAM view while it runs. How many `OUT`s does one frame need, and
     how many cycles would redrawing the screen cost instead? Make the rings
     flow inwards; cycle only half of the colors.
-28. **`28-arpeggio-organ.c`**: an instrument. Play "New Born" (Em H Em H Em
-    C G H: Shift+T, +, Shift+T, +, Shift+T, Q, I, +). Why does a chord only change at the start of an arpeggio, and
-    where in the program does that happen? Why is the note played *before*
-    the picture is updated? Change the arpeggio pattern, or make the
-    digit row play single notes.
-29. **`29-raycaster.c`**: a 3D maze, like Wolfenstein 3D, without floating
+24. **`24-arpeggio-organ.c`**: an instrument. Play "New Born" (Em H Em H Em
+    C G H: Shift+T, +, Shift+T, +, Shift+T, Q, I, +). Why does a chord only
+    change at the start of an arpeggio, and where in the program does that
+    happen? Why is the note played *before* the picture is updated? Change
+    the arpeggio pattern, or make the digit row play single notes.
+25. **`25-raycaster.c`**: a 3D maze, like Wolfenstein 3D, without floating
     point. Find the golden door. Watch the frames per second on the number
     display at different clocks. Pause a few times: in which function is
     the CPU most often, and why? Why is the floor cheaper per pixel than the
@@ -123,21 +141,22 @@ and can be solved again in C on 8X, to see the price of C side by side; five
 are C tasks (recursion, gcd, a sieve, counting letters, drawing a line). See
 [tasks.md](tasks.md).
 
-## Exercises
+## Projects
 
-- Sum 1 + 2 + … + n. What happens when the result passes 255? Use CF to
-  detect it.
-- Multiply by repeated addition; then by shifting and adding. Count cycles.
-- Find the largest of eight bytes at `0x70`–`0x77` with `LDA A, [B]`.
+Open-ended, without a check — for fast students or as homework:
+
+- A dot that bounces off the edges of the screen forever, leaving a fading
+  trail (8).
+- The integer square root: subtract 1, 3, 5, 7, … until nothing is left, and
+  count (8).
+- Add two 16-bit numbers stored as low/high bytes with `ADD` and `ADC`.
 - Write a function `plot(x, y)` for the 16 × 8 gray screen that takes its
   arguments on the stack, and use it to draw a diagonal (8S).
-- Compute n! recursively and find the largest n whose result fits in a byte.
-- Add two 16-bit numbers stored as low/high bytes with `ADD` and `ADC`.
+- The Towers of Hanoi without recursion: the smallest disk moves every other
+  turn, always in the same direction.
 - Make the fire burn sideways, or give the scroller a second line of text.
 - A reaction game: wait a random time (port 3), light the screen and count
   timer ticks until Space is pressed. Show the result on the number display.
-- Write the same small program in C and in assembly. Compare the size and the
-  cycles with the code the compiler generates.
 - Pong: one paddle on the joystick, the other one steered by the computer
   (it follows the ball, but only every other step), the ball from Breakout,
   and a score for each side.

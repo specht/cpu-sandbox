@@ -1,5 +1,5 @@
-; POINTERS INTO 4 KiB
-; A, B, C, D can only hold numbers up to 255, but 8X has 4096 bytes of RAM.
+; POINTERS INTO 64 KiB
+; A, B, C, D can only hold numbers up to 255, but 8X has 65536 bytes of RAM.
 ; X and Y are 16-bit pointer registers: LDI X, 0x0400 sets X, [X] reads or
 ; writes the byte X points to, INC X moves on, CMP X, … compares all 16 bits.
 ; X reads a picture at 0x0400 and Y copies it to the screen at 0x0800.

@@ -1,8 +1,8 @@
-// Tasks in the browser: the bar above the editor shows the task of the open
-// program and checks it; a failed case can be loaded into the machine to
-// debug it. Class progress shows every student's best attempt per task and,
+// Tasks in the browser: the task is a comment at the top of the program; the
+// bar above the editor names it and checks the program. A failed case can be
+// loaded into the machine to debug it. Class progress shows every student's best attempt per task and,
 // per task, how the working solutions compare in cycles and bytes.
-import { taskById, taskOf, checkSource, place, levelOf } from '/src/tasks.js';
+import { taskById, taskOf, checkSource, taskLines, levelOf } from '/src/tasks.js';
 import { $, el, icon, grouped } from './util.js';
 import { request } from './catalog.js';
 
@@ -23,19 +23,18 @@ export class TaskPanel {
     $('progress-open').addEventListener('click', () => this.openProgress());
     $('progress-close').addEventListener('click', () => $('progress-dialog').close());
     $('progress-refresh').addEventListener('click', () => this.loadProgress());
-    $('task-more').addEventListener('click', () => {
-      const open = $('task-bar').classList.toggle('expanded');
-      $('task-more').setAttribute('aria-expanded', String(open));
-    });
   }
 
   /** Called whenever the source changes: shows the bar if the program names a task. */
   update(source) {
     const t = taskById(taskOf(source) ?? '');
-    // The addresses in the text depend on the CPU level: 0x80 on 8 and 8S, 0x8000 on 8X.
+    // The task itself is a comment at the top of the program; the bar names it
+    // and keeps the whole text as a tooltip, with the addresses for the CPU
+    // level (0x80 on 8 and 8S, 0x8000 on 8X).
     if (t) {
-      const text = place(t.text, levelOf(source, this.host.language()));
-      if ($('task-description').textContent !== text) $('task-description').textContent = text;
+      const language = this.host.language();
+      const text = taskLines(t, language, levelOf(source, language)).join('\n');
+      if ($('task-bar').title !== text) $('task-bar').title = text;
     }
     if (t !== this.task) {
       this.task = t;

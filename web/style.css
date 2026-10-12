@@ -179,10 +179,7 @@ input[type=checkbox]{accent-color:#89baff}
 .task-bar>.ui-icon{flex:none;color:var(--gold)}
 .task-text{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#cfdcef}
 .task-text strong{color:#fff}
-.task-bar.expanded{align-items:flex-start}
-.task-bar.expanded .task-text{white-space:normal}
-.task-bar.expanded .task-more .ui-icon{transform:rotate(180deg)}
-.task-more{width:24px;height:24px;flex:none}
+.task-hint{color:var(--muted)}
 .task-case{display:inline-flex;align-items:center;gap:4px;flex:none;padding:1px 2px 1px 8px;border-radius:12px;background:#2b2412;border:1px solid #7b6232;color:var(--gold);font-size:11.5px;max-width:220px}
 .task-case b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .task-case .icon-button{width:20px;height:20px}

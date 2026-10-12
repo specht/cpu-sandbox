@@ -52,7 +52,7 @@ The CPU menu edits the `#pragma cpu` line.
   cannot be computed.
 - **No** `struct`, `union`, `enum`, `switch`, `goto`, `typedef`, floating
   point, `long` or `#include`. Fixed point replaces floating point (64 = 1.0
-  in `22-cube.c`).
+  in `18-cube.c`).
 - **MiniCPU 8** has no stack: a program has only `main`, its local variables
   become global ones, and `*`, `/`, `%` (except by powers of two) and shifts
   by a variable amount are not available, because they need helper routines.

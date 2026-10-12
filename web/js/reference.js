@@ -213,7 +213,7 @@ function screenPage() {
       ' give red, green and blue. After blue the chip moves on to the next color by itself, so a loop can write many colors in a row:'),
     code('LDI A, 1\nOUT 0x13, A      ; color 1 is …\nLDI A, 255\nOUT 0x14, A      ; … red 255,\nLDI A, 128\nOUT 0x14, A      ; green 128,\nLDI A, 0\nOUT 0x14, A      ; blue 0: orange'),
     el('p', {}, 'In C: ', el('code', {}, 'out(PALETTE, 1); out(COLOR, 255); out(COLOR, 128); out(COLOR, 0);'),
-      '. Changing a color changes every pixel with that number at once, without touching RAM: that is color cycling (27-color-cycling.c). The device bar shows the color written last.'),
+      '. Changing a color changes every pixel with that number at once, without touching RAM: that is color cycling (23-color-cycling.c). The device bar shows the color written last.'),
     el('h3', {}, 'Vsync and page flipping'),
     el('p', {}, 'At the start of every frame — 60 times per second of machine time — the screen takes its picture of RAM and the palette. ',
       el('code', {}, 'IN A, 0x04'), ' (in C: ', el('code', {}, 'in(VSYNC)'), ') waits for that moment; the CPU idles until then. ',

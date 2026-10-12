@@ -62,7 +62,7 @@ Shift alone counts as no key. In C the port is `KEYS` and the Shift bit
 `KEY_SHIFT`: `if (in(KEYS) & KEY_SHIFT)`. When a program reads the device, the
 bar above the screen shows the key held, its code and a **Shift** key that
 lights up while Shift is held; it can also be held down with the mouse.
-`28-arpeggio-organ.c` turns the three letter rows into three octaves of
+`24-arpeggio-organ.c` turns the three letter rows into three octaves of
 chords, a semitone per key, and Shift into minor.
 
 ## Sound
@@ -78,14 +78,14 @@ The CPU has no interrupts: a program **polls** its devices, reading them
 again and again in a loop.
 
 - The joystick reports the keys that are held *right now*. A key tapped
-  between two reads is never seen — try it with `20-breakout.asm`.
+  between two reads is never seen — try it with `16-breakout.asm`.
 - The keyboard keeps typed characters in a queue until they are read.
 - The timer counts **machine time** (cycles ÷ clock). A game that waits for
   the next timer tick runs at the same speed at any clock — as long as the CPU
   can do its work between two ticks. Below that, the game slows down.
 - **Vsync** waits for the next frame without a loop: `IN A, 0x04` lets the
   CPU idle until the screen takes its next picture. That is the simplest way
-  to pace a game (`23-snake.c`, `26-stars.c`), and at a high clock it saves
+  to pace a game (`19-snake.c`, `22-stars.c`), and at a high clock it saves
   the browser millions of wasted instructions per second. The vsync, screen
   page and palette ports are explained in [The screen](screen.md).
 
@@ -102,7 +102,7 @@ into the hidden one and then shows it with a single `OUT`:
         OUT 0x12, A         ; the screen now starts at 0x0C00
 ```
 
-The screen settings above the canvas follow the device. `22-cube.c` waits for
+The screen settings above the canvas follow the device. `18-cube.c` waits for
 vsync before it flips, so every picture shows one finished cube.
 On MiniCPU 8 and 8S RAM is a single page, so the device is useful on 8X.
 
