@@ -3,7 +3,7 @@
 // A fractal landscape with mountains and lakes that mirror them, 256 x 192
 // pixels in 16 colors. ↑ ↓ move, ← → turn, Space makes a new landscape.
 // The number display shows which one. One picture takes about two and a
-// half seconds at 64 MHz: watch it grow column by column.
+// half seconds at 64 MHz: watch it fade in.
 //
 // The landscape: the diamond-square algorithm builds a height map of
 // 128 x 128 bytes from random numbers. It starts with one height, then
@@ -21,6 +21,12 @@
 // would hit. Each step remembers where its mirror image appears on the
 // screen; the first step farther away whose mirror image reaches the pixel
 // is what the water reflects, else the sky.
+//
+// The fade: the columns come in the order 0, 128, 64, 192, 32, 160, 96, …,
+// each one halving a gap. Until the columns in its gap are computed, a
+// column lends them its colors: more and more pixels of the gap, in the
+// order of an 8 x 8 Bayer matrix. So the whole picture is there at once,
+// coarse at first, and sharp pixels sprinkle in until it is complete.
 //
 // The colors: four ramps of four colors (water and sky, grass, rock, snow).
 // The program computes 49 brightnesses per ramp, and ordered dithering
@@ -48,6 +54,13 @@ char palette[48] = {
     110, 122, 150,  170, 182, 204,  224, 230, 242,  255, 255, 255};     // snow
 
 char bayer[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
+char fade[64] = {               // the order in which pixels fade in: an 8 x 8 Bayer matrix
+    0, 32, 8, 40, 2, 34, 10, 42,    48, 16, 56, 24, 50, 18, 58, 26,
+    12, 44, 4, 36, 14, 46, 6, 38,   60, 28, 52, 20, 62, 30, 54, 22,
+    3, 35, 11, 43, 1, 33, 9, 41,    51, 19, 59, 27, 49, 17, 57, 25,
+    15, 47, 7, 39, 13, 45, 5, 37,   63, 31, 55, 23, 61, 29, 53, 21};
+char fade_limit[9] = {64, 16, 24, 32, 40, 48, 56, 64, 0};      // how many of the 64 pixels a round fills
+char reversed[256];             // i with its 8 bits in reverse order
 char quarter[65] = {            // sin of 0..64 (a quarter turn), 64 = 1.0
     0, 2, 3, 5, 6, 8, 9, 11, 12, 14, 16, 17, 19, 20, 22, 23, 24, 26, 27, 29, 30, 32,
     33, 34, 36, 37, 38, 39, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54,
@@ -148,6 +161,11 @@ void place_camera() {
 // ---------------------------------------------------------------- tables
 
 void make_tables() {
+    for (int i = 0; i < 256; i++) {
+        char r = 0;
+        for (char bit = 0; bit < 8; bit++) if (i & (1 << bit)) r = r | (128 >> bit);
+        reversed[i] = r;
+    }
     for (int y = 1; y < 129; y++) row_start[y] = row_start[y - 1] + 129;
     for (int i = 0; i <= 64; i++) {
         sine[i] = quarter[i]; sine[128 - i] = quarter[i];
@@ -179,7 +197,10 @@ int project(int dh, char i) {
 
 // ---------------------------------------------------------------- drawing
 
-void column(int x) {
+// Column x of the picture. Until its neighbours up to x + width − 1 are
+// computed, it also lends them its colors: the pixels whose number in the
+// fade pattern is below the limit.
+void column(int x, int width, char limit) {
     int dx = dir_x - (dir_y * (2 * x - 255) >> 8);      // the plane is the direction turned right
     int dy = dir_y + (dir_x * (2 * x - 255) >> 8);
     int top = H;                                        // rows top … H − 1 are drawn
@@ -273,14 +294,28 @@ void column(int x) {
         row_tone[r] = t;
     }
 
-    // Dither the tones into 16 colors and write the column into the screen, two pixels per byte.
-    char *p = SCREEN + (x >> 1);
+    // Dither the tones into 16 colors and write them into the screen, two
+    // pixels per byte. An odd column is the last one of its round: it only
+    // sets its own pixels. An even column also fills the gap to its right
+    // with its own colors, byte by byte, where the fade pattern says so.
+    char *q = SCREEN + (x >> 1), column_byte = x >> 1;
     for (char r = 0; r < H; r++) {
         char t = row_tone[r], light = t & 63;
-        char c = ((t >> 4) & 12) + (light >> 4) + ((light & 15) > b[(r & 3) << 2]);
-        if (x & 1) *p = (*p & 0xF0) | c;
-        else *p = c << 4;
-        p += 128;
+        char base = ((t >> 4) & 12) + (light >> 4), fraction = light & 15;
+        char *dither = bayer + ((r & 3) << 2);
+        if (x & 1) *q = (*q & 0xF0) | (base + (fraction > dither[x & 3]));
+        else {
+            // The two pixels of a byte at x ≡ 0 and at x ≡ 2 (mod 4).
+            char pair0 = ((base + (fraction > dither[0])) << 4) | (base + (fraction > dither[1]));
+            char pair2 = ((base + (fraction > dither[2])) << 4) | (base + (fraction > dither[3]));
+            char pair = x & 2 ? pair2 : pair0, other = x & 2 ? pair0 : pair2;
+            char *fill = fade + ((r & 7) << 3);
+            q[0] = fill[column_byte & 7] < limit ? pair : (q[0] & 0x0F) | (pair & 0xF0);
+            for (char k = 1; k < width >> 1; k++) {
+                if (fill[(column_byte + k) & 7] < limit) q[k] = k & 1 ? other : pair;
+            }
+        }
+        q += 128;
     }
 }
 
@@ -291,7 +326,14 @@ void picture() {
     int ground = m[0] > WATER ? m[0] : WATER;
     cam_h = (ground + ABOVE) << 4;
     for (char i = 0; i < STEPS; i++) water_y[i] = HORIZON + project(cam_h - WATER * 16, i);
-    for (int x = 0; x < W; x++) column(x);
+    // The columns in the order 0, 128, 64, 192, 32, 160, …: each new one halves a
+    // gap, so the whole picture is there early and gets sharper and sharper.
+    int width = 256;
+    char round = 0;
+    for (int i = 0; i < W; i++) {
+        if (i && !(i & (i - 1))) { width = width >> 1; round++; }     // i is a power of two: a new round
+        column(reversed[i], width, fade_limit[round]);
+    }
 }
 
 void main() {

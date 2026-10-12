@@ -128,8 +128,9 @@ cost? Then the C tasks: *Factorial*, *gcd*, *Primes*, *Letters* and *Line*.
     the CPU most often, and why? Why is the floor cheaper per pixel than the
     walls? Change the map, the textures or the fog.
 26. **`26-landscape.c`**: mountains and a lake that mirrors them, at the
-    highest resolution of this chapter. Watch the columns appear: why is the
-    picture drawn from left to right, but every column from near to far?
+    highest resolution of this chapter. Watch it fade in: in which order
+    are the columns computed, and where do the other pixels come from until
+    then? Why is every column computed from near to far?
     Look at the screen in 16 colors and find the dithering pattern; change
     the palette and watch the whole picture change. Press Space for new
     landscapes; change `amplitude * 9 >> 4` in `generate()` for smoother or

@@ -191,10 +191,11 @@ test('landscape (C): a fractal height map, and a lake that mirrors the land', as
   const devices = new Devices();
   const cpu = new MiniCPU(program.memory, program.architecture, { historySize: 1, clockHz: 64e6, devices });
   const L = name => program.labels.get(name);
-  // Run until column 129 starts: the arrays then describe column 128, in the middle.
+  // The columns come in the order 0, 128, 64, …: when the third one starts,
+  // the arrays describe column 128, in the middle.
   let columns = 0;
-  while (columns < 129) { cpu.step(); if (cpu.pc === L('_column')) columns++; }
-  assert.ok(cpu.cycles < 180_000_000, `a new landscape and half a picture in ${Math.round(cpu.cycles / 1e6)} M cycles`);
+  const until = n => { while (columns < n) { cpu.step(); if (cpu.pc === L('_column')) columns++; } };
+  until(3);
   const map = cpu.memory.slice(L('_map'), L('_map') + 129 * 128);
   const water = map.filter(h => h < 64).length / map.length;
   assert.ok(Math.max(...map) > 240 && water > 0.1 && water < 0.6, `mountains and lakes (${Math.round(water * 100)} % water)`);
@@ -204,11 +205,13 @@ test('landscape (C): a fractal height map, and a lake that mirrors the land', as
   const rows = [...rowStep.keys()];
   assert.ok(rows.some(r => rowStep[r] === 255 && rowTone[r] >= 64), 'land in the middle column');
   assert.ok(rows.some(r => rowStep[r] !== 255 && rowTone[r] >= 64), 'and its mirror image in the water');
-  // The left half of the screen: 16 colors, sky at the top.
+  // After a quarter of the columns, the whole screen is covered: 16 colors, sky at the top.
+  until(65);
+  assert.ok(cpu.cycles < 120_000_000, `a new landscape and a quarter of the columns in ${Math.round(cpu.cycles / 1e6)} M cycles`);
   const screen = cpu.memory.slice(0x8000, 0x8000 + 128 * 192);
-  const left = [...screen].filter((_, i) => (i & 127) < 64);
-  assert.ok(new Set(left.flatMap(v => [v >> 4, v & 15])).size >= 12, 'most of the 16 colors');
-  assert.ok(screen.slice(0, 64).every(v => (v >> 4) < 4 && (v & 15) < 4), 'blue sky in the top row');
+  assert.ok(new Set([...screen].flatMap(v => [v >> 4, v & 15])).size >= 12, 'most of the 16 colors');
+  assert.ok(screen.slice(0, 128).every(v => (v >> 4) < 4 && (v & 15) < 4), 'blue sky in the top row');
+  assert.ok(screen.slice(128 * 191).every(v => (v >> 4) < 4 && (v & 15) < 4), 'blue water in the bottom row');
 });
 
 test('first steps in C: a gray ramp and the sum of five squares', () => {
