@@ -65,7 +65,7 @@ input[type=checkbox]{accent-color:#89baff}
 .code-panel{display:flex;flex-direction:column;overflow:hidden;min-height:560px}
 .section-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;
   border-bottom:1px solid var(--border);min-height:52px}
-.file-title{display:flex;align-items:center;gap:9px;min-width:0}
+.file-title{display:flex;align-items:center;gap:9px;min-width:0;flex:1 1 auto}
 .file-title strong{font:600 13px var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .source-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;font-size:11px;
   font-weight:700;white-space:nowrap;border:1px solid}
@@ -129,6 +129,7 @@ input[type=checkbox]{accent-color:#89baff}
 .picker-button{width:100%;display:flex;align-items:center;gap:8px;text-align:left;padding:6px 10px;background:#162a44}
 .picker-name{font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .picker-author{color:var(--muted);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.picker-language{color:var(--muted);font-size:10.5px;font-weight:600;line-height:1.4;padding:0 4px;border:1px solid currentColor;border-radius:4px;white-space:nowrap;flex:none}
 .picker-placeholder{color:var(--muted);flex:1}
 .picker-chevron{margin-left:auto;color:var(--muted)}
 .picker-popover{position:absolute;z-index:40;top:calc(100% + 4px);left:0;width:max(100%,340px);max-width:90vw;
@@ -404,9 +405,10 @@ button.link{height:auto;padding:0;border:0;background:none;color:#8fb4e8;font:in
 .source-problem.warning{color:#ffe1a6}
 .source-status.error{color:#ffbdad}
 .source-status.warning{color:var(--gold)}
-.picker-group{padding:7px 8px 3px;font-size:10.5px;font-weight:700;color:#7e9cbf;text-transform:uppercase;letter-spacing:.08em}
 .level-tag{flex:none;padding:0 5px;border-radius:4px;font:700 10px/16px var(--mono);border:1px solid}
+.picker-option .picker-language{margin-left:auto}
 .picker-option .level-tag{margin-left:auto}
+.picker-option .picker-language + .level-tag{margin-left:0}
 .level-8{color:#9fb3cf;border-color:#3e577a}
 .level-8s{color:var(--green);border-color:#387458}
 .level-8x{color:var(--gold);border-color:#7b6232}

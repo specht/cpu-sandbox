@@ -213,7 +213,6 @@
 :root[data-theme="light"] .source-problems.warnings-only{background:#dad6cd;border-top-color:#a48a59;color:#281d00}
 :root[data-theme="light"] .source-problem.warning{color:#2e2002}
 :root[data-theme="light"] .source-status.error{color:#542015}
-:root[data-theme="light"] .picker-group{color:#446080}
 :root[data-theme="light"] .level-8{color:#394b63;border-color:#85a0c7}
 :root[data-theme="light"] .level-8s{border-color:#619d7f}
 :root[data-theme="light"] .level-8x{border-color:#a48a59}

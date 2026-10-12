@@ -70,9 +70,10 @@ App-Ordner; Git ignoriert sie, sie landet also in keinem Repository.
 
 ## 4. Dein erstes Programm
 
-Links oben wählst du ein Programm. Unter **Examples** liegen die Beispiele,
-von `01-add.asm` (zwei Zahlen addieren) bis `26-landscape.c` (Berge, die sich
-in einem See spiegeln).
+Links oben wählst du ein Programm. Die Liste zeigt zuerst die Beispiele
+(**Examples**), von `01-add.asm` (zwei Zahlen addieren) bis `26-landscape.c`
+(Berge, die sich in einem See spiegeln), dann die Programme der Klasse. Tippe
+zum Filtern einfach los, zum Beispiel deinen Namen, „snake“, „c“ oder „8x“.
 Sie lassen sich nicht verändern; **Save copy** speichert eine Kopie in deinem
 Ordner, die du dann bearbeiten kannst.
 

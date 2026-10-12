@@ -55,9 +55,14 @@ export class Catalog {
 }
 
 const levelTag = cpu => cpu ? el('span', { class: `level-tag level-${cpu}` }, cpu.toUpperCase()) : null;
-const prettyName = name => name.replace(/\.asm$/i, '');
+const prettyName = name => name.replace(/\.(asm|c)$/i, '');
+const languageLabel = name => (/\.c$/i.test(name) ? 'C' : 'Assembly');
 
-/** A searchable dropdown over all examples and student programs. */
+/**
+ * A searchable dropdown over all examples and student programs, the same
+ * picker as in the Sorting and Data Structure sandboxes: name · student (or
+ * "Examples") [language] [CPU level]. Typing filters; all words must match.
+ */
 export class ProgramPicker {
   constructor(container, catalog, { onSelect }) {
     this.catalog = catalog;
@@ -67,7 +72,7 @@ export class ProgramPicker {
     this.active = 0;
     this.filtered = [];
     this.button = el('button', { type: 'button', class: 'picker-button', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', onclick: () => this.toggle() });
-    this.filter = el('input', { type: 'search', class: 'picker-filter', placeholder: 'Filter by file or student…', 'aria-label': 'Filter programs', autocomplete: 'off', spellcheck: 'false' });
+    this.filter = el('input', { type: 'search', class: 'picker-filter', placeholder: 'Filter by name, student, language or CPU…', 'aria-label': 'Filter programs', autocomplete: 'off', spellcheck: 'false' });
     this.options = el('div', { class: 'picker-options', role: 'listbox', 'aria-label': 'Programs' });
     this.popover = el('div', { class: 'picker-popover', hidden: true }, this.filter, this.options);
     container.append(this.button, this.popover);
@@ -83,6 +88,19 @@ export class ProgramPicker {
 
   entries() {
     return this.catalog.groups.flatMap(group => group.files.map(file => ({ group, file })));
+  }
+
+  /** The program's name, its student (or Examples) and its tags. */
+  describe({ group, file }, mixed) {
+    return [el('span', { class: 'picker-name' }, prettyName(file.name)),
+      el('span', { class: 'picker-author' }, group.label),
+      mixed ? el('span', { class: 'picker-language' }, languageLabel(file.name)) : null,
+      levelTag(file.cpu)];
+  }
+
+  /** True when the list has both C and assembly programs. */
+  mixed() {
+    return new Set(this.entries().map(({ file }) => languageLabel(file.name))).size > 1;
   }
 
   setValue(value) { this.value = value; this.render(); }
@@ -131,22 +149,24 @@ export class ProgramPicker {
     const file = group?.files.find(f => f.name === this.value?.file);
     this.button.replaceChildren();
     if (!file) this.button.append(el('span', { class: 'picker-placeholder' }, this.entries().length ? 'Choose a program' : 'No programs'));
-    else this.button.append(el('span', { class: 'picker-name' }, prettyName(file.name)), el('span', { class: 'picker-author' }, group.label), levelTag(file.cpu));
+    // The code panel is narrow: the button leaves out the language tag (the
+    // C / Assembly tabs show it), the options show it.
+    else this.button.append(...this.describe({ group, file }, false).filter(Boolean));
+    this.button.title = file ? `${prettyName(file.name)} · ${group.label} · ${languageLabel(file.name)}` : '';
     this.button.append(icon('chevron-down', 'picker-chevron'));
     if (this.open) this.renderOptions();
   }
 
   renderOptions() {
-    const query = this.filter.value.trim().toLowerCase();
-    this.filtered = this.entries().filter(({ group, file }) => !query || `${file.name} ${group.label}`.toLowerCase().includes(query));
+    const words = this.filter.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const mixed = this.mixed();
+    this.filtered = this.entries().filter(({ group, file }) => {
+      const text = `${file.name} ${group.label} ${languageLabel(file.name)} ${file.cpu ?? ''}`.toLowerCase();
+      return words.every(word => text.includes(word));
+    });
     if (this.active >= this.filtered.length) this.active = Math.max(0, this.filtered.length - 1);
     const nodes = [];
-    let lastGroup = null;
     this.filtered.forEach((entry, index) => {
-      if (entry.group !== lastGroup) {
-        lastGroup = entry.group;
-        nodes.push(el('div', { class: 'picker-group' }, entry.group.readonly ? 'Examples' : entry.group.label));
-      }
       nodes.push(el('div', {
         class: `picker-option${index === this.active ? ' active' : ''}${this.isSelected(entry) ? ' selected' : ''}`,
         role: 'option', 'aria-selected': String(this.isSelected(entry)),
@@ -157,7 +177,7 @@ export class ProgramPicker {
           this.active = index;
           this.options.querySelectorAll('.picker-option').forEach((node, i) => node.classList.toggle('active', i === index));
         },
-      }, el('span', { class: 'picker-name' }, prettyName(entry.file.name)), levelTag(entry.file.cpu),
+      }, ...this.describe(entry, mixed),
       el('span', { class: 'picker-check' }, this.isSelected(entry) ? icon('check') : null)));
     });
     if (!this.filtered.length) nodes.push(el('div', { class: 'picker-empty' }, 'No program matches this filter.'));
