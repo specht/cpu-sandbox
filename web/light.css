@@ -101,6 +101,7 @@
 :root[data-theme="light"] .progress-cell.passed button{border-color:#619d7f;background:#ceddd5}
 :root[data-theme="light"] .progress-cell.started button{color:#523803;border-color:#a48a59;background:#e3dfd5}
 :root[data-theme="light"] .progress-cell.missing{color:#7a92b3}
+:root[data-theme="light"] .language-tag{color:#294a77;border:1px solid #85a0c7}
 :root[data-theme="light"] .compare-table th,
 :root[data-theme="light"] .compare-table td{border-bottom:1px solid #b8cdeb}
 :root[data-theme="light"] button.link{color:#294a77}

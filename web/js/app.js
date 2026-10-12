@@ -213,16 +213,26 @@ function setNewLanguage(language) {
   chooseTask($('new-task').value);
 }
 
-/** A task brings its own starter program, file name and CPU level. */
+/**
+ * A task brings its own starter program, file name and CPU level: assembly
+ * starts on the task's level, C always on MiniCPU 8X. A C task makes the
+ * program a C program.
+ */
 function chooseTask(id) {
   const task = taskById(id), file = $('copy-file');
   $('new-cpu').disabled = !!task;
   if (!task) return;
-  $('new-cpu').value = dialog.language === 'c' && task.cpu === 'cpu8' ? 'cpu8s' : task.cpu;
+  if (task.language === 'c' && dialog.language !== 'c') { setNewLanguage('c'); return; }
+  $('new-cpu').value = dialog.language === 'c' ? 'cpu8x' : task.cpu;
   const names = TASKS.map(t => t.id);
   if (!file.value || names.includes(file.value.replace(/\.(asm|c)$/i, ''))) file.value = `${task.id}.${dialog.language === 'c' ? 'c' : 'asm'}`;
 }
-for (const task of TASKS) $('new-task').add(new Option(`${task.title} (${ARCHITECTURES[task.cpu].name})`, task.id));
+{
+  const group = (label, list) => el('optgroup', { label }, list.map(t => new Option(t.title, t.id)));
+  $('new-task').append(
+    group('Assembly or C', TASKS.filter(t => t.language !== 'c')),
+    group('C on MiniCPU 8X', TASKS.filter(t => t.language === 'c')));
+}
 $('new-task').addEventListener('change', () => chooseTask($('new-task').value));
 for (const tab of $('new-language').querySelectorAll('button')) tab.addEventListener('click', () => setNewLanguage(tab.dataset.language));
 for (const arch of Object.values(ARCHITECTURES)) $('new-cpu').add(new Option(arch.name, arch.id));

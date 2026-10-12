@@ -122,6 +122,13 @@ allen Testfällen und zeigt, was nicht stimmt, etwa
 Maschine: Seine Eingabe steht dann im Speicher, und du kannst Schritt für
 Schritt verfolgen, was passiert.
 
+Die ersten elf Aufgaben löst du zuerst in Assembler auf der MiniCPU 8 und
+später noch einmal in C: Wähle bei **+** die Sprache C, dann liegen die
+Eingaben ab 0x8000 auf der MiniCPU 8X. Im Vergleich siehst du, was C kostet:
+mehr Bytes und meist mehr Takte, dafür ist das Programm viel schneller
+geschrieben. Fünf weitere Aufgaben (Rekursion, ggT, Primzahlen, Buchstaben
+zählen, Linien zeichnen) sind nur für C gedacht.
+
 **Class progress** oben rechts zeigt den Stand der ganzen Klasse. Ein Klick
 auf eine Aufgabe vergleicht die fertigen Lösungen: Wer braucht die wenigsten
 Takte, wessen Programm ist am kleinsten? Alle Aufgaben stehen in

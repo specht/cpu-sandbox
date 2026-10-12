@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TASKS, taskOf, checkSource } from '../src/tasks.js';
+import { TASKS, taskOf, checkSource, place, levelOf } from '../src/tasks.js';
 import { build } from '../src/build.js';
 
 // A reference solution for every task: each must pass all of its cases.
@@ -130,6 +130,89 @@ void main() {
         char t = TEXT[i]; TEXT[i] = TEXT[j]; TEXT[j] = t;
     }
 }`,
+  factorial: `// Task: factorial
+#pragma cpu 8x
+#define N (*(char*)0x8000)
+#define RESULT (*(int*)0x8002)
+int factorial(int n) { return n == 0 ? 1 : n * factorial(n - 1); }
+void main() { RESULT = factorial(N); }`,
+  gcd: `// Task: gcd
+#pragma cpu 8x
+#define A (*(int*)0x8000)
+#define B (*(int*)0x8002)
+#define RESULT (*(int*)0x8004)
+int gcd(int a, int b) { return b == 0 ? a : gcd(b, a % b); }
+void main() { RESULT = gcd(A, B); }`,
+  primes: `// Task: primes
+#pragma cpu 8x
+char crossed[100];
+void main() {
+    for (char p = 2; p < 100; p++) {
+        if (crossed[p]) continue;
+        out(NUMBER, p);
+        for (int m = (int)p * p; m < 100; m += p) crossed[m] = 1;   // (int): p · p does not fit into a char
+    }
+}`,
+  letters: `// Task: letters
+#pragma cpu 8x
+#define TEXT ((char*)0x8000)
+#define COUNT ((char*)0x8100)
+void main() {
+    for (char i = 0; i < 26; i++) COUNT[i] = 0;
+    for (char *p = TEXT; *p; p++) {
+        char c = *p | 32;               // lower case
+        if (c >= 'a' && c <= 'z') COUNT[c - 'a']++;
+    }
+}`,
+  line: `// Task: line
+#pragma cpu 8x
+#define IN ((char*)0x8000)
+#define SCREEN ((char*)0x8100)
+int abs(int v) { return v < 0 ? -v : v; }
+void main() {
+    int x = IN[0], y = IN[1], x1 = IN[2], y1 = IN[3];
+    int dx = abs(x1 - x), dy = -abs(y1 - y);
+    int sx = x < x1 ? 1 : -1, sy = y < y1 ? 1 : -1, err = dx + dy;
+    for (;;) {                          // Bresenham
+        SCREEN[y * 32 + x] = 255;
+        if (x == x1 && y == y1) break;
+        int e2 = 2 * err;
+        if (e2 >= dy) { err += dy; x += sx; }
+        if (e2 <= dx) { err += dx; y += sy; }
+    }
+}`,
+};
+
+// The same tasks in C on MiniCPU 8X: the input starts at 0x8000 there.
+const IN_C = {
+  add: `// Task: add
+#pragma cpu 8x
+#define IN ((char*)0x8000)
+void main() { IN[2] = IN[0] + IN[1]; }`,
+  maximum: `// Task: maximum
+#pragma cpu 8x
+#define DATA ((char*)0x8000)
+void main() {
+    char best = 0;
+    for (char i = 0; i < 8; i++) if (DATA[i] > best) best = DATA[i];
+    out(NUMBER, best);
+}`,
+  multiply: `// Task: multiply
+#pragma cpu 8x
+#define IN ((char*)0x8000)
+void main() { *(int*)0x8002 = (int)IN[0] * IN[1]; }`,
+  sort: `// Task: sort
+#pragma cpu 8x
+#define DATA ((char*)0x8000)
+void main() {
+    for (char i = 0; i < 7; i++)
+        for (char j = 0; j < 7 - i; j++)
+            if (DATA[j] > DATA[j + 1]) { char t = DATA[j]; DATA[j] = DATA[j + 1]; DATA[j + 1] = t; }
+}`,
+  checkerboard: `// Task: checkerboard
+#pragma cpu 8x
+#define SCREEN ((char*)0x8000)
+void main() { for (char i = 0; i < 128; i++) SCREEN[i] = ((i & 15) + (i >> 4)) & 1 ? 0 : 255; }`,
 };
 
 test('every task has a reference solution that passes all its cases', () => {
@@ -142,6 +225,32 @@ test('every task has a reference solution that passes all its cases', () => {
     assert.deepEqual(failed, [], id);
     assert.ok(result.cycles > 0 && result.bytes > 0, id);
   }
+});
+
+test('the earlier tasks also work in C on MiniCPU 8X, where the input starts at 0x8000', () => {
+  for (const [id, source] of Object.entries(IN_C)) {
+    const result = checkSource(source, 'c');
+    assert.equal(result.error, null, id);
+    assert.deepEqual(result.results.filter(r => !r.pass).map(r => `${r.name}: ${r.message}`), [], id);
+    const asm = checkSource(SOLUTIONS[id], 'asm');
+    assert.ok(result.bytes > asm.bytes, `${id}: C costs more bytes (${result.bytes} vs ${asm.bytes})`);
+  }
+});
+
+test('the task texts name the addresses of the CPU level', () => {
+  const add = TASKS.find(t => t.id === 'add');
+  assert.match(place(add.text, 'cpu8'), /^The bytes at 0x80 and 0x81 .* to 0x82,/);
+  assert.match(place(add.text, 'cpu8x'), /^The bytes at 0x8000 and 0x8001 .* to 0x8002,/);
+  assert.match(add.starter.c, /#pragma cpu 8x[\s\S]*\(char\*\)0x8000/);
+  assert.equal(levelOf('// Task: add\nvoid main() {}', 'c'), 'cpu8x');
+  assert.equal(levelOf('; Task: add\n.cpu 8s\nHLT', 'asm'), 'cpu8s');
+});
+
+test('a line that misses a pixel or wanders off is caught', () => {
+  const ok = checkSource(SOLUTIONS.line, 'c');
+  assert.equal(ok.passed, ok.total);
+  const thick = SOLUTIONS.line.replace('SCREEN[y * 32 + x] = 255;', 'SCREEN[y * 32 + x] = 255; SCREEN[y * 32 + x + 1] = 255;');
+  assert.match(checkSource(thick, 'c').results[0].message, /exactly one white pixel|pixels are white/);
 });
 
 test('wrong programs fail with a helpful message', () => {

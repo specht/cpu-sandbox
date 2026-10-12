@@ -216,6 +216,7 @@ input[type=checkbox]{accent-color:#89baff}
 .progress-cell.passed button{color:var(--green);border-color:#387458;background:#12291f}
 .progress-cell.started button{color:#e8b86a;border-color:#7b6232;background:#241e10}
 .progress-cell.missing{color:#4f6584}
+.language-tag{display:inline-block;margin-left:4px;padding:0 4px;border-radius:3px;font:700 9px/14px var(--mono);color:#8fb4e8;border:1px solid #3e577a;vertical-align:1px}
 .progress-compare h3{display:flex;align-items:center;gap:6px;font-size:14px;margin:4px 0 8px}
 .progress-compare h3 .ui-icon{color:var(--gold)}
 .compare-table{border-collapse:collapse;font-size:12.5px;min-width:60%}

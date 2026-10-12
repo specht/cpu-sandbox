@@ -2,7 +2,7 @@
 // program and checks it; a failed case can be loaded into the machine to
 // debug it. Class progress shows every student's best attempt per task and,
 // per task, how the working solutions compare in cycles and bytes.
-import { taskById, taskOf, checkSource } from '/src/tasks.js';
+import { taskById, taskOf, checkSource, place, levelOf } from '/src/tasks.js';
 import { $, el, icon, grouped } from './util.js';
 import { request } from './catalog.js';
 
@@ -32,6 +32,11 @@ export class TaskPanel {
   /** Called whenever the source changes: shows the bar if the program names a task. */
   update(source) {
     const t = taskById(taskOf(source) ?? '');
+    // The addresses in the text depend on the CPU level: 0x80 on 8 and 8S, 0x8000 on 8X.
+    if (t) {
+      const text = place(t.text, levelOf(source, this.host.language()));
+      if ($('task-description').textContent !== text) $('task-description').textContent = text;
+    }
     if (t !== this.task) {
       this.task = t;
       this.result = null;
@@ -42,10 +47,7 @@ export class TaskPanel {
         this.host.tryCase(null, { restart: false });
       }
       $('task-bar').hidden = !t;
-      if (t) {
-        $('task-title').textContent = t.title;
-        $('task-description').textContent = t.text;
-      }
+      if (t) $('task-title').textContent = t.title;
     }
     if (this.result && this.result.source !== source) { this.result = null; this.renderSummary(); }
   }
@@ -78,7 +80,7 @@ export class TaskPanel {
       const all = r.passed === r.total;
       body.push(el('p', { class: `check-summary ${all ? 'passed' : 'failed'}` }, mark(all),
         all ? ` All ${r.total} cases pass.` : ` ${r.passed} of ${r.total} cases pass.`,
-        all ? el('span', { class: 'muted' }, ` ${grouped(r.cycles)} cycles in all · ${r.bytes} bytes of program. Can you make it faster or smaller? Class progress compares the solutions.`) : null));
+        all ? el('span', { class: 'muted' }, ` ${grouped(r.cycles)} cycles in all · ${r.bytes} bytes of program${r.language === 'c' ? ` (the compiler made ${r.instructions} instructions)` : ` (${r.instructions} instructions)`}. Can you make it faster or smaller? Class progress compares the solutions, in assembly and in C.`) : null));
       body.push(el('ol', { class: 'check-cases' }, r.results.map((c, i) => el('li', { class: c.pass ? 'passed' : 'failed' },
         mark(c.pass),
         el('div', { class: 'check-case' },
@@ -121,15 +123,18 @@ export class TaskPanel {
   renderProgress() {
     const { tasks, students } = this.progress, mine = this.host.groupOf();
     const head = el('tr', {}, el('th', { scope: 'col' }, 'Student'), tasks.map(t => el('th', { scope: 'col' },
-      el('button', { type: 'button', class: `progress-task${t.id === this.compare ? ' selected' : ''}`, title: `${t.title}: compare the solutions`, onclick: () => { this.compare = t.id; this.renderProgress(); } }, t.title))));
+      el('button', { type: 'button', class: `progress-task${t.id === this.compare ? ' selected' : ''}`, title: `${t.title}${t.language === 'c' ? ' (a C task)' : ''}: compare the solutions`, onclick: () => { this.compare = t.id; this.renderProgress(); } },
+        t.title, t.language === 'c' ? el('span', { class: 'language-tag' }, 'C') : null))));
     const rows = students.map(s => el('tr', { class: s.id === mine ? 'mine' : '' }, el('th', { scope: 'row' }, s.id), tasks.map(t => {
       const c = s.cells[t.id];
       if (!c) return el('td', { class: 'progress-cell missing' }, '—');
       const all = !c.error && c.passed === c.total;
       const title = c.error ? `${c.file}: does not build` : `${c.file}: ${c.passed}/${c.total} cases${all ? ` · ${grouped(c.cycles)} cycles · ${c.bytes} bytes` : ''}${c.attempts > 1 ? ` · best of ${c.attempts} programs` : ''}`;
+      const other = c.other && !c.other.error && c.other.passed === c.other.total ? c.other : null;
       return el('td', { class: `progress-cell ${all ? 'passed' : 'started'}`, title },
         el('button', { type: 'button', onclick: () => { $('progress-dialog').close(); this.host.openProgram({ group: s.id, file: c.file }); } },
-          all ? icon('check') : null, all ? '' : `${c.passed}/${c.total}`));
+          all ? icon('check') : null, all ? '' : `${c.passed}/${c.total}`,
+          all && (c.language === 'c' || other) ? el('span', { class: 'language-tag' }, other ? 'asm + C' : 'C') : null));
     })));
     $('progress-head').replaceChildren(head);
     $('progress-body').replaceChildren(...rows);
@@ -142,20 +147,20 @@ export class TaskPanel {
     box.hidden = !t;
     if (!t) return;
     const solutions = this.progress.students
-      .map(s => ({ student: s.id, ...s.cells[t.id] }))
+      .flatMap(s => [s.cells[t.id], s.cells[t.id]?.other].filter(Boolean).map(c => ({ student: s.id, ...c })))
       .filter(c => c.file && !c.error && c.passed === c.total)
       .sort((a, b) => a.cycles - b.cycles || a.bytes - b.bytes);
     const smallest = Math.min(...solutions.map(c => c.bytes));
     box.replaceChildren(
       el('h3', {}, icon('trophy'), ` ${t.title}: ${solutions.length ? 'the working solutions' : 'no working solution yet'}`),
       solutions.length ? el('table', { class: 'compare-table' },
-        el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Student'), el('th', {}, 'Program'), el('th', { class: 'num' }, 'Cycles (all cases)'), el('th', { class: 'num' }, 'Bytes'))),
+        el('thead', {}, el('tr', {}, el('th', {}, '#'), el('th', {}, 'Student'), el('th', {}, 'Language'), el('th', {}, 'Program'), el('th', { class: 'num' }, 'Cycles (all cases)'), el('th', { class: 'num' }, 'Bytes'))),
         el('tbody', {}, solutions.map((c, i) => el('tr', { class: c.student === this.host.groupOf() ? 'mine' : '' },
-          el('td', {}, String(i + 1)), el('td', {}, c.student),
+          el('td', {}, String(i + 1)), el('td', {}, c.student), el('td', {}, c.language === 'c' ? 'C' : 'Assembly'),
           el('td', {}, el('button', { type: 'button', class: 'link', onclick: () => { $('progress-dialog').close(); this.host.openProgram({ group: c.student, file: c.file }); } }, c.file)),
           el('td', { class: `num${i === 0 ? ' best' : ''}` }, grouped(c.cycles)),
           el('td', { class: `num${c.bytes === smallest ? ' best' : ''}` }, String(c.bytes)))))) : null,
-      el('p', { class: 'muted' }, 'Fewer cycles: the program is faster. Fewer bytes: it is smaller. Often one costs the other — a table or an unrolled loop is fast but big.'));
+      el('p', { class: 'muted' }, 'Fewer cycles: the program is faster. Fewer bytes: it is smaller. Often one costs the other — a table or an unrolled loop is fast but big. C is quicker to write, but the compiler makes more and slower instructions than careful assembly; a better algorithm can still win.'));
   }
 }
 

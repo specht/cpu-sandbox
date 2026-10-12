@@ -176,7 +176,9 @@ runs its test cases on fresh machines and **Try it** loads a case into the
 machine to debug it. **Class progress** (top right) checks every program in
 `programs/` on the server and shows the best attempt per student and task;
 clicking a task compares the working solutions by cycles and bytes. The tasks,
-their starter programs and their cases are defined in `src/tasks.js`; see
+their starter programs and their cases are defined in `src/tasks.js` (input
+from 0x80 on MiniCPU 8 and 8S, from 0x8000 on 8X, so the same task works in
+assembly and in C); see
 [docs/tasks.md](docs/tasks.md) for the list and how to add one.
 
 ## Tests

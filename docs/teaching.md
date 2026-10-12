@@ -116,9 +116,11 @@ Why does a taken `JZ` cost one cycle more than one that is not taken?
 
 ## Tasks with automatic checks
 
-Eleven tasks, from adding two numbers to sorting, check themselves: **+**
-creates a program for a task, **Check** runs its test cases and **Class
-progress** compares the working solutions by cycles and bytes. See
+Sixteen tasks check themselves: **+** creates a program for a task,
+**Check** runs its test cases and **Class progress** compares the working
+solutions by cycles and bytes. Eleven of them suit assembly on MiniCPU 8
+and can be solved again in C on 8X, to see the price of C side by side; five
+are C tasks (recursion, gcd, a sieve, counting letters, drawing a line). See
 [tasks.md](tasks.md).
 
 ## Exercises

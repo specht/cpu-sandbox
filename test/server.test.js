@@ -133,5 +133,14 @@ test('class progress checks every program that names a task, and keeps the best 
   assert.equal(anna.cells.add.attempts,2);
   assert.ok(anna.cells.add.cycles>0&&anna.cells.add.bytes===12, `${anna.cells.add.bytes} bytes`);
   assert.equal(ben.cells.countdown.passed,0);
+  assert.equal(anna.cells.add.other,null);
+  // A C solution of the same task rides along for the comparison.
+  fs.writeFileSync(path.join(programs,'anna','add.c'),'// Task: add\n#pragma cpu 8x\nvoid main() { char *in = (char*)0x8000; in[2] = in[0] + in[1]; }\n');
+  const again=(await request('/api/progress')).payload.students.find(s=>s.id==='anna').cells.add;
+  assert.equal(again.language,'asm');
+  assert.equal(again.other.language,'c');
+  assert.equal(again.other.passed,again.other.total);
+  assert.ok(again.other.bytes>again.bytes);
+  assert.equal(payload.tasks.find(task=>task.id==='line').language,'c');
   assert.equal(anna.cells.countdown,undefined);
 });

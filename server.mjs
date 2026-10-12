@@ -97,12 +97,13 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
   // Class progress: every student program that names a task is checked; results
   // are kept per file content, so only changed files run again.
   const checked = new Map();   // digest → result
+  const better = (x, y) => !y || x.passed > y.passed || (x.passed === y.passed && x.cycles < y.cycles);
   function progress() {
     const students = [];
-    if (!safeDirectory(programRoot)) return { tasks: TASKS.map(t => ({ id: t.id, title: t.title, cpu: t.cpu })), students };
+    if (!safeDirectory(programRoot)) return { tasks: TASKS.map(t => ({ id: t.id, title: t.title, cpu: t.cpu, language: t.language })), students };
     for (const e of fs.readdirSync(programRoot, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
       if (!e.isDirectory() || e.isSymbolicLink() || !isName(e.name)) continue;
-      const folder = path.join(programRoot, e.name), cells = {};
+      const folder = path.join(programRoot, e.name), cells = {}, all = {};
       for (const file of listAsm(folder)) {
         const bytes = fs.readFileSync(path.join(folder, file));
         if (bytes.length > MAX_SOURCE) continue;
@@ -112,15 +113,20 @@ export function createServer({ programsDir = path.join(base, 'programs'), exampl
         if (!checked.has(key)) checked.set(key, checkSource(text, /\.c$/i.test(file) ? 'c' : 'asm'));
         const result = checked.get(key);
         if (!result) continue;
-        const cell = { file, passed: result.passed, total: result.total, bytes: result.bytes, cycles: result.cycles, error: result.error };
-        // The best attempt per task: most cases passed, then fewest cycles.
-        const best = cells[id];
-        if (!best || cell.passed > best.passed || (cell.passed === best.passed && cell.cycles < best.cycles)) cells[id] = { ...cell, attempts: (best?.attempts ?? 0) + 1 };
-        else best.attempts++;
+        const cell = { file, language: result.language, passed: result.passed, total: result.total, bytes: result.bytes, cycles: result.cycles, error: result.error };
+        // The best attempt per task and language: most cases passed, then fewest cycles.
+        const attempts = (all[id] = all[id] ?? {});
+        if (better(cell, attempts[cell.language])) attempts[cell.language] = cell;
+        attempts.count = (attempts.count ?? 0) + 1;
+      }
+      // One cell per task: the better language first, the other one alongside (for the comparison).
+      for (const [id, attempts] of Object.entries(all)) {
+        const [first, second] = [attempts.asm, attempts.c].filter(Boolean).sort((x, y) => (better(x, y) ? -1 : 1));
+        cells[id] = { ...first, attempts: attempts.count, other: second ?? null };
       }
       students.push({ id: e.name, cells });
     }
-    return { tasks: TASKS.map(t => ({ id: t.id, title: t.title, cpu: t.cpu })), students };
+    return { tasks: TASKS.map(t => ({ id: t.id, title: t.title, cpu: t.cpu, language: t.language })), students };
   }
   return http.createServer(async (req, res) => {
     try {
