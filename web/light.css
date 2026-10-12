@@ -164,6 +164,11 @@
 :root[data-theme="light"] .number-display b{color:#4f3305;text-shadow:0 0 10px rgba(90,54,1,0.6)}
 :root[data-theme="light"] .number-display b .ghost{color:rgba(79,51,5,0.1)}
 :root[data-theme="light"] .number-display.changed b .lit{text-shadow:0 0 16px rgba(72,48,5,0.95)}
+:root[data-theme="light"] [data-theme="light"] .machine .screen-area .number-display{background:#f7faff;border-color:#dbc8ac;box-shadow:inset 0 0 14px rgba(40,56,84,0.245),0 2px 10px rgba(40,56,84,0.087)}
+:root[data-theme="light"] [data-theme="light"] .machine .screen-area .number-label{color:#8e6b34}
+:root[data-theme="light"] [data-theme="light"] .machine .screen-area .number-label small{color:#a99371}
+:root[data-theme="light"] [data-theme="light"] .machine .screen-area .number-display b{color:#4f3305;text-shadow:0 0 10px rgba(90,54,1,0.6)}
+:root[data-theme="light"] [data-theme="light"] .machine .screen-area .number-display b .ghost{color:rgba(79,51,5,0.1)}
 :root[data-theme="light"] .screen-box canvas{box-shadow:0 0 0 1px rgba(40,56,84,0.35),0 10px 30px rgba(40,56,84,0.187)}
 :root[data-theme="light"] .screen-grip{background:linear-gradient(135deg,transparent 45%,#154275 45%,#154275 55%,transparent 55%,transparent 70%,#154275 70%,#154275 80%,transparent 80%)}
 :root[data-theme="light"] .screen-grip:hover{background-color:#b4ccee}
