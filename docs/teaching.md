@@ -73,7 +73,9 @@ do — start a lesson with one of them.
 15. **`15-inferno`** (demo): the fire from MiniCPU 8 at 128 × 96 pixels, with
     the even simpler algorithm from DOOM. Compare it with `09-fire`: what
     does 8X make possible, and what does each pixel cost in cycles? Make the
-    wind blow the other way.
+    wind blow the other way. Then lower the clock below about 28 MHz: where
+    does the line through the fire come from, and why does it vanish again
+    at 32 MHz?
 16. **`16-breakout`** (game): find where it waits for the timer, reads the
     joystick and asks the screen what the ball is about to hit. Lower the
     clock until the game slows down — how many cycles does one step need?

@@ -10,6 +10,12 @@
 ; left. Y points to the pixel to copy from, 127..130 bytes after X.
 ; IN reads the random number device at port 0x03.
 ; About 37 cycles per pixel: try 16 MHz, then 32 MHz.
+;
+; Every frame begins by waiting for vsync (port 0x04): the screen has just
+; taken its picture, and the next one shows the new frame. From about
+; 28 MHz a frame is done before that picture. Below, the screen catches the
+; program in the middle: a line runs through the fire, new flames below,
+; old ones above. Page flipping (see 18-cube.c) would help at any clock.
 
 .cpu 8x
 .display screen, 128, 96, indexed8, fire_256
@@ -19,6 +25,7 @@ HEIGHT  .equ 96
 screen  .equ 0x1000             ; 128 × 96 = 12,288 bytes
 embers  .equ screen + WIDTH * HEIGHT    ; a hidden row of white-hot bytes
 RANDOM  .equ 0x03
+VSYNC   .equ 0x04
 COOLING .equ 6
 
         LDI X, embers           ; light the embers
@@ -28,7 +35,8 @@ light:  STA [X], A
         CMP X, embers + WIDTH + 2
         JNZ light
 
-frame:  LDI X, embers - 1       ; start at the bottom right pixel
+frame:  IN A, VSYNC             ; wait for the screen's next picture
+        LDI X, embers - 1       ; start at the bottom right pixel
 pixel:  IN A, RANDOM
         MOV B, A
         AND B, 3                ; B = 0..3
